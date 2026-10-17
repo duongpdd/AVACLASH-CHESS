@@ -23,9 +23,11 @@ broadcast/
 *.swp
 *.swo
 
-# OS
+# OS & Browser profiles
 .DS_Store
 Thumbs.db
+edge_profile/
+edge_profile_mobile/
 
 # Test coverage
 coverage/
