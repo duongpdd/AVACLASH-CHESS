@@ -259,10 +259,13 @@ export class ChessScene extends Phaser.Scene {
           this.boardGraphics.fillRect(x, y, this.tileSize, this.tileSize);
         }
 
-        // Check highlight
+        // Check / Checkmate highlight on King's square
         if (square === this.checkSquare) {
-          this.boardGraphics.fillStyle(BOARD_THEME.checkGlow, 0.6);
+          this.boardGraphics.fillStyle(0xef4444, 0.35);
           this.boardGraphics.fillRect(x, y, this.tileSize, this.tileSize);
+
+          this.boardGraphics.lineStyle(3, 0xef4444, 1);
+          this.boardGraphics.strokeRect(x + 1.5, y + 1.5, this.tileSize - 3, this.tileSize - 3);
         }
 
         // Legal move indicators

@@ -5,6 +5,22 @@ import type { GameOutcome, EndReason, PlayerColor } from "@avaclash/shared";
  * Game state manager — separates chess logic from Phaser rendering.
  * Handles move validation, turn management, clocks, and game outcome.
  */
+export interface CapturedPiece {
+  type: "p" | "n" | "b" | "r" | "q";
+  symbol: string;
+  value: number;
+}
+
+export interface PlayerMaterialStats {
+  captured: CapturedPiece[];
+  advantage: number;
+}
+
+export interface MaterialStats {
+  white: PlayerMaterialStats;
+  black: PlayerMaterialStats;
+}
+
 export interface GameStateEvents {
   onMove: (uci: string, san: string, fen: string) => void;
   onGameOver: (outcome: GameOutcome, reason: EndReason) => void;
@@ -52,13 +68,13 @@ export class GameState {
     // Check game-ending conditions
     this.checkGameOver();
 
-    if (!this.gameOver) {
-      const turn = this.currentTurn();
-      this.events.onTurnChange?.(turn);
+    const turn = this.currentTurn();
+    if (this.game.isCheck() || this.game.isCheckmate()) {
+      this.events.onCheck?.(turn);
+    }
 
-      if (this.game.isCheck()) {
-        this.events.onCheck?.(turn);
-      }
+    if (!this.gameOver) {
+      this.events.onTurnChange?.(turn);
     }
 
     return true;
@@ -196,6 +212,71 @@ export class GameState {
    */
   getBoard() {
     return this.game.board();
+  }
+
+  /**
+   * Calculate captured pieces and material score difference for both players.
+   */
+  getMaterialStats(): MaterialStats {
+    const PIECE_VALUES: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 };
+    const PIECE_SYMBOLS: Record<string, string> = {
+      p: "♟", n: "♞", b: "♝", r: "♜", q: "♛"
+    };
+    const STARTING_COUNTS: Record<string, number> = { p: 8, n: 2, b: 2, r: 2, q: 1 };
+
+    const whiteRemaining: Record<string, number> = { p: 0, n: 0, b: 0, r: 0, q: 0 };
+    const blackRemaining: Record<string, number> = { p: 0, n: 0, b: 0, r: 0, q: 0 };
+
+    const board = this.game.board();
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const piece = board[r]?.[c];
+        if (!piece || piece.type === "k") continue;
+        if (piece.color === "w") {
+          whiteRemaining[piece.type] = (whiteRemaining[piece.type] ?? 0) + 1;
+        } else {
+          blackRemaining[piece.type] = (blackRemaining[piece.type] ?? 0) + 1;
+        }
+      }
+    }
+
+    const order: Array<"q" | "r" | "b" | "n" | "p"> = ["q", "r", "b", "n", "p"];
+
+    // Pieces captured by White are Black pieces lost
+    const whiteCaptured: CapturedPiece[] = [];
+    for (const t of order) {
+      const lost = Math.max(0, (STARTING_COUNTS[t] ?? 0) - (blackRemaining[t] ?? 0));
+      for (let i = 0; i < lost; i++) {
+        whiteCaptured.push({ type: t, symbol: PIECE_SYMBOLS[t]!, value: PIECE_VALUES[t]! });
+      }
+    }
+
+    // Pieces captured by Black are White pieces lost
+    const blackCaptured: CapturedPiece[] = [];
+    for (const t of order) {
+      const lost = Math.max(0, (STARTING_COUNTS[t] ?? 0) - (whiteRemaining[t] ?? 0));
+      for (let i = 0; i < lost; i++) {
+        blackCaptured.push({ type: t, symbol: PIECE_SYMBOLS[t]!, value: PIECE_VALUES[t]! });
+      }
+    }
+
+    let whiteScore = 0;
+    let blackScore = 0;
+    for (const t of order) {
+      whiteScore += (whiteRemaining[t] ?? 0) * PIECE_VALUES[t]!;
+      blackScore += (blackRemaining[t] ?? 0) * PIECE_VALUES[t]!;
+    }
+
+    return {
+      white: {
+        captured: whiteCaptured,
+        advantage: Math.max(0, whiteScore - blackScore),
+      },
+      black: {
+        captured: blackCaptured,
+        advantage: Math.max(0, blackScore - whiteScore),
+      },
+    };
   }
 
   /**

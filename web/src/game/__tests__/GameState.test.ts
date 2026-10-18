@@ -222,4 +222,36 @@ describe("GameState", () => {
 
     state.destroy();
   });
+
+  it("calculates captured pieces and material advantage correctly", () => {
+    const state = new GameState();
+
+    // Initial state: no pieces captured, equal material
+    const initialStats = state.getMaterialStats();
+    expect(initialStats.white.captured).toEqual([]);
+    expect(initialStats.black.captured).toEqual([]);
+    expect(initialStats.white.advantage).toBe(0);
+    expect(initialStats.black.advantage).toBe(0);
+
+    // 1. e4 d5 2. exd5 (White captures black pawn)
+    state.tryMove("e2", "e4");
+    state.tryMove("d7", "d5");
+    state.tryMove("e4", "d5");
+
+    const afterCapture1 = state.getMaterialStats();
+    expect(afterCapture1.white.captured).toEqual([{ type: "p", symbol: "♟", value: 1 }]);
+    expect(afterCapture1.black.captured).toEqual([]);
+    expect(afterCapture1.white.advantage).toBe(1);
+    expect(afterCapture1.black.advantage).toBe(0);
+
+    // 2. ... Qxd5 3. Nc3 (Black captures white pawn with queen)
+    state.tryMove("d8", "d5");
+    const afterCapture2 = state.getMaterialStats();
+    expect(afterCapture2.white.captured).toEqual([{ type: "p", symbol: "♟", value: 1 }]);
+    expect(afterCapture2.black.captured).toEqual([{ type: "p", symbol: "♟", value: 1 }]);
+    expect(afterCapture2.white.advantage).toBe(0);
+    expect(afterCapture2.black.advantage).toBe(0);
+
+    state.destroy();
+  });
 });

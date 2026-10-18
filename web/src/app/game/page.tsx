@@ -5,6 +5,8 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { GameOutcome, EndReason, PlayerColor } from "@avaclash/shared";
 import type { ChessScene } from "@/game/ChessScene";
+import type { CapturedPiece, MaterialStats } from "@/game/GameState";
+import VictoryModal from "@/components/VictoryModal";
 
 // Dynamic import — no SSR for Phaser
 const PhaserGame = dynamic(() => import("@/components/PhaserGame"), {
@@ -52,6 +54,8 @@ interface PlayerClockCardProps {
   timeFormatted: string;
   isActive: boolean;
   isLowTime?: boolean;
+  capturedPieces?: CapturedPiece[];
+  materialAdvantage?: number;
 }
 
 function PlayerClockCard({
@@ -60,53 +64,78 @@ function PlayerClockCard({
   timeFormatted,
   isActive,
   isLowTime = false,
+  capturedPieces = [],
+  materialAdvantage = 0,
 }: PlayerClockCardProps) {
   return (
     <div
-      className={`flex items-center justify-between rounded-xl px-4 py-2.5 transition-all duration-200 ${
+      className={`flex flex-col rounded-xl px-4 py-2 transition-all duration-200 ${
         isActive
           ? "bg-slate-800/90 ring-2 ring-amber-400 shadow-lg shadow-amber-500/10"
           : "bg-slate-900/70 border border-white/10 opacity-80"
       }`}
     >
-      <div className="flex items-center gap-3">
-        {/* Icon đại diện phe Trắng / Đen */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {/* Icon đại diện phe Trắng / Đen */}
+          <div
+            className={`flex h-8 w-8 items-center justify-center rounded-lg border text-xl shadow-inner ${
+              color === "w"
+                ? "bg-amber-50 text-slate-900 border-amber-200"
+                : "bg-slate-950 text-slate-100 border-slate-700"
+            }`}
+          >
+            ♚
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm text-slate-100">{name}</span>
+              {isActive && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping" />
+                  Turn
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] text-slate-400">
+              {color === "w" ? "White Pieces" : "Black Pieces"}
+            </span>
+          </div>
+        </div>
+
+        {/* Đồng hồ đếm ngược */}
         <div
-          className={`flex h-9 w-9 items-center justify-center rounded-lg border text-xl shadow-inner ${
-            color === "w"
-              ? "bg-amber-50 text-slate-900 border-amber-200"
-              : "bg-slate-950 text-slate-100 border-slate-700"
+          className={`rounded-lg px-3 py-1 font-mono text-lg font-bold tabular-nums tracking-tight transition-colors ${
+            isActive
+              ? isLowTime
+                ? "bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/50 animate-pulse"
+                : "bg-amber-400 text-slate-950 shadow-sm"
+              : "bg-slate-950/60 text-slate-400"
           }`}
         >
-          ♚
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-sm text-slate-100">{name}</span>
-            {isActive && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping" />
-                Turn
-              </span>
-            )}
-          </div>
-          <span className="text-xs text-slate-400">
-            {color === "w" ? "White Pieces" : "Black Pieces"}
-          </span>
+          {timeFormatted}
         </div>
       </div>
 
-      {/* Đồng hồ đếm ngược */}
-      <div
-        className={`rounded-lg px-3 py-1 font-mono text-xl font-bold tabular-nums tracking-tight transition-colors ${
-          isActive
-            ? isLowTime
-              ? "bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/50 animate-pulse"
-              : "bg-amber-400 text-slate-950 shadow-sm"
-            : "bg-slate-950/60 text-slate-400"
-        }`}
-      >
-        {timeFormatted}
+      {/* Hiển thị quân đã bắt và lợi thế vật chất */}
+      <div className="mt-1 flex items-center justify-between gap-2 text-xs min-h-[18px]">
+        <div className="flex flex-wrap items-center gap-0.5" aria-label="Captured pieces">
+          {capturedPieces.map((piece, index) => (
+            <span
+              key={`${piece.type}-${index}`}
+              title={piece.type}
+              className={`text-sm leading-none ${color === "w" ? "text-slate-400" : "text-amber-100"}`}
+            >
+              {piece.symbol}
+            </span>
+          ))}
+        </div>
+
+        {materialAdvantage > 0 && (
+          <span className="font-semibold text-emerald-400 text-xs shrink-0">
+            +{materialAdvantage}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -119,16 +148,31 @@ export default function GamePage() {
   const [currentTurn, setCurrentTurn] = useState<PlayerColor>("white");
   const [gameResult, setGameResult] = useState<{ outcome: GameOutcome; reason: EndReason } | null>(null);
   const [showDrawConfirm, setShowDrawConfirm] = useState(false);
+  const [showVictoryModal, setShowVictoryModal] = useState(false);
+  const [materialStats, setMaterialStats] = useState<MaterialStats>({
+    white: { captured: [], advantage: 0 },
+    black: { captured: [], advantage: 0 },
+  });
+
   const sceneRef = useRef<ChessScene | null>(null);
   const movesEndRef = useRef<HTMLDivElement>(null);
 
   const handleMove = useCallback((uci: string, san: string) => {
     setMoves((prev) => [...prev, { san, uci }]);
-    setTimeout(() => movesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    setTimeout(() => {
+      movesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      if (sceneRef.current) {
+        setMaterialStats(sceneRef.current.getGameState().getMaterialStats());
+      }
+    }, 50);
   }, []);
 
   const handleGameOver = useCallback((outcome: GameOutcome, reason: EndReason) => {
     setGameResult({ outcome, reason });
+    setShowVictoryModal(true);
+    if (sceneRef.current) {
+      setMaterialStats(sceneRef.current.getGameState().getMaterialStats());
+    }
   }, []);
 
   const handleClockTick = useCallback((wMs: number, bMs: number) => {
@@ -142,6 +186,9 @@ export default function GamePage() {
 
   const handleSceneReady = useCallback((scene: unknown) => {
     sceneRef.current = scene as ChessScene;
+    if (sceneRef.current) {
+      setMaterialStats(sceneRef.current.getGameState().getMaterialStats());
+    }
   }, []);
 
   const handleResign = useCallback(() => {
@@ -206,6 +253,8 @@ export default function GamePage() {
               timeFormatted={formatTime(blackMs)}
               isActive={!isWhiteTurn && !gameResult}
               isLowTime={blackMs < 30000}
+              capturedPieces={materialStats.black.captured}
+              materialAdvantage={materialStats.black.advantage}
             />
 
             {/* Khung chứa Phaser Canvas */}
@@ -227,6 +276,8 @@ export default function GamePage() {
               timeFormatted={formatTime(whiteMs)}
               isActive={isWhiteTurn && !gameResult}
               isLowTime={whiteMs < 30000}
+              capturedPieces={materialStats.white.captured}
+              materialAdvantage={materialStats.white.advantage}
             />
           </div>
 
@@ -238,12 +289,20 @@ export default function GamePage() {
                 <p className="text-base font-bold text-amber-300">
                   {getOutcomeMessage(gameResult.outcome, gameResult.reason)}
                 </p>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="mt-2.5 w-full py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-all shadow-md active:scale-[0.98]"
-                >
-                  New Game
-                </button>
+                <div className="mt-2.5 flex gap-2">
+                  <button
+                    onClick={() => setShowVictoryModal(true)}
+                    className="flex-1 py-1.5 rounded-lg bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 text-xs font-bold border border-amber-400/30 transition-all active:scale-[0.98]"
+                  >
+                    View Trophy
+                  </button>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="flex-1 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-all shadow-md active:scale-[0.98]"
+                  >
+                    Play Again
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="mb-3 flex items-center justify-between rounded-xl bg-slate-800/80 border border-white/10 px-3.5 py-2.5">
@@ -265,7 +324,7 @@ export default function GamePage() {
               </div>
             )}
 
-            {/* Bảng lịch sử nước đi (SAN) */}
+            {/* Bảng lịch sử nước đi (SAN) với custom scrollbar */}
             <div className="flex-1 min-h-[200px] flex flex-col rounded-xl border border-white/10 bg-slate-950/60 overflow-hidden">
               <div className="grid grid-cols-7 border-b border-white/10 bg-slate-900/90 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 <span className="col-span-1">#</span>
@@ -273,7 +332,7 @@ export default function GamePage() {
                 <span className="col-span-3">Black</span>
               </div>
 
-              <div className="flex-1 overflow-y-auto divide-y divide-white/5 text-sm font-mono scrollbar-thin">
+              <div className="flex-1 overflow-y-auto divide-y divide-white/5 text-sm font-mono custom-scrollbar">
                 {movePairs.length === 0 ? (
                   <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-slate-500 p-6 text-center font-sans">
                     <span className="text-2xl mb-1 opacity-50">♟</span>
@@ -357,6 +416,49 @@ export default function GamePage() {
           </aside>
         </div>
       </main>
+
+      {/* Victory / Game Over Modal */}
+      <VictoryModal
+        open={showVictoryModal}
+        winner={
+          gameResult?.outcome === "white"
+            ? "White Player"
+            : gameResult?.outcome === "black"
+            ? "Black Player"
+            : "Draw"
+        }
+        method={
+          gameResult?.reason === "checkmate"
+            ? "checkmate"
+            : gameResult?.reason === "resign"
+            ? "resignation"
+            : gameResult?.reason === "timeout"
+            ? "time out"
+            : gameResult?.reason === "stalemate"
+            ? "stalemate"
+            : gameResult?.reason === "repetition"
+            ? "threefold repetition"
+            : gameResult?.reason === "fifty"
+            ? "fifty-move rule"
+            : gameResult?.reason === "insufficient"
+            ? "insufficient material"
+            : gameResult?.reason === "draw_agreed"
+            ? "mutual agreement"
+            : gameResult?.reason ?? ""
+        }
+        movesCount={Math.ceil(moves.length / 2)}
+        timeRemaining={
+          gameResult?.outcome === "white"
+            ? formatTime(whiteMs)
+            : gameResult?.outcome === "black"
+            ? formatTime(blackMs)
+            : formatTime(isWhiteTurn ? whiteMs : blackMs)
+        }
+        avaxWager="Hot-Seat"
+        transactionStatus="not-started"
+        onPlayAgain={() => window.location.reload()}
+        onClose={() => setShowVictoryModal(false)}
+      />
     </div>
   );
 }

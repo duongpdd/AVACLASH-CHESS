@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@avaclash/shared": "workspace:*",
+    "canvas-confetti": "^1.9.4",
     "chess.js": "^1.0.0-beta.8",
     "next": "16.4.0",
     "phaser": "^3.80.0",
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
