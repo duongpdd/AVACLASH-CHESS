@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { GameOutcome, EndReason, PlayerColor } from "@avaclash/shared";
 import type { ChessScene } from "@/game/ChessScene";
@@ -9,8 +10,11 @@ import type { ChessScene } from "@/game/ChessScene";
 const PhaserGame = dynamic(() => import("@/components/PhaserGame"), {
   ssr: false,
   loading: () => (
-    <div className="w-[600px] h-[640px] bg-gray-900 rounded-xl flex items-center justify-center">
-      <span className="text-white animate-pulse text-lg">Initializing chess engine...</span>
+    <div className="w-[464px] h-[464px] bg-slate-950/80 rounded-lg flex items-center justify-center">
+      <div className="flex items-center gap-2 text-slate-400 text-sm animate-pulse">
+        <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
+        Initializing chess engine...
+      </div>
     </div>
   ),
 });
@@ -40,6 +44,72 @@ function getOutcomeMessage(outcome: GameOutcome, reason: EndReason): string {
     timeout: "Time Out",
   };
   return `${winner} Wins — ${reasonMap[reason] ?? reason}`;
+}
+
+interface PlayerClockCardProps {
+  name: string;
+  color: "w" | "b";
+  timeFormatted: string;
+  isActive: boolean;
+  isLowTime?: boolean;
+}
+
+function PlayerClockCard({
+  name,
+  color,
+  timeFormatted,
+  isActive,
+  isLowTime = false,
+}: PlayerClockCardProps) {
+  return (
+    <div
+      className={`flex items-center justify-between rounded-xl px-4 py-2.5 transition-all duration-200 ${
+        isActive
+          ? "bg-slate-800/90 ring-2 ring-amber-400 shadow-lg shadow-amber-500/10"
+          : "bg-slate-900/70 border border-white/10 opacity-80"
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        {/* Icon đại diện phe Trắng / Đen */}
+        <div
+          className={`flex h-9 w-9 items-center justify-center rounded-lg border text-xl shadow-inner ${
+            color === "w"
+              ? "bg-amber-50 text-slate-900 border-amber-200"
+              : "bg-slate-950 text-slate-100 border-slate-700"
+          }`}
+        >
+          ♚
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-sm text-slate-100">{name}</span>
+            {isActive && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping" />
+                Turn
+              </span>
+            )}
+          </div>
+          <span className="text-xs text-slate-400">
+            {color === "w" ? "White Pieces" : "Black Pieces"}
+          </span>
+        </div>
+      </div>
+
+      {/* Đồng hồ đếm ngược */}
+      <div
+        className={`rounded-lg px-3 py-1 font-mono text-xl font-bold tabular-nums tracking-tight transition-colors ${
+          isActive
+            ? isLowTime
+              ? "bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/50 animate-pulse"
+              : "bg-amber-400 text-slate-950 shadow-sm"
+            : "bg-slate-950/60 text-slate-400"
+        }`}
+      >
+        {timeFormatted}
+      </div>
+    </div>
+  );
 }
 
 export default function GamePage() {
@@ -93,166 +163,200 @@ export default function GamePage() {
     }
   }, [gameResult]);
 
-  // Render move pairs (1. e4 e5  2. Nf3 Nc6 ...)
-  const movePairs: { num: number; white: string; black?: string }[] = [];
+  // Nhóm các nước đi thành cặp (1. e4 e5)
+  const movePairs: { moveNumber: number; white: string; black?: string }[] = [];
   for (let i = 0; i < moves.length; i += 2) {
     movePairs.push({
-      num: Math.floor(i / 2) + 1,
+      moveNumber: Math.floor(i / 2) + 1,
       white: moves[i]!.san,
       black: moves[i + 1]?.san,
     });
   }
 
+  const isWhiteTurn = currentTurn === "white";
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-indigo-950 flex flex-col items-center justify-center p-4 gap-6">
-      {/* Title */}
-      <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500 tracking-tight">
-        ♚ AvaClash Chess
-      </h1>
+    <div className="h-dvh w-full overflow-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-indigo-950 text-slate-100 flex flex-col select-none">
+      {/* Header gọn gàng */}
+      <header className="h-12 shrink-0 border-b border-white/10 bg-slate-950/60 backdrop-blur-md px-6 flex items-center justify-between z-10">
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <span className="text-2xl text-amber-400 transition-transform group-hover:scale-110">
+            ♚
+          </span>
+          <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-amber-300 to-orange-400 bg-clip-text text-transparent">
+            AvaClash Chess
+          </span>
+        </Link>
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        {/* Board + Clocks */}
-        <div className="flex flex-col gap-3">
-          {/* Black clock (top) */}
-          <div
-            className={`flex items-center justify-between px-4 py-2 rounded-lg transition-all ${
-              currentTurn === "black" && !gameResult
-                ? "bg-gray-800 ring-2 ring-amber-400 shadow-lg shadow-amber-400/20"
-                : "bg-gray-800/50"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">♟</span>
-              <span className="text-gray-300 font-medium">Black</span>
-            </div>
-            <span className={`text-2xl font-mono font-bold ${blackMs < 30000 ? "text-red-400" : "text-white"}`}>
-              {formatTime(blackMs)}
-            </span>
-          </div>
-
-          {/* Phaser Board */}
-          <PhaserGame
-            boardSize={560}
-            flipBoard={false}
-            onMove={handleMove}
-            onGameOver={handleGameOver}
-            onClockTick={handleClockTick}
-            onTurnChange={handleTurnChange}
-            onSceneReady={handleSceneReady}
-          />
-
-          {/* White clock (bottom) */}
-          <div
-            className={`flex items-center justify-between px-4 py-2 rounded-lg transition-all ${
-              currentTurn === "white" && !gameResult
-                ? "bg-gray-800 ring-2 ring-amber-400 shadow-lg shadow-amber-400/20"
-                : "bg-gray-800/50"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">♙</span>
-              <span className="text-gray-300 font-medium">White</span>
-            </div>
-            <span className={`text-2xl font-mono font-bold ${whiteMs < 30000 ? "text-red-400" : "text-white"}`}>
-              {formatTime(whiteMs)}
-            </span>
-          </div>
+        <div className="flex items-center gap-3 text-xs text-slate-400">
+          <span className="rounded-md bg-slate-800/80 border border-white/10 px-2.5 py-1 font-medium text-slate-300">
+            Hot-Seat • 5+0 Blitz
+          </span>
         </div>
+      </header>
 
-        {/* Side Panel */}
-        <div className="w-72 flex flex-col gap-4">
-          {/* Game Result Banner */}
-          {gameResult && (
-            <div className="p-4 rounded-xl bg-gradient-to-r from-amber-600/20 to-orange-600/20 border border-amber-500/30 backdrop-blur">
-              <p className="text-lg font-bold text-amber-300 text-center">
-                {getOutcomeMessage(gameResult.outcome, gameResult.reason)}
-              </p>
-              <button
-                onClick={() => window.location.reload()}
-                className="mt-3 w-full py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold transition-colors"
-              >
-                New Game
-              </button>
-            </div>
-          )}
+      {/* Khu vực bàn cờ & bảng điều khiển */}
+      <main className="flex-1 min-h-0 flex items-center justify-center p-3 lg:p-4 overflow-y-auto lg:overflow-hidden">
+        <div className="flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-5 max-w-5xl w-full">
+          {/* Cột trái: đồng hồ Đen + bàn cờ Phaser + đồng hồ Trắng */}
+          <div className="flex flex-col justify-between gap-2 w-full max-w-[480px] shrink-0">
+            <PlayerClockCard
+              name="Black Player"
+              color="b"
+              timeFormatted={formatTime(blackMs)}
+              isActive={!isWhiteTurn && !gameResult}
+              isLowTime={blackMs < 30000}
+            />
 
-          {/* Move List */}
-          <div className="bg-gray-800/60 rounded-xl border border-gray-700/50 backdrop-blur">
-            <h2 className="px-4 py-2 text-sm font-semibold text-gray-400 border-b border-gray-700/50 uppercase tracking-wider">
-              Moves
-            </h2>
-            <div className="h-64 overflow-y-auto p-2 scrollbar-thin">
-              {movePairs.length === 0 ? (
-                <p className="text-gray-500 text-sm text-center py-8">Game starts — White to move</p>
-              ) : (
-                <div className="space-y-0.5">
-                  {movePairs.map((pair) => (
-                    <div key={pair.num} className="flex text-sm font-mono">
-                      <span className="w-8 text-gray-500 text-right mr-2">{pair.num}.</span>
-                      <span className="w-20 text-white">{pair.white}</span>
-                      <span className="w-20 text-gray-300">{pair.black ?? ""}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div ref={movesEndRef} />
+            {/* Khung chứa Phaser Canvas */}
+            <div className="relative aspect-square w-full max-w-[480px] rounded-xl p-2 bg-slate-900/90 border border-white/15 shadow-2xl flex items-center justify-center overflow-hidden">
+              <PhaserGame
+                boardSize={464}
+                flipBoard={false}
+                onMove={handleMove}
+                onGameOver={handleGameOver}
+                onClockTick={handleClockTick}
+                onTurnChange={handleTurnChange}
+                onSceneReady={handleSceneReady}
+              />
             </div>
+
+            <PlayerClockCard
+              name="White Player"
+              color="w"
+              timeFormatted={formatTime(whiteMs)}
+              isActive={isWhiteTurn && !gameResult}
+              isLowTime={whiteMs < 30000}
+            />
           </div>
 
-          {/* Action Buttons */}
-          {!gameResult && (
-            <div className="flex gap-3">
-              <button
-                onClick={handleResign}
-                className="flex-1 py-2.5 rounded-lg bg-red-600/20 hover:bg-red-600/40 text-red-400 hover:text-red-300 font-medium border border-red-600/30 transition-all"
-              >
-                🏳 Resign
-              </button>
-              <button
-                onClick={handleDrawOffer}
-                className="flex-1 py-2.5 rounded-lg bg-gray-600/20 hover:bg-gray-600/40 text-gray-300 hover:text-white font-medium border border-gray-600/30 transition-all"
-              >
-                ½ Draw
-              </button>
-            </div>
-          )}
-
-          {/* Draw Confirmation */}
-          {showDrawConfirm && !gameResult && (
-            <div className="p-4 rounded-xl bg-gray-800 border border-gray-600">
-              <p className="text-gray-300 text-sm mb-3">Both players agree to a draw?</p>
-              <div className="flex gap-2">
+          {/* Cột phải: trạng thái, lịch sử nước đi và nút thao tác */}
+          <aside className="w-full max-w-[480px] lg:w-80 flex flex-col justify-between rounded-2xl border border-white/10 bg-slate-900/75 backdrop-blur-xl p-4 shadow-2xl h-full max-h-[580px]">
+            {/* Banner trạng thái / kết quả */}
+            {gameResult ? (
+              <div className="mb-3 p-3 rounded-xl bg-gradient-to-r from-amber-600/20 to-orange-600/20 border border-amber-500/30 text-center animate-fade-in">
+                <p className="text-base font-bold text-amber-300">
+                  {getOutcomeMessage(gameResult.outcome, gameResult.reason)}
+                </p>
                 <button
-                  onClick={handleDrawAccept}
-                  className="flex-1 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white font-medium transition-colors"
+                  onClick={() => window.location.reload()}
+                  className="mt-2.5 w-full py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-all shadow-md active:scale-[0.98]"
                 >
-                  Yes, Draw
-                </button>
-                <button
-                  onClick={() => setShowDrawConfirm(false)}
-                  className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium transition-colors"
-                >
-                  Cancel
+                  New Game
                 </button>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="mb-3 flex items-center justify-between rounded-xl bg-slate-800/80 border border-white/10 px-3.5 py-2.5">
+                <div className="flex items-center gap-2.5">
+                  <span
+                    className={`h-3 w-3 rounded-full transition-all ${
+                      isWhiteTurn
+                        ? "bg-white shadow-[0_0_8px_#fff]"
+                        : "bg-slate-950 border border-slate-400 shadow-[0_0_8px_rgba(0,0,0,0.8)]"
+                    }`}
+                  />
+                  <span className="text-sm font-bold text-slate-100">
+                    {isWhiteTurn ? "White to move" : "Black to move"}
+                  </span>
+                </div>
+                <span className="text-[11px] font-medium text-amber-400">
+                  In Progress
+                </span>
+              </div>
+            )}
 
-          {/* Turn Indicator */}
-          {!gameResult && (
-            <div className="text-center py-2">
-              <span className="text-gray-400 text-sm">
-                {currentTurn === "white" ? "♙" : "♟"} {currentTurn === "white" ? "White" : "Black"} to move
-              </span>
-            </div>
-          )}
+            {/* Bảng lịch sử nước đi (SAN) */}
+            <div className="flex-1 min-h-[200px] flex flex-col rounded-xl border border-white/10 bg-slate-950/60 overflow-hidden">
+              <div className="grid grid-cols-7 border-b border-white/10 bg-slate-900/90 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                <span className="col-span-1">#</span>
+                <span className="col-span-3">White</span>
+                <span className="col-span-3">Black</span>
+              </div>
 
-          {/* Info */}
-          <div className="text-xs text-gray-600 text-center">
-            Hot-seat mode • 5+0 • Click to select, click to move
-          </div>
+              <div className="flex-1 overflow-y-auto divide-y divide-white/5 text-sm font-mono scrollbar-thin">
+                {movePairs.length === 0 ? (
+                  <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-slate-500 p-6 text-center font-sans">
+                    <span className="text-2xl mb-1 opacity-50">♟</span>
+                    <p className="text-xs">No moves yet. Click a white piece to start!</p>
+                  </div>
+                ) : (
+                  movePairs.map((pair, idx) => (
+                    <div
+                      key={pair.moveNumber}
+                      className={`grid grid-cols-7 px-3 py-1.5 items-center ${
+                        idx % 2 === 0 ? "bg-transparent" : "bg-white/[0.02]"
+                      }`}
+                    >
+                      <span className="col-span-1 text-xs text-slate-500">
+                        {pair.moveNumber}.
+                      </span>
+                      <span className="col-span-3 font-medium text-slate-200">
+                        {pair.white}
+                      </span>
+                      <span className="col-span-3 font-medium text-slate-400">
+                        {pair.black ?? ""}
+                      </span>
+                    </div>
+                  ))
+                )}
+                <div ref={movesEndRef} />
+              </div>
+            </div>
+
+            {/* Hộp thoại xác nhận hòa */}
+            {showDrawConfirm && !gameResult && (
+              <div className="my-3 p-3 rounded-xl bg-slate-800 border border-slate-600 animate-fade-in">
+                <p className="text-slate-200 text-xs font-medium mb-2.5 text-center">
+                  Both players agree to a draw?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleDrawAccept}
+                    className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors"
+                  >
+                    Yes, Draw
+                  </button>
+                  <button
+                    onClick={() => setShowDrawConfirm(false)}
+                    className="flex-1 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Cụm nút điều khiển */}
+            {!gameResult && !showDrawConfirm && (
+              <div className="mt-3 space-y-2">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handleResign}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/15 hover:bg-rose-500/25 active:scale-[0.98] px-4 py-2 text-sm font-semibold text-rose-300 transition"
+                  >
+                    <span>🏳️</span>
+                    <span>Resign</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDrawOffer}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-slate-600/50 bg-slate-800/80 hover:bg-slate-700/80 active:scale-[0.98] px-4 py-2 text-sm font-semibold text-slate-200 transition"
+                  >
+                    <span>½</span>
+                    <span>Offer Draw</span>
+                  </button>
+                </div>
+
+                <p className="text-center text-[11px] text-slate-500 pt-0.5">
+                  Click a piece to see legal moves • Click target square to move
+                </p>
+              </div>
+            )}
+          </aside>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

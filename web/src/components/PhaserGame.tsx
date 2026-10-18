@@ -15,7 +15,7 @@ interface PhaserGameProps {
 }
 
 export default function PhaserGame({
-  boardSize = 560,
+  boardSize = 464,
   flipBoard = false,
   onMove,
   onGameOver,
@@ -70,8 +70,8 @@ export default function PhaserGame({
 
         const config: Phaser.Types.Core.GameConfig = {
           type: Phaser.AUTO,
-          width: boardSize + 40,
-          height: boardSize + 80,
+          width: boardSize,
+          height: boardSize,
           parent: containerRef.current,
           backgroundColor: "#1a1a2e",
           scene: [ConfiguredChessScene],
@@ -99,7 +99,6 @@ export default function PhaserGame({
     return () => {
       isCancelled = true;
       if (gameRef.current) {
-        console.log("[PhaserGame] Destroying Phaser.Game");
         gameRef.current.destroy(true);
         gameRef.current = null;
       }
@@ -107,7 +106,7 @@ export default function PhaserGame({
   }, [boardSize, flipBoard]);
 
   return (
-    <div className="relative">
+    <div className="relative w-full h-full flex items-center justify-center">
       {errorMessage && (
         <div className="p-4 bg-red-900/80 border border-red-500 rounded-xl text-red-200 text-sm max-w-lg mb-4">
           <p className="font-bold">Error loading chess board:</p>
@@ -116,13 +115,16 @@ export default function PhaserGame({
       )}
       {loading && !errorMessage && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 z-10 rounded-xl">
-          <div className="text-white text-lg animate-pulse">Loading board...</div>
+          <div className="text-white text-sm font-medium animate-pulse flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
+            Loading board...
+          </div>
         </div>
       )}
       <div
         ref={containerRef}
-        style={{ width: boardSize + 40, height: boardSize + 80 }}
-        className="rounded-xl overflow-hidden shadow-2xl bg-[#1a1a2e]"
+        style={{ width: boardSize, height: boardSize }}
+        className="rounded-lg overflow-hidden shadow-2xl bg-[#1a1a2e] flex items-center justify-center"
       />
     </div>
   );

@@ -2,18 +2,27 @@ import Phaser from "phaser";
 import { GameState } from "./GameState";
 import type { PlayerColor, GameOutcome, EndReason } from "@avaclash/shared";
 
-// Unicode chess pieces
-const PIECE_CHARS: Record<string, string> = {
-  wk: "♔", wq: "♕", wr: "♖", wb: "♗", wn: "♘", wp: "♙",
-  bk: "♚", bq: "♛", br: "♜", bb: "♝", bn: "♞", bp: "♟",
+// Solid glyphs for both sides to allow stroke + color differentiation
+const SOLID_PIECE_GLYPHS: Record<string, string> = {
+  k: "♚",
+  q: "♛",
+  r: "♜",
+  b: "♝",
+  n: "♞",
+  p: "♟",
 };
 
-const LIGHT_COLOR = 0xf0d9b5;
-const DARK_COLOR = 0xb58863;
-const HIGHLIGHT_COLOR = 0x7fc97f;
-const SELECTED_COLOR = 0xffff44;
-const LAST_MOVE_COLOR = 0xcdd26a;
-const CHECK_COLOR = 0xff4444;
+// Premium board theme
+const BOARD_THEME = {
+  lightSquare: 0xeAD9B5,        // Kem gỗ sáng ấm
+  darkSquare: 0xb58863,         // Nâu gỗ cổ điển
+  lastMoveLight: 0xf7ec59,      // Highlight nước vừa đi (ô sáng)
+  lastMoveDark: 0xdac331,       // Highlight nước vừa đi (ô tối)
+  selectedSquare: 0x38bdf8,     // Xanh dương sáng cho ô đang chọn (alpha 0.45)
+  legalMoveDot: 0x10b981,       // Xanh ngọc cho chấm gợi ý nước đi
+  captureRing: 0xef4444,        // Vòng đỏ cảnh báo ô bắt quân
+  checkGlow: 0xdc2626,          // Đỏ đậm khi Vua bị chiếu
+};
 
 export interface ChessSceneConfig {
   boardSize: number;
@@ -35,6 +44,7 @@ export class ChessScene extends Phaser.Scene {
   private boardGraphics!: Phaser.GameObjects.Graphics;
   private highlightGraphics!: Phaser.GameObjects.Graphics;
   private pieceTexts: Map<string, Phaser.GameObjects.Text> = new Map();
+  private coordTexts: Phaser.GameObjects.Text[] = [];
 
   // State
   private selectedSquare: string | null = null;
@@ -45,7 +55,7 @@ export class ChessScene extends Phaser.Scene {
   private showPromotionDialog = false;
   private pendingPromoFrom = "";
   private pendingPromoTo = "";
-  private promotionButtons: Phaser.GameObjects.Text[] = [];
+  private promotionButtons: (Phaser.GameObjects.Text | Phaser.GameObjects.Graphics)[] = [];
 
   constructor() {
     super({ key: "ChessScene" });
@@ -56,7 +66,7 @@ export class ChessScene extends Phaser.Scene {
   }
 
   create() {
-    const size = this.config_.boardSize;
+    const size = this.config_.boardSize || 464;
     this.tileSize = Math.floor(size / 8);
     this.offsetX = Math.floor((this.scale.width - size) / 2);
     this.offsetY = Math.floor((this.scale.height - size) / 2);
@@ -83,7 +93,6 @@ export class ChessScene extends Phaser.Scene {
       onCheck: (_color) => {
         // Find the king in check
         const turn = this.gameState.currentTurn();
-        const kingChar = turn === "white" ? "K" : "k";
         const board = this.gameState.getBoard();
         for (let r = 0; r < 8; r++) {
           for (let c = 0; c < 8; c++) {
@@ -102,11 +111,12 @@ export class ChessScene extends Phaser.Scene {
       },
     });
 
-    // Draw board and pieces
-    this.boardGraphics = this.add.graphics();
-    this.highlightGraphics = this.add.graphics();
+    // Graphics layers
+    this.boardGraphics = this.add.graphics().setDepth(1);
+    this.highlightGraphics = this.add.graphics().setDepth(2);
 
     this.drawBoard();
+    this.drawCoordinatesInsideBoard();
     this.drawPieces();
 
     // Start clock
@@ -115,7 +125,7 @@ export class ChessScene extends Phaser.Scene {
     // Input handling
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (this.showPromotionDialog) return;
-      this.handleClick(pointer.x, pointer.y);
+      this.handleClick(pointer.worldX, pointer.worldY);
     });
   }
 
@@ -165,53 +175,53 @@ export class ChessScene extends Phaser.Scene {
     this.pendingPromoTo = to;
 
     const turn = this.gameState.currentTurn();
-    const colorPrefix = turn === "white" ? "w" : "b";
+    const isWhite = turn === "white";
     const pieces = ["q", "r", "b", "n"];
-    const labels = [
-      PIECE_CHARS[colorPrefix + "q"]!,
-      PIECE_CHARS[colorPrefix + "r"]!,
-      PIECE_CHARS[colorPrefix + "b"]!,
-      PIECE_CHARS[colorPrefix + "n"]!,
-    ];
 
-    // Show a simple promotion dialog
     const { px, py } = this.squareToPixel(to);
     const dialogWidth = this.tileSize * 4;
-    const dialogX = Math.min(px, this.scale.width - dialogWidth);
+    const dialogX = Math.max(0, Math.min(px, this.scale.width - dialogWidth));
     const dialogY = py;
 
-    // Background
-    const bg = this.add.graphics();
-    bg.fillStyle(0x333333, 0.95);
-    bg.fillRoundedRect(dialogX - 5, dialogY - 5, dialogWidth + 10, this.tileSize + 10, 8);
+    // Background card
+    const bg = this.add.graphics().setDepth(20);
+    bg.fillStyle(0x0f172a, 0.95);
+    bg.lineStyle(2, 0xf59e0b, 0.8);
+    bg.fillRoundedRect(dialogX - 4, dialogY - 4, dialogWidth + 8, this.tileSize + 8, 8);
+    bg.strokeRoundedRect(dialogX - 4, dialogY - 4, dialogWidth + 8, this.tileSize + 8, 8);
 
-    this.promotionButtons = [];
+    this.promotionButtons = [bg];
     pieces.forEach((piece, i) => {
-      const btn = this.add.text(dialogX + i * this.tileSize, dialogY, labels[i]!, {
-        fontSize: `${this.tileSize - 8}px`,
-        fixedWidth: this.tileSize,
-        fixedHeight: this.tileSize,
-        align: "center",
-        backgroundColor: "#555555",
-        padding: { top: 4 },
-      });
+      const glyph = SOLID_PIECE_GLYPHS[piece]!;
+      const btn = this.add.text(
+        dialogX + i * this.tileSize + this.tileSize / 2,
+        dialogY + this.tileSize / 2,
+        glyph,
+        {
+          fontFamily: "'Segoe UI Symbol', 'Apple Symbols', 'Noto Sans Symbols 2', sans-serif",
+          fontSize: `${Math.floor(this.tileSize * 0.72)}px`,
+          color: isWhite ? "#FFFBEB" : "#1E293B",
+          stroke: isWhite ? "#0F172A" : "#F8FAFC",
+          strokeThickness: isWhite ? 4 : 2.5,
+          backgroundColor: "#1e293b",
+          padding: { left: 4, right: 4, top: 2, bottom: 2 },
+        }
+      );
+      btn.setOrigin(0.5, 0.52);
+      btn.setDepth(21);
       btn.setInteractive({ useHandCursor: true });
       btn.on("pointerdown", () => {
         this.gameState.tryMove(from, to, piece);
-        this.clearPromotionDialog(bg);
+        this.clearPromotionDialog();
       });
-      btn.on("pointerover", () => btn.setBackgroundColor("#777777"));
-      btn.on("pointerout", () => btn.setBackgroundColor("#555555"));
+      btn.on("pointerover", () => btn.setBackgroundColor("#334155"));
+      btn.on("pointerout", () => btn.setBackgroundColor("#1e293b"));
       this.promotionButtons.push(btn);
     });
-
-    // Store bg reference for cleanup
-    this.promotionButtons.push(bg as unknown as Phaser.GameObjects.Text);
   }
 
-  private clearPromotionDialog(bg: Phaser.GameObjects.Graphics) {
+  private clearPromotionDialog() {
     this.showPromotionDialog = false;
-    bg.destroy();
     this.promotionButtons.forEach((btn) => btn.destroy());
     this.promotionButtons = [];
   }
@@ -232,91 +242,111 @@ export class ChessScene extends Phaser.Scene {
         const rank = String(8 - row);
         const square = file + rank;
 
-        // Base color
-        let color = isLight ? LIGHT_COLOR : DARK_COLOR;
+        // Base square color
+        let color = isLight ? BOARD_THEME.lightSquare : BOARD_THEME.darkSquare;
 
-        // Highlight last move
+        // Last move highlight
         if (square === this.lastMoveFrom || square === this.lastMoveTo) {
-          color = LAST_MOVE_COLOR;
+          color = isLight ? BOARD_THEME.lastMoveLight : BOARD_THEME.lastMoveDark;
         }
 
-        // Highlight selected
+        this.boardGraphics.fillStyle(color, 1);
+        this.boardGraphics.fillRect(x, y, this.tileSize, this.tileSize);
+
+        // Selected square highlight
         if (square === this.selectedSquare) {
-          color = SELECTED_COLOR;
+          this.boardGraphics.fillStyle(BOARD_THEME.selectedSquare, 0.45);
+          this.boardGraphics.fillRect(x, y, this.tileSize, this.tileSize);
         }
 
         // Check highlight
         if (square === this.checkSquare) {
-          color = CHECK_COLOR;
+          this.boardGraphics.fillStyle(BOARD_THEME.checkGlow, 0.6);
+          this.boardGraphics.fillRect(x, y, this.tileSize, this.tileSize);
         }
 
-        this.boardGraphics.fillStyle(color);
-        this.boardGraphics.fillRect(x, y, this.tileSize, this.tileSize);
-
-        // Legal move dots
+        // Legal move indicators
         if (this.legalTargets.includes(square)) {
           const hasPiece = this.gameState.getBoardPiece(square) !== null;
-          this.highlightGraphics.fillStyle(HIGHLIGHT_COLOR, 0.7);
+          const centerX = x + this.tileSize / 2;
+          const centerY = y + this.tileSize / 2;
+
           if (hasPiece) {
             // Ring for captures
-            this.highlightGraphics.fillCircle(
-              x + this.tileSize / 2,
-              y + this.tileSize / 2,
-              this.tileSize / 2 - 2,
-            );
-            this.highlightGraphics.fillStyle(color);
-            this.highlightGraphics.fillCircle(
-              x + this.tileSize / 2,
-              y + this.tileSize / 2,
-              this.tileSize / 2 - 6,
-            );
+            this.highlightGraphics.lineStyle(4, BOARD_THEME.captureRing, 0.85);
+            this.highlightGraphics.strokeCircle(centerX, centerY, this.tileSize * 0.42);
           } else {
-            // Dot for moves
-            this.highlightGraphics.fillCircle(
-              x + this.tileSize / 2,
-              y + this.tileSize / 2,
-              this.tileSize / 6,
-            );
+            // Dot for empty target
+            this.highlightGraphics.fillStyle(BOARD_THEME.legalMoveDot, 0.75);
+            this.highlightGraphics.fillCircle(centerX, centerY, this.tileSize * 0.16);
           }
         }
       }
     }
+  }
 
-    // File and rank labels
-    for (let i = 0; i < 8; i++) {
-      const fileChar = this.config_.flipBoard
-        ? String.fromCharCode(104 - i) // h-a
-        : String.fromCharCode(97 + i);  // a-h
-      const rankChar = this.config_.flipBoard
-        ? String(i + 1)  // 1-8
-        : String(8 - i); // 8-1
+  /**
+   * Draw inside-board coordinates 1-8 and a-h on the outer edge squares.
+   */
+  private drawCoordinatesInsideBoard() {
+    this.coordTexts.forEach((text) => text.destroy());
+    this.coordTexts = [];
 
-      // File labels (bottom)
-      const existingFile = this.children.getByName(`file-${i}`);
-      if (!existingFile) {
-        this.add.text(
-          this.offsetX + i * this.tileSize + this.tileSize - 12,
-          this.offsetY + 8 * this.tileSize + 2,
-          fileChar,
-          { fontSize: "12px", color: "#666" },
-        ).setName(`file-${i}`);
-      }
+    const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    const ranks = ["8", "7", "6", "5", "4", "3", "2", "1"];
 
-      // Rank labels (left)
-      const existingRank = this.children.getByName(`rank-${i}`);
-      if (!existingRank) {
-        this.add.text(
-          this.offsetX - 14,
-          this.offsetY + i * this.tileSize + 2,
-          rankChar,
-          { fontSize: "12px", color: "#666" },
-        ).setName(`rank-${i}`);
-      }
+    // Ranks 8 -> 1 on left-most column
+    for (let row = 0; row < 8; row++) {
+      const displayRow = this.config_.flipBoard ? 7 - row : row;
+      const isLight = displayRow % 2 === 0;
+      const textColor = isLight ? "#b58863" : "#ead9b5";
+      const rankLabel = this.config_.flipBoard ? ranks[7 - row]! : ranks[row]!;
+
+      const label = this.add.text(
+        this.offsetX + 4,
+        this.offsetY + row * this.tileSize + 3,
+        rankLabel,
+        {
+          fontFamily: "Inter, system-ui, sans-serif",
+          fontSize: "11px",
+          fontStyle: "bold",
+          color: textColor,
+        }
+      );
+      label.setDepth(5);
+      this.coordTexts.push(label);
+    }
+
+    // Files a -> h on bottom-most row
+    for (let col = 0; col < 8; col++) {
+      const displayCol = this.config_.flipBoard ? 7 - col : col;
+      const isLight = (7 + displayCol) % 2 === 0;
+      const textColor = isLight ? "#b58863" : "#ead9b5";
+      const fileLabel = this.config_.flipBoard ? files[7 - col]! : files[col]!;
+
+      const label = this.add
+        .text(
+          this.offsetX + (col + 1) * this.tileSize - 4,
+          this.offsetY + 8 * this.tileSize - 3,
+          fileLabel,
+          {
+            fontFamily: "Inter, system-ui, sans-serif",
+            fontSize: "11px",
+            fontStyle: "bold",
+            color: textColor,
+          }
+        )
+        .setOrigin(1, 1);
+      label.setDepth(5);
+      this.coordTexts.push(label);
     }
   }
 
+  /**
+   * Draw solid pieces with high-contrast outline and 3D shadow.
+   */
   private drawPieces() {
-    // Remove old pieces
+    // Remove old piece texts
     this.pieceTexts.forEach((text) => text.destroy());
     this.pieceTexts.clear();
 
@@ -327,22 +357,32 @@ export class ChessScene extends Phaser.Scene {
         const piece = board[row]?.[col];
         if (!piece) continue;
 
-        const key = piece.color + piece.type;
-        const char = PIECE_CHARS[key];
-        if (!char) continue;
+        const glyph = SOLID_PIECE_GLYPHS[piece.type] ?? "♟";
+        const isWhite = piece.color === "w";
 
         const displayRow = this.config_.flipBoard ? 7 - row : row;
         const displayCol = this.config_.flipBoard ? 7 - col : col;
-        const x = this.offsetX + displayCol * this.tileSize;
-        const y = this.offsetY + displayRow * this.tileSize;
+        const centerX = this.offsetX + displayCol * this.tileSize + this.tileSize / 2;
+        const centerY = this.offsetY + displayRow * this.tileSize + this.tileSize / 2;
 
-        const text = this.add.text(x, y, char, {
-          fontSize: `${this.tileSize - 8}px`,
-          fixedWidth: this.tileSize,
-          fixedHeight: this.tileSize,
-          align: "center",
-          padding: { top: 4 },
+        const text = this.add.text(centerX, centerY, glyph, {
+          fontFamily:
+            "'Segoe UI Symbol', 'Apple Symbols', 'Noto Sans Symbols 2', sans-serif",
+          fontSize: `${Math.floor(this.tileSize * 0.74)}px`,
+          color: isWhite ? "#FFFBEB" : "#1E293B",
+          stroke: isWhite ? "#0F172A" : "#F8FAFC",
+          strokeThickness: isWhite ? 4 : 2.5,
+          shadow: {
+            offsetX: 0,
+            offsetY: 3,
+            color: "rgba(0, 0, 0, 0.45)",
+            blur: 4,
+            fill: true,
+          },
         });
+
+        text.setOrigin(0.5, 0.52);
+        text.setDepth(10);
 
         const file = String.fromCharCode(97 + col);
         const rank = String(8 - row);
@@ -389,7 +429,6 @@ export class ChessScene extends Phaser.Scene {
   }
 
   offerDraw() {
-    // In hot-seat mode, draw is immediately accepted
     this.gameState.acceptDraw();
   }
 
@@ -397,5 +436,7 @@ export class ChessScene extends Phaser.Scene {
     this.gameState.destroy();
     this.pieceTexts.forEach((t) => t.destroy());
     this.pieceTexts.clear();
+    this.coordTexts.forEach((t) => t.destroy());
+    this.coordTexts = [];
   }
 }
