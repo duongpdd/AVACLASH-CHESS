@@ -32,11 +32,25 @@ export {
   pongSchema,
   errorSchema,
   timeoutSchema,
+  focusWarningSchema,
+  FocusWarningSchema,
+  spectatorPoolUpdateSchema,
+  SpectatorPoolUpdateSchema,
   clientMessageSchema,
   serverMessageSchema,
 } from "./schemas.js";
 
-// Types
+// Types — enums and converters
+export {
+  OutcomeCode,
+  ReasonCode,
+  outcomeToCode,
+  codeToOutcome,
+  reasonToCode,
+  codeToReason,
+} from "./types.js";
+
+// Types — interfaces and type aliases
 export type {
   GameOutcome,
   EndReason,
@@ -62,6 +76,8 @@ export type {
   PongMessage,
   ErrorMessage,
   TimeoutMessage,
+  FocusWarningMessage,
+  SpectatorPoolUpdateMessage,
   ClientMessage,
   ServerMessage,
 } from "./schemas.js";

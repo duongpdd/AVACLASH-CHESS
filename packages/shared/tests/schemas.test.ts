@@ -8,6 +8,7 @@ import {
   clockSyncSchema,
   roomStateSchema,
 } from "../src/schemas.js";
+import { OutcomeCode, ReasonCode } from "../src/types.js";
 
 describe("joinRoomSchema", () => {
   it("should accept valid join_room message", () => {
@@ -65,29 +66,68 @@ describe("moveSchema", () => {
 });
 
 describe("resultProposalSchema", () => {
-  it("should accept valid result proposal", () => {
+  it("should accept valid result proposal with expanded fields", () => {
     const msg = {
       type: "result_proposal",
       roomId: 1,
       winner: "0x1234567890abcdef1234567890abcdef12345678",
+      outcome: OutcomeCode.WhiteWin,
+      reason: ReasonCode.Checkmate,
+      moveCount: 42,
       movesHash:
         "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
       nonce: 1,
-      reason: "checkmate",
+      deadline: 1700000000,
     };
     expect(resultProposalSchema.parse(msg)).toEqual(msg);
   });
 
-  it("should reject invalid reason", () => {
+  it("should accept draw result proposal", () => {
+    const msg = {
+      type: "result_proposal",
+      roomId: 1,
+      winner: "0x0000000000000000000000000000000000000000",
+      outcome: OutcomeCode.Draw,
+      reason: ReasonCode.Agreement,
+      moveCount: 20,
+      movesHash:
+        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+      nonce: 1,
+      deadline: 1700000000,
+    };
+    expect(resultProposalSchema.parse(msg)).toEqual(msg);
+  });
+
+  it("should reject invalid outcome (> 2)", () => {
     expect(() =>
       resultProposalSchema.parse({
         type: "result_proposal",
         roomId: 1,
         winner: "0x1234567890abcdef1234567890abcdef12345678",
+        outcome: 3,
+        reason: 0,
+        moveCount: 10,
         movesHash:
           "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
         nonce: 1,
-        reason: "invalid_reason",
+        deadline: 1700000000,
+      }),
+    ).toThrow();
+  });
+
+  it("should reject invalid reason (> 7)", () => {
+    expect(() =>
+      resultProposalSchema.parse({
+        type: "result_proposal",
+        roomId: 1,
+        winner: "0x1234567890abcdef1234567890abcdef12345678",
+        outcome: 0,
+        reason: 8,
+        moveCount: 10,
+        movesHash:
+          "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        nonce: 1,
+        deadline: 1700000000,
       }),
     ).toThrow();
   });
@@ -201,5 +241,67 @@ describe("serverMessageSchema (discriminated union)", () => {
       code: "ROOM_NOT_FOUND",
     });
     expect(parsed.type).toBe("error");
+  });
+
+  it("should parse result_proposal with expanded fields", () => {
+    const parsed = serverMessageSchema.parse({
+      type: "result_proposal",
+      roomId: 1,
+      winner: "0x1234567890abcdef1234567890abcdef12345678",
+      outcome: 0,
+      reason: 0,
+      moveCount: 10,
+      movesHash: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+      nonce: 1,
+      deadline: 1700000000,
+    });
+    expect(parsed.type).toBe("result_proposal");
+  });
+});
+
+describe("focusWarningSchema", () => {
+  it("should accept valid focus_warning", () => {
+    const msg = {
+      type: "focus_warning",
+      player: "w",
+      warningCount: 2,
+      penaltyMs: 10000,
+    };
+    expect(serverMessageSchema.parse(msg)).toEqual(msg);
+    expect(clientMessageSchema.parse(msg)).toEqual(msg);
+  });
+
+  it("should reject invalid warning count (> 3 or < 1)", () => {
+    expect(() =>
+      serverMessageSchema.parse({
+        type: "focus_warning",
+        player: "b",
+        warningCount: 4,
+        penaltyMs: 10000,
+      }),
+    ).toThrow();
+  });
+});
+
+describe("spectatorPoolUpdateSchema", () => {
+  it("should accept valid spectator_pool update with draw pool", () => {
+    const msg = {
+      type: "spectator_pool",
+      whitePoolAvax: "1.5",
+      blackPoolAvax: "0.8",
+      drawPoolAvax: "0.4",
+      isLocked: false,
+    };
+    expect(serverMessageSchema.parse(msg)).toEqual(msg);
+  });
+
+  it("should reject missing field", () => {
+    expect(() =>
+      serverMessageSchema.parse({
+        type: "spectator_pool",
+        whitePoolAvax: "1.5",
+        blackPoolAvax: "0.8",
+      }),
+    ).toThrow();
   });
 });

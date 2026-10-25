@@ -254,4 +254,35 @@ describe("GameState", () => {
 
     state.destroy();
   });
+
+  it("deducts time correctly and triggers timeout if penalty reduces clock to 0", () => {
+    const onGameOver = vi.fn();
+    const onClockTick = vi.fn();
+    const state = new GameState(300000, { onGameOver, onClockTick });
+
+    // Deduct 10s (10000ms) from white
+    state.deductTime("white", 10000);
+    expect(state.getClocks().whiteMs).toBe(290000);
+    expect(onClockTick).toHaveBeenCalledWith(290000, 300000);
+
+    // Deduct remaining time
+    state.deductTime("white", 300000);
+    expect(state.getClocks().whiteMs).toBe(0);
+    expect(state.isGameOver()).toBe(true);
+    expect(onGameOver).toHaveBeenCalledWith("black", "timeout");
+
+    state.destroy();
+  });
+
+  it("handles technical forfeit by fair-play violation", () => {
+    const onGameOver = vi.fn();
+    const state = new GameState(300000, { onGameOver });
+
+    state.forfeit("black", "timeout");
+    expect(state.isGameOver()).toBe(true);
+    expect(onGameOver).toHaveBeenCalledWith("white", "timeout");
+
+    state.destroy();
+  });
 });
+

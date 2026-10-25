@@ -7,6 +7,8 @@ import type { GameOutcome, EndReason, PlayerColor } from "@avaclash/shared";
 import type { ChessScene } from "@/game/ChessScene";
 import type { CapturedPiece, MaterialStats } from "@/game/GameState";
 import VictoryModal from "@/components/VictoryModal";
+import SpectatorPoolWidget from "@/components/SpectatorPoolWidget";
+import { useFairPlayGuard } from "@/hooks/useFairPlayGuard";
 
 // Dynamic import — no SSR for Phaser
 const PhaserGame = dynamic(() => import("@/components/PhaserGame"), {
@@ -28,7 +30,7 @@ function formatTime(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-function getOutcomeMessage(outcome: GameOutcome, reason: EndReason): string {
+function getOutcomeMessage(outcome: GameOutcome, reason: EndReason | string): string {
   if (outcome === "draw") {
     const reasonMap: Record<string, string> = {
       stalemate: "Stalemate",
@@ -51,6 +53,8 @@ function getOutcomeMessage(outcome: GameOutcome, reason: EndReason): string {
 interface PlayerClockCardProps {
   name: string;
   color: "w" | "b";
+  elo?: number;
+  warnings?: number;
   timeFormatted: string;
   isActive: boolean;
   isLowTime?: boolean;
@@ -61,6 +65,8 @@ interface PlayerClockCardProps {
 function PlayerClockCard({
   name,
   color,
+  elo = 1200,
+  warnings = 0,
   timeFormatted,
   isActive,
   isLowTime = false,
@@ -90,6 +96,10 @@ function PlayerClockCard({
           <div>
             <div className="flex items-center gap-2">
               <span className="font-bold text-sm text-slate-100">{name}</span>
+              {/* Huy hiệu On-Chain ELO */}
+              <span className="inline-flex items-center rounded-md bg-amber-400/20 px-1.5 py-0.5 text-[10px] font-bold font-mono text-amber-300 border border-amber-400/30 shadow-sm">
+                {elo} ELO
+              </span>
               {isActive && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping" />
@@ -97,9 +107,16 @@ function PlayerClockCard({
                 </span>
               )}
             </div>
-            <span className="text-[11px] text-slate-400">
-              {color === "w" ? "White Pieces" : "Black Pieces"}
-            </span>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-[11px] text-slate-400">
+                {color === "w" ? "White Pieces" : "Black Pieces"}
+              </span>
+              {warnings > 0 && (
+                <span className="text-[10px] font-semibold text-rose-400 bg-rose-500/15 border border-rose-500/30 px-1.5 py-0.2 rounded">
+                  ⚠️ {warnings}/3 Violations
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -146,13 +163,19 @@ export default function GamePage() {
   const [whiteMs, setWhiteMs] = useState(5 * 60 * 1000);
   const [blackMs, setBlackMs] = useState(5 * 60 * 1000);
   const [currentTurn, setCurrentTurn] = useState<PlayerColor>("white");
-  const [gameResult, setGameResult] = useState<{ outcome: GameOutcome; reason: EndReason } | null>(null);
+  const [gameResult, setGameResult] = useState<{ outcome: GameOutcome; reason: EndReason | string } | null>(null);
   const [showDrawConfirm, setShowDrawConfirm] = useState(false);
   const [showVictoryModal, setShowVictoryModal] = useState(false);
   const [materialStats, setMaterialStats] = useState<MaterialStats>({
     white: { captured: [], advantage: 0 },
     black: { captured: [], advantage: 0 },
   });
+
+  // Fair-play anti-cheat state
+  const [whiteWarnings, setWhiteWarnings] = useState(0);
+  const [blackWarnings, setBlackWarnings] = useState(0);
+  const [fairPlayAlert, setFairPlayAlert] = useState(false);
+  const [fairPlayNotice, setFairPlayNotice] = useState<{ text: string; type: "warning" | "forfeit" } | null>(null);
 
   const sceneRef = useRef<ChessScene | null>(null);
   const movesEndRef = useRef<HTMLDivElement>(null);
@@ -167,7 +190,7 @@ export default function GamePage() {
     }, 50);
   }, []);
 
-  const handleGameOver = useCallback((outcome: GameOutcome, reason: EndReason) => {
+  const handleGameOver = useCallback((outcome: GameOutcome, reason: EndReason | string) => {
     setGameResult({ outcome, reason });
     setShowVictoryModal(true);
     if (sceneRef.current) {
@@ -210,6 +233,73 @@ export default function GamePage() {
     }
   }, [gameResult]);
 
+  // Fair-Play Violation Handler
+  const handleFairPlayViolation = useCallback((warningCount: number, awayMs: number) => {
+    if (gameResult) return;
+    const violator = currentTurn;
+    const penaltyMs = 10000; // 10s penalty
+    const awaySeconds = (awayMs / 1000).toFixed(1);
+
+    // Penalize clock
+    if (sceneRef.current) {
+      sceneRef.current.deductTime(violator, penaltyMs);
+    }
+
+    if (violator === "white") {
+      setWhiteWarnings((prev) => {
+        const next = prev + 1;
+        if (next >= 3) {
+          // 3rd violation: Forfeit by Fair-Play Violation
+          if (sceneRef.current) {
+            sceneRef.current.forfeit("white", "timeout");
+          }
+          setGameResult({ outcome: "black", reason: "Fair-Play Violation (3 Tab Switches)" });
+          setShowVictoryModal(true);
+          setFairPlayNotice({
+            text: `🚨 White accumulated 3 fair-play violations: Technical Forfeit!`,
+            type: "forfeit",
+          });
+        } else {
+          setFairPlayNotice({
+            text: `⚠️ Tab Switch Detected: White away for ${awaySeconds}s (-10s penalty applied, Violation ${next}/3)`,
+            type: "warning",
+          });
+        }
+        return next;
+      });
+    } else {
+      setBlackWarnings((prev) => {
+        const next = prev + 1;
+        if (next >= 3) {
+          // 3rd violation: Forfeit by Fair-Play Violation
+          if (sceneRef.current) {
+            sceneRef.current.forfeit("black", "timeout");
+          }
+          setGameResult({ outcome: "white", reason: "Fair-Play Violation (3 Tab Switches)" });
+          setShowVictoryModal(true);
+          setFairPlayNotice({
+            text: `🚨 Black accumulated 3 fair-play violations: Technical Forfeit!`,
+            type: "forfeit",
+          });
+        } else {
+          setFairPlayNotice({
+            text: `⚠️ Tab Switch Detected: Black away for ${awaySeconds}s (-10s penalty applied, Violation ${next}/3)`,
+            type: "warning",
+          });
+        }
+        return next;
+      });
+    }
+
+    setFairPlayAlert(true);
+    setTimeout(() => {
+      setFairPlayAlert(false);
+    }, 6000);
+  }, [currentTurn, gameResult]);
+
+  // Activate FairPlay Guard when game is ongoing
+  useFairPlayGuard(!gameResult && moves.length > 0, handleFairPlayViolation);
+
   // Nhóm các nước đi thành cặp (1. e4 e5)
   const movePairs: { moveNumber: number; white: string; black?: string }[] = [];
   for (let i = 0; i < moves.length; i += 2) {
@@ -221,10 +311,11 @@ export default function GamePage() {
   }
 
   const isWhiteTurn = currentTurn === "white";
+  const currentMoveNumber = Math.floor(moves.length / 2) + 1;
 
   return (
     <div className="h-dvh w-full overflow-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-indigo-950 text-slate-100 flex flex-col select-none">
-      {/* Header gọn gàng */}
+      {/* Header */}
       <header className="h-12 shrink-0 border-b border-white/10 bg-slate-950/60 backdrop-blur-md px-6 flex items-center justify-between z-10">
         <Link href="/" className="flex items-center gap-2.5 group">
           <span className="text-2xl text-amber-400 transition-transform group-hover:scale-110">
@@ -236,11 +327,44 @@ export default function GamePage() {
         </Link>
 
         <div className="flex items-center gap-3 text-xs text-slate-400">
+          {/* Trạng thái Fair-Play Guard */}
+          {fairPlayAlert ? (
+            <span className="rounded-md bg-rose-500/20 border border-rose-500/50 px-2.5 py-1 font-semibold text-rose-300 animate-pulse flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-rose-400 animate-ping" />
+              ⚠️ Tab Switch Detected (-10s)
+            </span>
+          ) : (
+            <span className="rounded-md bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 font-medium text-emerald-300 flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              🛡️ Fair-Play Active
+            </span>
+          )}
+
           <span className="rounded-md bg-slate-800/80 border border-white/10 px-2.5 py-1 font-medium text-slate-300">
             Hot-Seat • 5+0 Blitz
           </span>
         </div>
       </header>
+
+      {/* Thông báo vi phạm Fair-Play nếu có */}
+      {fairPlayNotice && (
+        <div
+          className={`shrink-0 px-4 py-2 text-center text-xs font-semibold flex items-center justify-center gap-3 transition-all ${
+            fairPlayNotice.type === "forfeit"
+              ? "bg-rose-600/90 text-white shadow-lg"
+              : "bg-amber-500/20 border-b border-amber-500/40 text-amber-200"
+          }`}
+        >
+          <span>{fairPlayNotice.text}</span>
+          <button
+            type="button"
+            onClick={() => setFairPlayNotice(null)}
+            className="text-slate-400 hover:text-white text-sm"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Khu vực bàn cờ & bảng điều khiển */}
       <main className="flex-1 min-h-0 flex items-center justify-center p-3 lg:p-4 overflow-y-auto lg:overflow-hidden">
@@ -250,6 +374,8 @@ export default function GamePage() {
             <PlayerClockCard
               name="Black Player"
               color="b"
+              elo={1200}
+              warnings={blackWarnings}
               timeFormatted={formatTime(blackMs)}
               isActive={!isWhiteTurn && !gameResult}
               isLowTime={blackMs < 30000}
@@ -273,6 +399,8 @@ export default function GamePage() {
             <PlayerClockCard
               name="White Player"
               color="w"
+              elo={1200}
+              warnings={whiteWarnings}
               timeFormatted={formatTime(whiteMs)}
               isActive={isWhiteTurn && !gameResult}
               isLowTime={whiteMs < 30000}
@@ -281,8 +409,8 @@ export default function GamePage() {
             />
           </div>
 
-          {/* Cột phải: trạng thái, lịch sử nước đi và nút thao tác */}
-          <aside className="w-full max-w-[480px] lg:w-80 flex flex-col justify-between rounded-2xl border border-white/10 bg-slate-900/75 backdrop-blur-xl p-4 shadow-2xl h-full max-h-[580px]">
+          {/* Cột phải: trạng thái, lịch sử nước đi, widget Spectator Pool và nút thao tác */}
+          <aside className="w-full max-w-[480px] lg:w-84 flex flex-col justify-between rounded-2xl border border-white/10 bg-slate-900/75 backdrop-blur-xl p-4 shadow-2xl h-full max-h-[640px] overflow-y-auto custom-scrollbar">
             {/* Banner trạng thái / kết quả */}
             {gameResult ? (
               <div className="mb-3 p-3 rounded-xl bg-gradient-to-r from-amber-600/20 to-orange-600/20 border border-amber-500/30 text-center animate-fade-in">
@@ -305,7 +433,7 @@ export default function GamePage() {
                 </div>
               </div>
             ) : (
-              <div className="mb-3 flex items-center justify-between rounded-xl bg-slate-800/80 border border-white/10 px-3.5 py-2.5">
+              <div className="mb-2.5 flex items-center justify-between rounded-xl bg-slate-800/80 border border-white/10 px-3.5 py-2">
                 <div className="flex items-center gap-2.5">
                   <span
                     className={`h-3 w-3 rounded-full transition-all ${
@@ -325,8 +453,8 @@ export default function GamePage() {
             )}
 
             {/* Bảng lịch sử nước đi (SAN) với custom scrollbar */}
-            <div className="flex-1 min-h-[200px] flex flex-col rounded-xl border border-white/10 bg-slate-950/60 overflow-hidden">
-              <div className="grid grid-cols-7 border-b border-white/10 bg-slate-900/90 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <div className="flex-1 min-h-[140px] max-h-[180px] flex flex-col rounded-xl border border-white/10 bg-slate-950/60 overflow-hidden mb-2.5">
+              <div className="grid grid-cols-7 border-b border-white/10 bg-slate-900/90 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 <span className="col-span-1">#</span>
                 <span className="col-span-3">White</span>
                 <span className="col-span-3">Black</span>
@@ -334,15 +462,15 @@ export default function GamePage() {
 
               <div className="flex-1 overflow-y-auto divide-y divide-white/5 text-sm font-mono custom-scrollbar">
                 {movePairs.length === 0 ? (
-                  <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-slate-500 p-6 text-center font-sans">
-                    <span className="text-2xl mb-1 opacity-50">♟</span>
+                  <div className="h-full min-h-[100px] flex flex-col items-center justify-center text-slate-500 p-4 text-center font-sans">
+                    <span className="text-xl mb-1 opacity-50">♟</span>
                     <p className="text-xs">No moves yet. Click a white piece to start!</p>
                   </div>
                 ) : (
                   movePairs.map((pair, idx) => (
                     <div
                       key={pair.moveNumber}
-                      className={`grid grid-cols-7 px-3 py-1.5 items-center ${
+                      className={`grid grid-cols-7 px-3 py-1 items-center ${
                         idx % 2 === 0 ? "bg-transparent" : "bg-white/[0.02]"
                       }`}
                     >
@@ -362,10 +490,15 @@ export default function GamePage() {
               </div>
             </div>
 
+            {/* Widget Spectator Prediction Pool */}
+            <div className="mb-2.5">
+              <SpectatorPoolWidget currentMoveNumber={currentMoveNumber} isMatchActive={moves.length > 0} />
+            </div>
+
             {/* Hộp thoại xác nhận hòa */}
             {showDrawConfirm && !gameResult && (
-              <div className="my-3 p-3 rounded-xl bg-slate-800 border border-slate-600 animate-fade-in">
-                <p className="text-slate-200 text-xs font-medium mb-2.5 text-center">
+              <div className="mb-2 p-2.5 rounded-xl bg-slate-800 border border-slate-600 animate-fade-in">
+                <p className="text-slate-200 text-xs font-medium mb-2 text-center">
                   Both players agree to a draw?
                 </p>
                 <div className="flex gap-2">
@@ -387,12 +520,12 @@ export default function GamePage() {
 
             {/* Cụm nút điều khiển */}
             {!gameResult && !showDrawConfirm && (
-              <div className="mt-3 space-y-2">
-                <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={handleResign}
-                    className="flex items-center justify-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/15 hover:bg-rose-500/25 active:scale-[0.98] px-4 py-2 text-sm font-semibold text-rose-300 transition"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/15 hover:bg-rose-500/25 active:scale-[0.98] px-3 py-1.5 text-xs font-semibold text-rose-300 transition"
                   >
                     <span>🏳️</span>
                     <span>Resign</span>
@@ -401,15 +534,15 @@ export default function GamePage() {
                   <button
                     type="button"
                     onClick={handleDrawOffer}
-                    className="flex items-center justify-center gap-2 rounded-xl border border-slate-600/50 bg-slate-800/80 hover:bg-slate-700/80 active:scale-[0.98] px-4 py-2 text-sm font-semibold text-slate-200 transition"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-600/50 bg-slate-800/80 hover:bg-slate-700/80 active:scale-[0.98] px-3 py-1.5 text-xs font-semibold text-slate-200 transition"
                   >
                     <span>½</span>
                     <span>Offer Draw</span>
                   </button>
                 </div>
 
-                <p className="text-center text-[11px] text-slate-500 pt-0.5">
-                  Click a piece to see legal moves • Click target square to move
+                <p className="text-center text-[10px] text-slate-500">
+                  Click a piece to see legal moves • Alt+Tab &gt;2s deducts 10s
                 </p>
               </div>
             )}

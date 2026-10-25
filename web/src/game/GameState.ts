@@ -208,6 +208,41 @@ export class GameState {
   }
 
   /**
+   * Deduct penalty time from a player's clock (e.g. for fair-play tab-switch violation).
+   */
+  deductTime(color: PlayerColor, penaltyMs: number): void {
+    if (this.gameOver) return;
+    if (color === "white") {
+      this.whiteMs = Math.max(0, this.whiteMs - penaltyMs);
+      if (this.whiteMs === 0) {
+        this.gameOver = true;
+        this.stopClock();
+        this.events.onGameOver?.("black", "timeout");
+      }
+    } else {
+      this.blackMs = Math.max(0, this.blackMs - penaltyMs);
+      if (this.blackMs === 0) {
+        this.gameOver = true;
+        this.stopClock();
+        this.events.onGameOver?.("white", "timeout");
+      }
+    }
+    this.events.onClockTick?.(this.whiteMs, this.blackMs);
+  }
+
+  /**
+   * Technical forfeit (e.g. for repeated fair-play violations).
+   */
+  forfeit(violatorColor: PlayerColor, reason: EndReason = "timeout"): void {
+    if (this.gameOver) return;
+    this.gameOver = true;
+    this.stopClock();
+    const winner = violatorColor === "white" ? "black" : "white";
+    this.events.onGameOver?.(winner, reason);
+  }
+
+
+  /**
    * Get the board as a 2D array for rendering.
    */
   getBoard() {

@@ -75,18 +75,12 @@ export const resultProposalSchema = z.object({
   type: z.literal("result_proposal"),
   roomId: roomIdSchema,
   winner: addressSchema,
+  outcome: z.number().int().min(0).max(2),
+  reason: z.number().int().min(0).max(7),
+  moveCount: z.number().int().nonnegative(),
   movesHash: bytes32Schema,
   nonce: z.number().int().nonnegative(),
-  reason: z.enum([
-    "checkmate",
-    "resign",
-    "timeout",
-    "stalemate",
-    "repetition",
-    "fifty",
-    "insufficient",
-    "draw_agreed",
-  ]),
+  deadline: z.number().int().nonnegative(),
 });
 
 export const resultSignatureSchema = z.object({
@@ -114,6 +108,29 @@ export const timeoutSchema = z.object({
   roomId: roomIdSchema,
 });
 
+export const focusWarningSchema = z.object({
+  type: z.literal("focus_warning"),
+  player: z.enum(["w", "b"]),
+  warningCount: z.number().int().min(1).max(3),
+  penaltyMs: z.number().int().nonnegative(),
+});
+
+export const FocusWarningSchema = focusWarningSchema;
+
+/**
+ * Spectator Pool update — simplified to White/Black/Draw market only.
+ * "Under 40 moves" option removed per Q5 decision.
+ */
+export const spectatorPoolUpdateSchema = z.object({
+  type: z.literal("spectator_pool"),
+  whitePoolAvax: z.string(),
+  blackPoolAvax: z.string(),
+  drawPoolAvax: z.string(),
+  isLocked: z.boolean(),
+});
+
+export const SpectatorPoolUpdateSchema = spectatorPoolUpdateSchema;
+
 /**
  * Discriminated union of all client → relay messages.
  */
@@ -127,6 +144,7 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
   resultSignatureSchema,
   pingSchema,
   timeoutSchema,
+  focusWarningSchema,
 ]);
 
 /**
@@ -145,6 +163,8 @@ export const serverMessageSchema = z.discriminatedUnion("type", [
   pongSchema,
   errorSchema,
   timeoutSchema,
+  focusWarningSchema,
+  spectatorPoolUpdateSchema,
 ]);
 
 // Inferred types
@@ -162,5 +182,7 @@ export type PingMessage = z.infer<typeof pingSchema>;
 export type PongMessage = z.infer<typeof pongSchema>;
 export type ErrorMessage = z.infer<typeof errorSchema>;
 export type TimeoutMessage = z.infer<typeof timeoutSchema>;
+export type FocusWarningMessage = z.infer<typeof focusWarningSchema>;
+export type SpectatorPoolUpdateMessage = z.infer<typeof spectatorPoolUpdateSchema>;
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 export type ServerMessage = z.infer<typeof serverMessageSchema>;

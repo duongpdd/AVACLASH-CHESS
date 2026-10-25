@@ -435,6 +435,14 @@ export class ChessScene extends Phaser.Scene {
     this.gameState.acceptDraw();
   }
 
+  deductTime(color: PlayerColor, penaltyMs: number) {
+    this.gameState.deductTime(color, penaltyMs);
+  }
+
+  forfeit(violatorColor: PlayerColor, reason: EndReason = "timeout") {
+    this.gameState.forfeit(violatorColor, reason);
+  }
+
   shutdown() {
     this.gameState.destroy();
     this.pieceTexts.forEach((t) => t.destroy());
@@ -442,4 +450,5 @@ export class ChessScene extends Phaser.Scene {
     this.coordTexts.forEach((t) => t.destroy());
     this.coordTexts = [];
   }
+
 }

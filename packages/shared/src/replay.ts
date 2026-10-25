@@ -8,7 +8,7 @@ import type { ReplayResult, EndReason } from "./types.js";
  * and determines the game outcome.
  *
  * @param moves - Array of UCI move strings (e.g., ["e2e4", "e7e5", "g1f3"])
- * @returns ReplayResult with validity, outcome, and optional reason
+ * @returns ReplayResult with validity, outcome, optional reason, and moveCount
  */
 export function replay(moves: string[]): ReplayResult {
   const game = new ChessGame();
@@ -17,35 +17,37 @@ export function replay(moves: string[]): ReplayResult {
   for (const uci of moves) {
     const result = game.makeMove(uci);
     if (result === null) {
-      return { valid: false, outcome: "ongoing" };
+      return { valid: false, outcome: "ongoing", moveCount: moves.length };
     }
   }
+
+  const moveCount = moves.length;
 
   // Determine outcome after all moves applied
   if (game.isCheckmate()) {
     // The side that just moved delivered checkmate
     const winner = game.turn() === "w" ? "black" : "white";
-    return { valid: true, outcome: winner, reason: "checkmate" };
+    return { valid: true, outcome: winner, reason: "checkmate", moveCount };
   }
 
   if (game.isStalemate()) {
-    return { valid: true, outcome: "draw", reason: "stalemate" };
+    return { valid: true, outcome: "draw", reason: "stalemate", moveCount };
   }
 
   if (game.isThreefoldRepetition()) {
-    return { valid: true, outcome: "draw", reason: "repetition" };
+    return { valid: true, outcome: "draw", reason: "repetition", moveCount };
   }
 
   if (game.isInsufficientMaterial()) {
-    return { valid: true, outcome: "draw", reason: "insufficient" };
+    return { valid: true, outcome: "draw", reason: "insufficient", moveCount };
   }
 
   if (game.isDrawByFiftyMoves()) {
-    return { valid: true, outcome: "draw", reason: "fifty" };
+    return { valid: true, outcome: "draw", reason: "fifty", moveCount };
   }
 
   // Game is still ongoing
-  return { valid: true, outcome: "ongoing" };
+  return { valid: true, outcome: "ongoing", moveCount };
 }
 
 /**

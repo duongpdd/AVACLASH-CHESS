@@ -11,6 +11,7 @@ describe("replay", () => {
       expect(result.valid).toBe(true);
       expect(result.outcome).toBe("white");
       expect(result.reason).toBe("checkmate");
+      expect(result.moveCount).toBe(7);
     });
   });
 
@@ -23,6 +24,7 @@ describe("replay", () => {
       expect(result.valid).toBe(true);
       expect(result.outcome).toBe("black");
       expect(result.reason).toBe("checkmate");
+      expect(result.moveCount).toBe(4);
     });
   });
 
@@ -49,6 +51,7 @@ describe("replay", () => {
       expect(result.valid).toBe(true);
       expect(result.outcome).toBe("draw");
       expect(result.reason).toBe("stalemate");
+      expect(result.moveCount).toBe(19);
     });
   });
 
@@ -59,6 +62,7 @@ describe("replay", () => {
       const result = replay(moves);
       expect(result.valid).toBe(true);
       expect(result.outcome).toBe("ongoing");
+      expect(result.moveCount).toBe(7);
     });
 
     it("should allow queenside castling", () => {
@@ -73,6 +77,7 @@ describe("replay", () => {
       const result = replay(moves);
       expect(result.valid).toBe(true);
       expect(result.outcome).toBe("ongoing");
+      expect(result.moveCount).toBe(9);
     });
   });
 
@@ -83,6 +88,7 @@ describe("replay", () => {
       const result = replay(moves);
       expect(result.valid).toBe(true);
       expect(result.outcome).toBe("ongoing");
+      expect(result.moveCount).toBe(5);
     });
   });
 
@@ -99,6 +105,7 @@ describe("replay", () => {
       const result = replay(moves);
       expect(result.valid).toBe(true);
       expect(result.outcome).toBe("ongoing");
+      expect(result.moveCount).toBe(9);
     });
 
     it("should allow promotion to knight", () => {
@@ -113,6 +120,7 @@ describe("replay", () => {
       const result = replay(moves);
       expect(result.valid).toBe(true);
       expect(result.outcome).toBe("ongoing");
+      expect(result.moveCount).toBe(9);
     });
   });
 
@@ -128,6 +136,7 @@ describe("replay", () => {
       ];
       const result = replay(moves);
       expect(result.valid).toBe(true);
+      expect(result.moveCount).toBe(10);
       // chess.js may need one more repetition to trigger
       // If not detected, the game is still ongoing — this is chess.js behavior
       if (result.outcome === "draw") {
@@ -141,18 +150,21 @@ describe("replay", () => {
       const moves = ["e2e4", "e7e5", "e4e6"]; // e4e6 is illegal
       const result = replay(moves);
       expect(result.valid).toBe(false);
+      expect(result.moveCount).toBe(3);
     });
 
     it("should reject a move with invalid format", () => {
       const moves = ["xyz"];
       const result = replay(moves);
       expect(result.valid).toBe(false);
+      expect(result.moveCount).toBe(1);
     });
 
     it("should reject moving opponent's piece", () => {
       const moves = ["e7e5"]; // Black can't move first
       const result = replay(moves);
       expect(result.valid).toBe(false);
+      expect(result.moveCount).toBe(1);
     });
   });
 
@@ -161,6 +173,7 @@ describe("replay", () => {
       const result = replay([]);
       expect(result.valid).toBe(true);
       expect(result.outcome).toBe("ongoing");
+      expect(result.moveCount).toBe(0);
     });
   });
 
@@ -171,6 +184,7 @@ describe("replay", () => {
       // For now, test that the function exists and handles the detection
       const result = replay([]);
       expect(result.valid).toBe(true);
+      expect(result.moveCount).toBe(0);
     });
   });
 });
