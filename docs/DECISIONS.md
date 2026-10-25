@@ -105,7 +105,8 @@
 - **Đánh đổi:** thêm một lời gọi on-chain và thêm phụ thuộc Relay; nếu Relay offline thì ván không xác nhận được, người chơi dùng đường refund dài.
 
 ### Q10: Telemetry chỉ cảnh báo ở Fuji — `Accepted` (chi tiết D10)
-- Xem D10.
+- **Quyết định:** Client hook `useFairPlayGuard` phát hiện rời màn hình quá 2 giây và gửi cảnh báo; Relay broadcast cảnh báo và đếm vi phạm cho đối thủ thấy, **tuyệt đối không trừ giờ đồng hồ và không xử thua kỹ thuật**.
+- **Lý do:** Tuân thủ triệt để nguyên lý "Pure FIDE Core", tránh xử phạt oan do dữ liệu telemetry client không thể kiểm chứng mật mã học off-chain.
 
 ---
 
@@ -153,13 +154,14 @@
 - Cân nhắc trần tổng cược khán giả theo tiền cược của hai người chơi.
 - **Đánh đổi:** cửa sổ ngắn vẫn có khe hở rất nhỏ; đổi lại thị trường có ý nghĩa hơn và chặn được tự cược.
 
-### D14: Thanh toán Escrow độc lập với Meta — `Accepted`
-- **Mục tiêu:** Các lời gọi Escrow → Meta (`updateEloOnSettle`, `resolvePrediction`, `cancelPrediction`, `registerMatch`, `lockBetting`) không được làm revert thanh toán hay hoàn tiền cược của người chơi (G8a).
-- **Giải pháp triển khai:**
-  - Toàn bộ lời gọi từ `ChessEscrow` sang `IAvaClashMeta` được bọc `try/catch`. Khi xảy ra lỗi hoặc Meta revert, Escrow phát sự kiện `MetaCallFailed(roomId, selector)` để giám sát.
-  - Settle, abort, refund, cancel, và join room của người chơi luôn hoàn thành độc lập và không bao giờ bị kẹt tiền bởi Meta.
+### D14: Thanh toán Escrow và Meta — Đề xuất đã triển khai (`Accepted & Implemented`)
+- **Mục tiêu:** Phân định rõ ràng trách nhiệm giữa việc xác lập điều kiện thi đấu và quá trình thanh toán sau trận.
+- **Giải pháp triển khai thực tế (Lượt 2B):**
+  - **Fail-Fast tại `joinRoom`:** `registerMatch` và `lockBetting` KHÔNG được nuốt lỗi; nếu Meta lỗi hoặc revert thì `joinRoom` phải revert ngay lập tức (khi `metaContract != address(0)`), bảo đảm tuyệt đối rằng trận đấu không bao giờ kích hoạt khi chưa đăng ký kỳ thủ hoặc chưa khóa thị trường cược khán giả.
+  - **Cô lập lỗi tại các hàm hậu kỳ:** Tại các hàm phân phối/hủy ván đấu (`submitResult`, `finalizeSingleSigned`, `resolveChallenge`, `resolveDefaultChallenge`, `abortRoom`, `refundOnTimeout`), các lời gọi sang Meta (`updateEloOnSettle`, `resolvePrediction`, `cancelPrediction`) được bọc `try/catch`. Khi Meta revert, Escrow phát sự kiện `MetaCallFailed(roomId, selector)` để giám sát nhưng giải ngân/hoàn cược cho hai kỳ thủ vẫn thành công 100%.
 - **Bảo vệ quyền lợi khán giả khi `resolvePrediction` thất bại:**
-  - Escrow ghi nhận trạng thái thất bại: `metaResolutionFailed[roomId] = true` và `metaWinningOption[roomId] = option`.
-  - Hỗ trợ 2 đường hoàn tiền/gọi lại:
-    1. `retryResolvePrediction(roomId)`: Cho phép gọi lại để giải ngân phần thưởng theo đúng kết quả trận đấu khi Meta hoạt động lại bình thường.
-    2. `fallbackCancelPrediction(roomId)`: Nếu Meta vĩnh viễn không thể giải ngân kết quả, kích hoạt hủy pool dự đoán (`cancelPrediction`) để 100% khán giả có thể rút lại toàn bộ tiền cược gốc qua `claimSpectatorRefund(roomId)`.
+  - Escrow ghi nhận trạng thái lỗi: `metaResolutionFailed[roomId] = true` và `metaWinningOption[roomId] = option`.
+  - Hỗ trợ các lối thoát an toàn:
+    1. `retryResolvePrediction(roomId)`: Cho phép gọi lại giải ngân phần thưởng theo đúng kết quả khi Meta hoạt động lại bình thường.
+    2. `fallbackCancelPrediction(roomId)`: Hủy pool dự đoán để 100% khán giả rút lại tiền cược gốc qua `claimSpectatorRefund(roomId)`.
+    3. **Hoàn tiền độc lập sau 7 ngày (`MAX_UNRESOLVED`):** Khán giả có thể tự gọi `claimSpectatorRefund(roomId)` trên `AvaClashMeta.sol` sau 7 ngày nếu pool chưa được xử lý mà không cần phụ thuộc vào Escrow.
