@@ -51,6 +51,7 @@ contract ChessEscrowMetaTryCatchTest is Test {
     address public playerA;
     address public playerB;
     address public relaySigner;
+    address public arbiter = address(0xAAAA);
     address public treasury = address(0xEEEE);
 
     bytes32 internal constant RESULT_TYPEHASH =
@@ -61,7 +62,7 @@ contract ChessEscrowMetaTryCatchTest is Test {
         playerB = vm.addr(joinerPrivateKey);
         relaySigner = vm.addr(relayPrivateKey);
 
-        escrow = new ChessEscrow(relaySigner, treasury);
+        escrow = new ChessEscrow(relaySigner, arbiter, treasury);
         revertingMeta = new RevertingMetaMock();
         escrow.setMetaContract(address(revertingMeta));
 

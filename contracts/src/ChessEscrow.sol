@@ -190,6 +190,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
     error MetaNotConfigured();
     error NotArbiter();
     error SingleSignedAlreadySubmitted();
+    error InvalidAddress();
 
     // ──────────────────────── Modifiers ────────────────────────
 
@@ -200,10 +201,12 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
 
     // ──────────────────────── Constructor ────────────────────────
 
-    constructor(address _relaySigner, address _treasury) EIP712("AvaClashChess", "2") {
+    constructor(address _relaySigner, address _arbiter, address _treasury) EIP712("AvaClashChess", "2") {
+        if (_relaySigner == address(0) || _arbiter == address(0) || _treasury == address(0)) revert InvalidAddress();
+        if (_arbiter == _relaySigner) revert InvalidAddress();
         owner = msg.sender;
         relaySigner = _relaySigner;
-        arbiter = _relaySigner;
+        arbiter = _arbiter;
         treasury = _treasury;
     }
 

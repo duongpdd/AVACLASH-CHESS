@@ -17,6 +17,7 @@ contract ChessEscrowMetaIntegrationTest is Test {
     address public playerA;
     address public playerB;
     address public relaySigner;
+    address public arbiter = address(0xAAAA);
     address public treasury = address(0xEEEE);
     address public spectator1 = address(0xC1);
     address public spectator2 = address(0xC2);
@@ -30,7 +31,7 @@ contract ChessEscrowMetaIntegrationTest is Test {
         relaySigner = vm.addr(relayPrivateKey);
 
         // 1. Deploy both contracts
-        escrow = new ChessEscrow(relaySigner, treasury);
+        escrow = new ChessEscrow(relaySigner, arbiter, treasury);
         meta = new AvaClashMeta();
 
         // 2. Link them bidirectionally

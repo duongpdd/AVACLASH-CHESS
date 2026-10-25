@@ -16,6 +16,7 @@ contract ChessEscrowTest is Test {
     address internal bob;
     address internal evil;
     address internal relay;
+    address internal arbiter;
     address internal treasury;
 
     uint256 internal constant STAKE = 0.1 ether;
@@ -25,15 +26,17 @@ contract ChessEscrowTest is Test {
         bob = vm.addr(bobPk);
         evil = vm.addr(evilPk);
         relay = vm.addr(relayPk);
+        arbiter = makeAddr("arbiter");
         treasury = makeAddr("treasury");
 
-        escrow = new ChessEscrow(relay, treasury);
+        escrow = new ChessEscrow(relay, arbiter, treasury);
 
         // Fund test accounts
         vm.deal(alice, 10 ether);
         vm.deal(bob, 10 ether);
         vm.deal(evil, 10 ether);
         vm.deal(relay, 10 ether);
+        vm.deal(arbiter, 10 ether);
     }
 
     // ──────── Helpers ────────
@@ -697,8 +700,8 @@ contract ChessEscrowTest is Test {
         vm.prank(bob);
         escrow.challenge{value: bond}(roomId, bob, 1, 0, 40, movesHash, 2, deadline, sigBob);
 
-        // Arbiter (relay) rules in favor of Bob
-        vm.prank(relay);
+        // Arbiter rules in favor of Bob
+        vm.prank(arbiter);
         escrow.resolveChallenge(roomId, bob);
 
         assertEq(uint256(escrow.getRoom(roomId).status), 2); // Settled
@@ -725,7 +728,7 @@ contract ChessEscrowTest is Test {
         escrow.challenge{value: bond}(roomId, bob, 1, 0, 40, movesHash, 2, deadline, sigBob);
 
         // Arbiter rules in favor of Alice
-        vm.prank(relay);
+        vm.prank(arbiter);
         escrow.resolveChallenge(roomId, alice);
 
         uint256 pot = STAKE * 2;
@@ -1104,6 +1107,25 @@ contract ChessEscrowTest is Test {
     // ──────── Arbiter & Pausable Tests (G5) ────────
 
     function test_arbiter_different_from_relaySigner() public {
+        // 1. Initial arbiter is distinct from relaySigner
+        assertTrue(escrow.arbiter() != escrow.relaySigner());
+        assertEq(escrow.arbiter(), arbiter);
+
+        // 2. Deploying with identical arbiter and relaySigner must revert
+        vm.expectRevert(ChessEscrow.InvalidAddress.selector);
+        new ChessEscrow(relay, relay, treasury);
+
+        // 3. Deploying with zero address must revert
+        vm.expectRevert(ChessEscrow.InvalidAddress.selector);
+        new ChessEscrow(address(0), arbiter, treasury);
+
+        vm.expectRevert(ChessEscrow.InvalidAddress.selector);
+        new ChessEscrow(relay, address(0), treasury);
+
+        vm.expectRevert(ChessEscrow.InvalidAddress.selector);
+        new ChessEscrow(relay, arbiter, address(0));
+
+        // 4. Propose and rotate to new arbiter
         address newArbiter = address(0xAAAA9999);
 
         // Propose new arbiter
@@ -1136,6 +1158,11 @@ contract ChessEscrowTest is Test {
 
         // Relay signer can no longer resolve challenge
         vm.prank(relay);
+        vm.expectRevert(ChessEscrow.NotArbiter.selector);
+        escrow.resolveChallenge(roomId, bob);
+
+        // Old arbiter can no longer resolve challenge
+        vm.prank(arbiter);
         vm.expectRevert(ChessEscrow.NotArbiter.selector);
         escrow.resolveChallenge(roomId, bob);
 

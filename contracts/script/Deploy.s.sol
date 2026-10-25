@@ -7,21 +7,26 @@ import { AvaClashMeta } from "../src/AvaClashMeta.sol";
 
 contract DeployScript is Script {
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer = vm.addr(deployerPrivateKey);
+        address relaySigner = vm.envAddress("RELAY_SIGNER_ADDRESS");
+        address arbiter = vm.envAddress("ARBITER_ADDRESS");
+        address treasury = vm.envAddress("TREASURY_ADDRESS");
 
-        // Optional custom relay signer and treasury, defaulting to deployer address
-        address relaySigner = vm.envOr("RELAY_SIGNER_ADDRESS", deployer);
-        address treasury = vm.envOr("TREASURY_ADDRESS", deployer);
+        if (relaySigner == address(0)) revert("RELAY_SIGNER_ADDRESS required and cannot be zero");
+        if (arbiter == address(0)) revert("ARBITER_ADDRESS required and cannot be zero");
+        if (treasury == address(0)) revert("TREASURY_ADDRESS required and cannot be zero");
 
-        vm.startBroadcast(deployerPrivateKey);
+        if (relaySigner == arbiter || relaySigner == treasury || arbiter == treasury) {
+            revert("RELAY_SIGNER_ADDRESS, ARBITER_ADDRESS, and TREASURY_ADDRESS must be distinct");
+        }
+
+        vm.startBroadcast();
 
         // 1. Deploy AvaClashMeta
         AvaClashMeta meta = new AvaClashMeta();
         console.log("AvaClashMeta deployed at:", address(meta));
 
         // 2. Deploy ChessEscrow
-        ChessEscrow escrow = new ChessEscrow(relaySigner, treasury);
+        ChessEscrow escrow = new ChessEscrow(relaySigner, arbiter, treasury);
         console.log("ChessEscrow deployed at:", address(escrow));
         console.log("Domain separator:", vm.toString(escrow.getDomainSeparator()));
 
