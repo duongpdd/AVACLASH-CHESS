@@ -518,6 +518,47 @@ contract ChessEscrowTest is Test {
         escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sig);
     }
 
+    function test_submitSingleSigned_revert_overwriteExistingClaim() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Alice claims victory first
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sigAlice);
+
+        // Bob attempts to overwrite Alice's claim with his own claim -> must revert
+        bytes memory sigBob = _signResult(bobPk, roomId, bob, 1, 0, 42, movesHash, nonce, deadline);
+        vm.prank(bob);
+        vm.expectRevert(ChessEscrow.SingleSignedAlreadySubmitted.selector);
+        escrow.submitSingleSigned(roomId, bob, 1, 0, 42, movesHash, nonce, deadline, sigBob);
+
+        // Even after challenge window expires, Bob cannot submit a new single-signed claim (must challenge or finalize)
+        vm.warp(block.timestamp + escrow.CHALLENGE_WINDOW() + 1);
+        vm.prank(bob);
+        vm.expectRevert(ChessEscrow.SingleSignedAlreadySubmitted.selector);
+        escrow.submitSingleSigned(roomId, bob, 1, 0, 42, movesHash, nonce, deadline, sigBob);
+    }
+
+    function test_submitSingleSigned_cannotBurnOthersNonce() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Alice claims with nonce = 1
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sigAlice);
+
+        // Alice's nonce 1 is marked used
+        assertTrue(escrow.usedNonces(roomId, alice, nonce));
+        // Bob's nonce 1 in this room is NOT burned
+        assertFalse(escrow.usedNonces(roomId, bob, nonce));
+    }
+
     // ──────── finalizeSingleSigned Tests ────────
 
     function test_finalizeSingleSigned() public {

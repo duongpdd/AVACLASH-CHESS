@@ -96,8 +96,8 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
     /// @notice Pending withdrawal balances (pull payment pattern).
     mapping(address => uint256) public pendingWithdrawals;
 
-    /// @notice Used nonces to prevent replay (roomId => nonce => used).
-    mapping(uint256 => mapping(uint256 => bool)) public usedNonces;
+    /// @notice Used nonces for single-signed claims (roomId => signer => nonce => used).
+    mapping(uint256 => mapping(address => mapping(uint256 => bool))) public usedNonces;
 
     /// @notice Relay signer address (trusted for 2-of-3 scheme).
     address public relaySigner;
@@ -186,6 +186,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
     error NoFailedResolution();
     error MetaNotConfigured();
     error NotArbiter();
+    error SingleSignedAlreadySubmitted();
 
     // ──────────────────────── Modifiers ────────────────────────
 
@@ -341,13 +342,11 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
         _validateOutcomeAndWinner(room, winner, outcome);
-        if (usedNonces[roomId][nonce]) revert NonceAlreadyUsed();
         if (block.timestamp > deadline) revert DeadlineExpired();
 
         // Verify 2-of-3 signatures
         _verify2of3Signatures(roomId, winner, outcome, reason, moveCount, movesHash, nonce, deadline, sigA, sigB, room.playerA, room.playerB);
 
-        usedNonces[roomId][nonce] = true;
         room.status = RoomStatus.Settled;
 
         uint256 fee = _distribute(roomId, room, winner);
@@ -382,9 +381,10 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
     ) external {
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
+        if (room.singleSignedAt != 0) revert SingleSignedAlreadySubmitted();
         if (winner != msg.sender) revert NotTheWinner();
         _validateOutcomeAndWinner(room, winner, outcome);
-        if (usedNonces[roomId][nonce]) revert NonceAlreadyUsed();
+        if (usedNonces[roomId][msg.sender][nonce]) revert NonceAlreadyUsed();
         if (block.timestamp > deadline) revert DeadlineExpired();
 
         // Verify the caller's signature
@@ -394,7 +394,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
         );
         if (signer != msg.sender) revert InvalidSignature();
 
-        usedNonces[roomId][nonce] = true;
+        usedNonces[roomId][msg.sender][nonce] = true;
 
         room.singleSignedWinner = winner;
         room.singleSignedMovesHash = movesHash;
