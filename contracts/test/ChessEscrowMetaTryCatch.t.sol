@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 import { ChessEscrow, IAvaClashMeta } from "../src/ChessEscrow.sol";
+import { AvaClashMeta } from "../src/AvaClashMeta.sol";
 
 contract RevertingMetaMock is IAvaClashMeta {
     bool public failRegisterMatch;
@@ -17,6 +18,18 @@ contract RevertingMetaMock is IAvaClashMeta {
 
     function setFailLockBetting(bool fail) external {
         failLockBetting = fail;
+    }
+
+    function setFailUpdateElo(bool fail) external {
+        failUpdateElo = fail;
+    }
+
+    function setFailResolvePrediction(bool fail) external {
+        failResolvePrediction = fail;
+    }
+
+    function setFailCancelPrediction(bool fail) external {
+        failCancelPrediction = fail;
     }
 
     function registerMatch(uint256, address, address) external view override {
@@ -215,5 +228,117 @@ contract ChessEscrowMetaTryCatchTest is Test {
         assertEq(escrow.pendingWithdrawals(playerB), 0.1 ether);
         assertTrue(escrow.metaResolutionFailed(roomId));
         assertEq(escrow.metaWinningOption(roomId), 3);
+    }
+
+    function test_RetryResolvePrediction_SuccessAndFailure() public {
+        vm.prank(playerA);
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }();
+
+        vm.prank(playerB);
+        escrow.joinRoom{ value: 0.1 ether }(roomId);
+
+        bytes32 movesHash = keccak256("e2e4");
+        uint256 nonce = 10;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sigA = _signResult(creatorPrivateKey, roomId, playerA, 0, 0, 1, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(joinerPrivateKey, roomId, playerA, 0, 0, 1, movesHash, nonce, deadline);
+
+        // Submit result while resolvePrediction reverts
+        vm.prank(playerA);
+        escrow.submitResult(roomId, playerA, 0, 0, 1, movesHash, nonce, deadline, sigA, sigB);
+
+        assertTrue(escrow.metaResolutionFailed(roomId));
+        assertEq(escrow.metaWinningOption(roomId), 1);
+
+        // 1. Retry fails while Meta mock still set to fail
+        vm.expectRevert("RevertingMetaMock: resolvePrediction failed");
+        escrow.retryResolvePrediction(roomId);
+
+        // 2. Unblock Meta mock
+        revertingMeta.setFailResolvePrediction(false);
+
+        // Retry succeeds
+        escrow.retryResolvePrediction(roomId);
+
+        // Recovery flags are cleared
+        assertFalse(escrow.metaResolutionFailed(roomId));
+        assertEq(escrow.metaWinningOption(roomId), 0);
+
+        // Second retry reverts NoFailedResolution
+        vm.expectRevert(ChessEscrow.NoFailedResolution.selector);
+        escrow.retryResolvePrediction(roomId);
+    }
+
+    function test_FallbackCancelPrediction_ConservesAllFundsAndSpectatorsRefunded() public {
+        // Deploy real AvaClashMeta
+        AvaClashMeta realMeta = new AvaClashMeta();
+        realMeta.setEscrowContract(address(escrow));
+        escrow.setMetaContract(address(realMeta));
+
+        address spec1 = address(0xC1);
+        address spec2 = address(0xC2);
+        vm.deal(spec1, 1 ether);
+        vm.deal(spec2, 1 ether);
+
+        // Alice creates room
+        vm.prank(playerA);
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }();
+
+        // Spectators bet before match starts
+        vm.prank(spec1);
+        realMeta.betOnMatch{ value: 0.5 ether }(roomId, 1);
+        vm.prank(spec2);
+        realMeta.betOnMatch{ value: 0.3 ether }(roomId, 2);
+
+        // Bob joins
+        vm.prank(playerB);
+        escrow.joinRoom{ value: 0.1 ether }(roomId);
+
+        // Total funds locked before settle:
+        // Escrow = 0.2 ether, Meta = 0.8 ether. Sum = 1.0 ether.
+        assertEq(address(escrow).balance, 0.2 ether);
+        assertEq(address(realMeta).balance, 0.8 ether);
+
+        // Simulate resolution failure by pointing to reverting mock temporarily during settle
+        escrow.setMetaContract(address(revertingMeta));
+
+        bytes32 movesHash = keccak256("e2e4");
+        uint256 nonce = 11;
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory sigA = _signResult(creatorPrivateKey, roomId, playerA, 0, 0, 1, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(joinerPrivateKey, roomId, playerA, 0, 0, 1, movesHash, nonce, deadline);
+
+        vm.prank(playerA);
+        escrow.submitResult(roomId, playerA, 0, 0, 1, movesHash, nonce, deadline, sigA, sigB);
+
+        assertTrue(escrow.metaResolutionFailed(roomId));
+
+        // Reconnect real Meta and trigger fallback cancellation
+        escrow.setMetaContract(address(realMeta));
+        escrow.fallbackCancelPrediction(roomId);
+
+        // Verify flags cleared
+        assertFalse(escrow.metaResolutionFailed(roomId));
+
+        // Spectators claim full 100% gross refund
+        uint256 s1Before = spec1.balance;
+        vm.prank(spec1);
+        realMeta.claimSpectatorRefund(roomId);
+        assertEq(spec1.balance, s1Before + 0.5 ether);
+
+        uint256 s2Before = spec2.balance;
+        vm.prank(spec2);
+        realMeta.claimSpectatorRefund(roomId);
+        assertEq(spec2.balance, s2Before + 0.3 ether);
+
+        // Players and treasury withdraw from escrow
+        vm.prank(playerA);
+        escrow.withdraw();
+        escrow.withdrawProtocolFees();
+
+        // Escrow and Meta balances are now 0 (100% fund conservation)
+        assertEq(address(escrow).balance, 0);
+        assertEq(address(realMeta).balance, 0);
     }
 }

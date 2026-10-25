@@ -765,7 +765,7 @@ contract ChessEscrowTest is Test {
         assertEq(escrow.pendingWithdrawals(bob), STAKE + (bond - bond / 2));
     }
 
-    function test_resolveDefaultChallenge_conservationAndBondPenalty() public {
+    function test_resolveDefaultChallenge_conservationAndFundFlow() public {
         uint256 aliceInitialBal = alice.balance;
         uint256 bobInitialBal = bob.balance;
 
@@ -813,6 +813,62 @@ contract ChessEscrowTest is Test {
         assertEq(bob.balance, bobInitialBal - (bond / 2));
         // Alice was compensated with 50% of Bob's bond:
         assertEq(alice.balance, aliceInitialBal + (bond / 2));
+    }
+
+    function test_G1_payoffComparison_loserSignsVsChallengeWithSilentArbiter() public {
+        // Initial setup: Bob and Alice each have 10 AVAX
+        // Stake is 0.1 AVAX.
+        // Game played: Alice won on board.
+        //
+        // CASE A: Bob cooperates or Alice finalizes (Bob accepts loss)
+        // Bob pays 0.1 AVAX stake, receives 0 back.
+        // Bob net loss = -0.10 AVAX (-100% of stake).
+        uint256 bobBalBeforeCaseA = bob.balance;
+        uint256 roomA = _createAndJoin();
+        bytes32 movesHash = keccak256("gameA");
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory sigAliceA = _signResult(alicePk, roomA, alice, 0, 0, 42, movesHash, 1, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned(roomA, alice, 0, 0, 42, movesHash, 1, deadline, sigAliceA);
+
+        // Bob does not challenge, Alice finalizes
+        vm.warp(block.timestamp + escrow.CHALLENGE_WINDOW() + 1);
+        escrow.finalizeSingleSigned(roomA);
+
+        vm.prank(bob);
+        if (escrow.pendingWithdrawals(bob) > 0) escrow.withdraw();
+        uint256 bobNetLossCaseA = bobBalBeforeCaseA - bob.balance;
+        assertEq(bobNetLossCaseA, STAKE); // Exactly 0.1 ether net loss
+
+        // CASE B: Bob challenges and arbiter remains silent (G1 residual incentive)
+        // Bob stakes 0.1 AVAX, posts challenge bond of 0.02 AVAX (20%).
+        // Arbiter does not resolve within 24 hours.
+        // resolveDefaultChallenge refunds both players their stake, and returns 50% of the bond to Bob.
+        uint256 bobBalBeforeCaseB = bob.balance;
+        uint256 roomB = _createAndJoin();
+        bytes memory sigAliceB = _signResult(alicePk, roomB, alice, 0, 0, 42, movesHash, 1, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned(roomB, alice, 0, 0, 42, movesHash, 1, deadline, sigAliceB);
+
+        uint256 bond = escrow.getChallengeBond(STAKE); // 0.02 ether
+        bytes memory sigBobB = _signResult(bobPk, roomB, bob, 1, 0, 40, movesHash, 2, deadline);
+        vm.prank(bob);
+        escrow.challenge{ value: bond }(roomB, bob, 1, 0, 40, movesHash, 2, deadline, sigBobB);
+
+        // Arbiter silent for 24h
+        vm.warp(block.timestamp + escrow.ARBITER_DEADLINE() + 1);
+        escrow.resolveDefaultChallenge(roomB);
+
+        vm.prank(bob);
+        escrow.withdraw();
+        uint256 bobNetLossCaseB = bobBalBeforeCaseB - bob.balance;
+        assertEq(bobNetLossCaseB, bond / 2); // Exactly 0.01 ether net loss
+
+        // Comparing the two payoffs:
+        // By challenging and waiting for silent arbiter, Bob loses only 0.01 AVAX instead of 0.10 AVAX
+        // Bob recovers 0.09 AVAX (90% of stake) due to default refund design.
+        assertTrue(bobNetLossCaseB < bobNetLossCaseA);
+        assertEq(bobNetLossCaseA - bobNetLossCaseB, STAKE - bond / 2); // 0.09 ether payoff difference
     }
 
     function test_resolveDefaultChallenge_revert_tooEarly() public {
@@ -1043,6 +1099,45 @@ contract ChessEscrowTest is Test {
         assertEq(bond, expected);
     }
 
+    function testFuzz_submitResult_validOutcomesAndWinners(
+        uint8 outcomeChoice,
+        uint8 reason,
+        uint16 moveCount,
+        uint256 nonce,
+        uint256 extraDeadline
+    ) public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256(abi.encodePacked("fuzzMoves", nonce));
+        extraDeadline = bound(extraDeadline, 1, 30 days);
+        uint256 deadline = block.timestamp + extraDeadline;
+
+        outcomeChoice = uint8(bound(outcomeChoice, 0, 2)); // 0: White, 1: Black, 2: Draw
+        address winner;
+        if (outcomeChoice == 0) {
+            winner = alice;
+        } else if (outcomeChoice == 1) {
+            winner = bob;
+        } else {
+            winner = address(0);
+        }
+
+        bytes memory sigA = _signResult(alicePk, roomId, winner, outcomeChoice, reason, moveCount, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(bobPk, roomId, winner, outcomeChoice, reason, moveCount, movesHash, nonce, deadline);
+
+        escrow.submitResult(roomId, winner, outcomeChoice, reason, moveCount, movesHash, nonce, deadline, sigA, sigB);
+
+        assertEq(uint256(escrow.getRoom(roomId).status), 2); // Settled
+        if (outcomeChoice == 2) {
+            assertEq(escrow.pendingWithdrawals(alice), STAKE);
+            assertEq(escrow.pendingWithdrawals(bob), STAKE);
+        } else {
+            uint256 pot = STAKE * 2;
+            uint256 fee = (pot * 500) / 10000;
+            assertEq(escrow.pendingWithdrawals(winner), pot - fee);
+            assertEq(escrow.protocolFees(), fee);
+        }
+    }
+
     function testFuzz_refundTimeout_warpAmount(uint256 extraTime) public {
         extraTime = bound(extraTime, 1, 365 days);
         uint256 roomId = _createAndJoin();
@@ -1102,6 +1197,59 @@ contract ChessEscrowTest is Test {
             )
         );
         assertEq(escrow.getDomainSeparator(), expectedDomainSeparator);
+    }
+
+    function test_crossSpec_submitResult_acceptsViemSignatures() public {
+        string memory root = vm.projectRoot();
+        string memory path = string.concat(root, "/test/fixtures/cross_spec_result.json");
+        string memory json = vm.readFile(path);
+
+        uint256 fixtureChainId = vm.parseJsonUint(json, ".chainId");
+        address fixtureVerifyingContract = vm.parseJsonAddress(json, ".verifyingContract");
+        address fixtureSignerA = vm.parseJsonAddress(json, ".signerA");
+        address fixtureSignerB = vm.parseJsonAddress(json, ".signerB");
+        address fixtureWinner = vm.parseJsonAddress(json, ".winner");
+        uint256 fixtureMatchId = vm.parseJsonUint(json, ".matchId");
+        uint8 outcome = uint8(vm.parseJsonUint(json, ".outcome"));
+        uint8 reason = uint8(vm.parseJsonUint(json, ".reason"));
+        uint16 moveCount = uint16(vm.parseJsonUint(json, ".moveCount"));
+        bytes32 movesHash = vm.parseJsonBytes32(json, ".movesHash");
+        uint256 nonce = vm.parseJsonUint(json, ".nonce");
+        uint256 deadline = vm.parseJsonUint(json, ".deadline");
+        bytes32 expectedDigest = vm.parseJsonBytes32(json, ".digest");
+        bytes memory sigA = vm.parseJsonBytes(json, ".sigA");
+        bytes memory sigB = vm.parseJsonBytes(json, ".sigB");
+
+        assertEq(block.chainid, fixtureChainId);
+        assertEq(address(escrow), fixtureVerifyingContract);
+
+        // Fund accounts generated by TypeScript
+        vm.deal(fixtureSignerA, 10 ether);
+        vm.deal(fixtureSignerB, 10 ether);
+
+        // Signer A creates room
+        vm.prank(fixtureSignerA);
+        uint256 roomId = escrow.createRoom{ value: STAKE }();
+        assertEq(roomId, fixtureMatchId);
+
+        // Signer B joins room
+        vm.prank(fixtureSignerB);
+        escrow.joinRoom{ value: STAKE }(roomId);
+
+        // Verify digest computed inside contract matches Viem fixture digest
+        bytes32 typeHash = keccak256("Result(uint256 matchId,address winner,uint8 outcome,uint8 reason,uint16 moveCount,bytes32 movesHash,uint256 nonce,uint256 deadline)");
+        bytes32 structHash = keccak256(abi.encode(typeHash, roomId, fixtureWinner, outcome, reason, moveCount, movesHash, nonce, deadline));
+        bytes32 computedDigest = keccak256(abi.encodePacked("\x19\x01", escrow.getDomainSeparator(), structHash));
+        assertEq(computedDigest, expectedDigest);
+
+        // Submit result using signatures produced by Viem in TypeScript
+        vm.prank(fixtureSignerA);
+        escrow.submitResult(roomId, fixtureWinner, outcome, reason, moveCount, movesHash, nonce, deadline, sigA, sigB);
+
+        assertEq(uint256(escrow.getRoom(roomId).status), 2); // Settled
+        uint256 pot = STAKE * 2;
+        uint256 fee = (pot * 500) / 10000;
+        assertEq(escrow.pendingWithdrawals(fixtureWinner), pot - fee);
     }
 
     // ──────── Arbiter & Pausable Tests (G5) ────────

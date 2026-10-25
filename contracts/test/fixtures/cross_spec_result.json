@@ -1,0 +1,17 @@
+{
+  "chainId": 31337,
+  "verifyingContract": "0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f",
+  "signerA": "0x995Ebc4A733Ff0656466f4DD33607d10bf70b4fa",
+  "signerB": "0xC4f745Ab098aA8Bb22BC397f3966020819A08014",
+  "winner": "0x995Ebc4A733Ff0656466f4DD33607d10bf70b4fa",
+  "matchId": 0,
+  "outcome": 0,
+  "reason": 0,
+  "moveCount": 42,
+  "movesHash": "0x9b60b3d2dd676bdc939e026d35e08e494709cda392f437a4e405073ba728e7aa",
+  "nonce": 101,
+  "deadline": 1893456000,
+  "digest": "0x7f15292e937fba1706f2cd668d16691f609353bf87badc9237f23f95c25c06c0",
+  "sigA": "0x530a8fe3ad0e76a25eb6b2bb2d99dd48b3dc55da9ab7e8748c9555263a2589742217f954177cd820b05750033b35741828dd8924c813ed7afad6a06cdc7f76971c",
+  "sigB": "0xfaea182a6c392ac2c5ff474fe84257a2ffae1e06905b799175b2ddc336ab1c38644c1991cc7ce21992f24dad8a3dfdd4d64aa7e85a57005e9abbb18916a36e5f1c"
+}

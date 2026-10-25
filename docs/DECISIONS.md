@@ -82,12 +82,22 @@
 - **Lý do:** Đủ cao để ngăn challenge bừa, đủ thấp để không cản trở khiếu nại hợp lệ.
 - **Ghi chú:** chỉ bên challenge đặt bond; bên nộp `submitSingleSigned` chưa đặt bond (xem Q8).
 
-### Q8: Bond ở nhánh mặc định 24h — `Accepted`
-- **Vấn đề trước đây:** khi arbiter quá hạn, `resolveDefaultChallenge` hoàn 100% cược và hoàn bond cho cả hai. Bên thua có thể từ chối ký, challenge, chờ 24h và hòa vốn mà không mất gì.
-- **Giải pháp triển khai (a89ef44):**
-  - Hoàn trả 100% tiền cược gốc cho cả hai bên.
-  - Phạt 50% bond của bên khiếu nại chuyển cho bên nộp đơn (bù đắp chi phí thời gian và cơ hội), 50% bond còn lại hoàn trả cho bên khiếu nại.
-  - Bên khiếu nại gian lận chịu tổn thất ròng 10% tiền cược, triệt tiêu động lực trì hoãn để "hòa vốn". Bảo toàn 100% tổng tiền on-chain.
+### Q8: Bond ở nhánh mặc định 24h — `Accepted with residual risk`
+- **Vấn đề phân tích:** Khi arbiter quá hạn 24 giờ, `resolveDefaultChallenge` hoàn trả 100% tiền cược gốc cho cả hai bên và phạt 50% bond của bên khiếu nại chuyển sang bên nộp đơn (50% bond còn lại hoàn cho bên khiếu nại).
+- **Số liệu thực nghiệm so sánh Payoff (Test `test_G1_payoffComparison_loserSignsVsChallengeWithSilentArbiter`):**
+  - Giả định ván đấu với Stake = 0.1 AVAX, Challenge Bond (20%) = 0.02 AVAX.
+  - **Kịch bản A (Bên thua ký ngay hoặc chấp nhận thua):**
+    - Bên thua mất 100% tiền cược: Payoff = **-0.10 AVAX**.
+    - Bên thắng nhận pot trừ 5% protocol fee (0.2 - 0.01): Payoff = **+0.09 AVAX**.
+  - **Kịch bản B (Bên thua challenge rồi chờ Arbiter im lặng sau 24h):**
+    - Bên thua bỏ ra 0.1 AVAX stake + 0.02 AVAX bond = 0.12 AVAX.
+    - Sau 24h mặc định: được hoàn 0.1 AVAX stake + 0.01 AVAX (50% bond) = 0.11 AVAX.
+    - Tổn thất ròng của bên thua: Payoff = **-0.01 AVAX** (chỉ mất 50% bond = 10% stake).
+    - Bên thắng nhận 0.1 AVAX stake + 0.01 AVAX đền bù = 0.11 AVAX: Payoff = **+0.01 AVAX**.
+- **Đánh giá rủi ro tồn đọng (Residual Risk):**
+  - Bên thua phục hồi được **0.09 AVAX** (+90% tiền cược lẽ ra đã mất) nếu Arbiter offline hoặc im lặng, tạo ra động lực khiếu nại càn quấy trong trường hợp nghi ngờ Arbiter không giám sát.
+  - Ngược lại, bên thắng bị giảm lợi nhuận từ +0.09 AVAX xuống +0.01 AVAX.
+- **Kết luận:** Quyết định **Accepted with residual risk** trong giai đoạn hiện tại (KHÔNG đổi cơ chế smart contract), chấp nhận rủi ro này vì cơ chế đảm bảo người khiếu nại vẫn chịu phạt tài chính âm (-0.01 AVAX), ngăn ngừa hòa vốn, bảo toàn 100% tổng tiền trên hợp đồng và cung cấp lối thoát thanh khoản tất định nếu hệ thống Arbiter gặp sự cố kéo dài. Đã kiểm chứng toàn diện qua test suite.
 
 ### Q9: Tín hiệu bắt đầu ván (`confirmStart`) — `Proposed`
 - **Vấn đề:** `abortRoom` chỉ dựa thời gian có thể bị dùng để thoát ván đang thua.
