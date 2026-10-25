@@ -238,14 +238,8 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
         room.startedAt = block.timestamp;
 
         if (metaContract != address(0)) {
-            try IAvaClashMeta(metaContract).registerMatch(roomId, room.playerA, msg.sender) {}
-            catch {
-                emit MetaCallFailed(roomId, IAvaClashMeta.registerMatch.selector);
-            }
-            try IAvaClashMeta(metaContract).lockBetting(roomId) {}
-            catch {
-                emit MetaCallFailed(roomId, IAvaClashMeta.lockBetting.selector);
-            }
+            IAvaClashMeta(metaContract).registerMatch(roomId, room.playerA, msg.sender);
+            IAvaClashMeta(metaContract).lockBetting(roomId);
         }
 
         emit RoomJoined(roomId, msg.sender);

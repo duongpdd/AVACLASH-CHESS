@@ -5,24 +5,38 @@ import { Test } from "forge-std/Test.sol";
 import { ChessEscrow, IAvaClashMeta } from "../src/ChessEscrow.sol";
 
 contract RevertingMetaMock is IAvaClashMeta {
-    function registerMatch(uint256, address, address) external pure override {
-        revert("RevertingMetaMock: registerMatch failed");
+    bool public failRegisterMatch;
+    bool public failLockBetting;
+    bool public failUpdateElo = true;
+    bool public failResolvePrediction = true;
+    bool public failCancelPrediction = true;
+
+    function setFailRegisterMatch(bool fail) external {
+        failRegisterMatch = fail;
     }
 
-    function lockBetting(uint256) external pure override {
-        revert("RevertingMetaMock: lockBetting failed");
+    function setFailLockBetting(bool fail) external {
+        failLockBetting = fail;
     }
 
-    function updateEloOnSettle(address, address) external pure override {
-        revert("RevertingMetaMock: updateEloOnSettle failed");
+    function registerMatch(uint256, address, address) external view override {
+        if (failRegisterMatch) revert("RevertingMetaMock: registerMatch failed");
     }
 
-    function resolvePrediction(uint256, uint8) external pure override {
-        revert("RevertingMetaMock: resolvePrediction failed");
+    function lockBetting(uint256) external view override {
+        if (failLockBetting) revert("RevertingMetaMock: lockBetting failed");
     }
 
-    function cancelPrediction(uint256) external pure override {
-        revert("RevertingMetaMock: cancelPrediction failed");
+    function updateEloOnSettle(address, address) external view override {
+        if (failUpdateElo) revert("RevertingMetaMock: updateEloOnSettle failed");
+    }
+
+    function resolvePrediction(uint256, uint8) external view override {
+        if (failResolvePrediction) revert("RevertingMetaMock: resolvePrediction failed");
+    }
+
+    function cancelPrediction(uint256) external view override {
+        if (failCancelPrediction) revert("RevertingMetaMock: cancelPrediction failed");
     }
 }
 
@@ -74,21 +88,26 @@ contract ChessEscrowMetaTryCatchTest is Test {
         return abi.encodePacked(r, s, v);
     }
 
-    function test_JoinRoom_SuccessWhenMetaReverts() public {
+    function test_JoinRoom_RevertsWhenMetaRegisterMatchFails() public {
         vm.prank(playerA);
         uint256 roomId = escrow.createRoom{ value: 0.1 ether }();
 
-        // Expect MetaCallFailed events for registerMatch and lockBetting
-        vm.expectEmit(true, false, false, true);
-        emit ChessEscrow.MetaCallFailed(roomId, IAvaClashMeta.registerMatch.selector);
-        vm.expectEmit(true, false, false, true);
-        emit ChessEscrow.MetaCallFailed(roomId, IAvaClashMeta.lockBetting.selector);
+        revertingMeta.setFailRegisterMatch(true);
 
         vm.prank(playerB);
+        vm.expectRevert("RevertingMetaMock: registerMatch failed");
         escrow.joinRoom{ value: 0.1 ether }(roomId);
+    }
 
-        ChessEscrow.Room memory room = escrow.getRoom(roomId);
-        assertEq(uint8(room.status), uint8(ChessEscrow.RoomStatus.Active));
+    function test_JoinRoom_RevertsWhenMetaLockBettingFails() public {
+        vm.prank(playerA);
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }();
+
+        revertingMeta.setFailLockBetting(true);
+
+        vm.prank(playerB);
+        vm.expectRevert("RevertingMetaMock: lockBetting failed");
+        escrow.joinRoom{ value: 0.1 ether }(roomId);
     }
 
     function test_AbortRoom_SuccessWhenMetaReverts() public {
