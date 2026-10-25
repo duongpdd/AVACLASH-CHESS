@@ -11,22 +11,29 @@ contract ChessEscrowTest is Test {
     uint256 internal alicePk = 0xA11CE;
     uint256 internal bobPk = 0xB0B;
     uint256 internal evilPk = 0xE111;
+    uint256 internal relayPk = 0xBE1A1;
     address internal alice;
     address internal bob;
     address internal evil;
+    address internal relay;
+    address internal treasury;
 
     uint256 internal constant STAKE = 0.1 ether;
 
     function setUp() public {
-        escrow = new ChessEscrow();
         alice = vm.addr(alicePk);
         bob = vm.addr(bobPk);
         evil = vm.addr(evilPk);
+        relay = vm.addr(relayPk);
+        treasury = makeAddr("treasury");
+
+        escrow = new ChessEscrow(relay, treasury);
 
         // Fund test accounts
         vm.deal(alice, 10 ether);
         vm.deal(bob, 10 ether);
         vm.deal(evil, 10 ether);
+        vm.deal(relay, 10 ether);
     }
 
     // ──────── Helpers ────────
@@ -47,12 +54,20 @@ contract ChessEscrowTest is Test {
         return roomId;
     }
 
-    function _signResult(uint256 pk, uint256 roomId, address winner, bytes32 movesHash, uint256 nonce)
-        internal
-        view
-        returns (bytes memory)
-    {
-        bytes32 structHash = keccak256(abi.encode(escrow.RESULT_TYPEHASH(), roomId, winner, movesHash, nonce));
+    function _signResult(
+        uint256 pk,
+        uint256 roomId,
+        address winner,
+        uint8 outcome,
+        uint8 reason,
+        uint16 moveCount,
+        bytes32 movesHash,
+        uint256 nonce,
+        uint256 deadline
+    ) internal view returns (bytes memory) {
+        bytes32 structHash = keccak256(abi.encode(
+            escrow.RESULT_TYPEHASH(), roomId, winner, outcome, reason, moveCount, movesHash, nonce, deadline
+        ));
         bytes32 digest = _hashTypedDataV4(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, digest);
         return abi.encodePacked(r, s, v);
@@ -60,6 +75,13 @@ contract ChessEscrowTest is Test {
 
     function _hashTypedDataV4(bytes32 structHash) internal view returns (bytes32) {
         return keccak256(abi.encodePacked("\x19\x01", escrow.getDomainSeparator(), structHash));
+    }
+
+    // Default signature helper with common params
+    function _signDefault(uint256 pk, uint256 roomId, address winner, bytes32 movesHash, uint256 nonce)
+        internal view returns (bytes memory)
+    {
+        return _signResult(pk, roomId, winner, 0, 0, 42, movesHash, nonce, block.timestamp + 1 hours);
     }
 
     // ──────── createRoom Tests ────────
@@ -160,63 +182,122 @@ contract ChessEscrowTest is Test {
         escrow.cancelRoom(roomId);
     }
 
-    // ──────── submitResult Tests (happy path) ────────
+    // ──────── abortRoom Tests ────────
 
-    function test_submitResult_whiteWins() public {
+    function test_abortRoom_afterTimeout() public {
+        uint256 roomId = _createAndJoin();
+        // Warp past abort timeout
+        vm.warp(block.timestamp + escrow.ABORT_TIMEOUT() + 1);
+        escrow.abortRoom(roomId);
+
+        ChessEscrow.Room memory room = escrow.getRoom(roomId);
+        assertEq(uint256(room.status), 6); // Aborted
+        assertEq(escrow.pendingWithdrawals(alice), STAKE);
+        assertEq(escrow.pendingWithdrawals(bob), STAKE);
+    }
+
+    function test_abortRoom_revert_tooEarly() public {
+        uint256 roomId = _createAndJoin();
+        vm.expectRevert(ChessEscrow.AbortTooEarly.selector);
+        escrow.abortRoom(roomId);
+    }
+
+    function test_abortRoom_revert_gameAlreadyStarted() public {
+        uint256 roomId = _createAndJoin();
+        // Signal game started
+        vm.prank(relay);
+        escrow.signalGameStarted(roomId);
+
+        vm.warp(block.timestamp + escrow.ABORT_TIMEOUT() + 1);
+        vm.expectRevert(ChessEscrow.GameAlreadyStarted.selector);
+        escrow.abortRoom(roomId);
+    }
+
+    // ──────── signalGameStarted Tests ────────
+
+    function test_signalGameStarted() public {
+        uint256 roomId = _createAndJoin();
+        vm.prank(relay);
+        escrow.signalGameStarted(roomId);
+
+        ChessEscrow.Room memory room = escrow.getRoom(roomId);
+        assertTrue(room.gameStarted);
+    }
+
+    function test_signalGameStarted_revert_notRelay() public {
+        uint256 roomId = _createAndJoin();
+        vm.prank(alice);
+        vm.expectRevert(ChessEscrow.InvalidSignature.selector);
+        escrow.signalGameStarted(roomId);
+    }
+
+    // ──────── submitResult Tests (2-of-3 signatures) ────────
+
+    function test_submitResult_dualPlayerSigs() public {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256(abi.encodePacked("e2e4 e7e5 d1h5 b8c6 f1c4 g8f6 h5f7"));
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        bytes memory sigA = _signResult(alicePk, roomId, alice, movesHash, nonce);
-        bytes memory sigB = _signResult(bobPk, roomId, alice, movesHash, nonce);
+        bytes memory sigA = _signResult(alicePk, roomId, alice, 0, 0, 7, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(bobPk, roomId, alice, 0, 0, 7, movesHash, nonce, deadline);
 
-        escrow.submitResult(roomId, alice, movesHash, nonce, sigA, sigB);
+        escrow.submitResult(roomId, alice, 0, 0, 7, movesHash, nonce, deadline, sigA, sigB);
 
         ChessEscrow.Room memory room = escrow.getRoom(roomId);
         assertEq(uint256(room.status), 2); // Settled
-        assertEq(escrow.pendingWithdrawals(alice), STAKE * 2);
+        // Winner gets pot minus 5% fee
+        uint256 pot = STAKE * 2;
+        uint256 fee = (pot * 500) / 10000;
+        assertEq(escrow.pendingWithdrawals(alice), pot - fee);
         assertEq(escrow.pendingWithdrawals(bob), 0);
+        assertEq(escrow.protocolFees(), fee);
     }
 
-    function test_submitResult_blackWins() public {
+    function test_submitResult_playerAndRelaySigs() public {
         uint256 roomId = _createAndJoin();
-        bytes32 movesHash = keccak256(abi.encodePacked("f2f3 e7e5 g2g4 d8h4"));
+        bytes32 movesHash = keccak256(abi.encodePacked("e2e4 e7e5"));
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        bytes memory sigA = _signResult(alicePk, roomId, bob, movesHash, nonce);
-        bytes memory sigB = _signResult(bobPk, roomId, bob, movesHash, nonce);
+        // Alice + Relay (no Bob signature needed)
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 2, 10, movesHash, nonce, deadline);
+        bytes memory sigRelay = _signResult(relayPk, roomId, alice, 0, 2, 10, movesHash, nonce, deadline);
 
-        escrow.submitResult(roomId, bob, movesHash, nonce, sigA, sigB);
-
-        assertEq(escrow.pendingWithdrawals(bob), STAKE * 2);
-        assertEq(escrow.pendingWithdrawals(alice), 0);
+        escrow.submitResult(roomId, alice, 0, 2, 10, movesHash, nonce, deadline, sigAlice, sigRelay);
+        assertEq(uint256(escrow.getRoom(roomId).status), 2); // Settled
     }
 
     function test_submitResult_draw() public {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256(abi.encodePacked("e2e4 e7e5"));
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        bytes memory sigA = _signResult(alicePk, roomId, address(0), movesHash, nonce);
-        bytes memory sigB = _signResult(bobPk, roomId, address(0), movesHash, nonce);
+        bytes memory sigA = _signResult(alicePk, roomId, address(0), 2, 7, 20, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(bobPk, roomId, address(0), 2, 7, 20, movesHash, nonce, deadline);
 
-        escrow.submitResult(roomId, address(0), movesHash, nonce, sigA, sigB);
+        escrow.submitResult(roomId, address(0), 2, 7, 20, movesHash, nonce, deadline, sigA, sigB);
 
+        // Draw: both get stake back, no fee
         assertEq(escrow.pendingWithdrawals(alice), STAKE);
         assertEq(escrow.pendingWithdrawals(bob), STAKE);
+        assertEq(escrow.protocolFees(), 0);
     }
 
     function test_submitResult_sigsReversed() public {
-        // sigA from bob, sigB from alice — should still work
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256(abi.encodePacked("e2e4"));
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        bytes memory sigA = _signResult(bobPk, roomId, alice, movesHash, nonce);
-        bytes memory sigB = _signResult(alicePk, roomId, alice, movesHash, nonce);
+        bytes memory sigA = _signResult(bobPk, roomId, alice, 0, 0, 1, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(alicePk, roomId, alice, 0, 0, 1, movesHash, nonce, deadline);
 
-        escrow.submitResult(roomId, alice, movesHash, nonce, sigA, sigB);
-        assertEq(escrow.pendingWithdrawals(alice), STAKE * 2);
+        escrow.submitResult(roomId, alice, 0, 0, 1, movesHash, nonce, deadline, sigA, sigB);
+        uint256 pot = STAKE * 2;
+        uint256 fee = (pot * 500) / 10000;
+        assertEq(escrow.pendingWithdrawals(alice), pot - fee);
     }
 
     // ──────── submitResult Revert Tests ────────
@@ -225,83 +306,155 @@ contract ChessEscrowTest is Test {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256("test");
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        bytes memory sigA = _signResult(alicePk, roomId, evil, movesHash, nonce);
-        bytes memory sigB = _signResult(bobPk, roomId, evil, movesHash, nonce);
+        bytes memory sigA = _signResult(alicePk, roomId, evil, 0, 0, 10, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(bobPk, roomId, evil, 0, 0, 10, movesHash, nonce, deadline);
 
         vm.expectRevert(ChessEscrow.InvalidWinner.selector);
-        escrow.submitResult(roomId, evil, movesHash, nonce, sigA, sigB);
+        escrow.submitResult(roomId, evil, 0, 0, 10, movesHash, nonce, deadline, sigA, sigB);
+    }
+
+    function test_submitResult_revert_drawWithNonZeroWinner() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // outcome == 2 (Draw) but winner is Alice != address(0)
+        bytes memory sigA = _signResult(alicePk, roomId, alice, 2, 7, 10, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(bobPk, roomId, alice, 2, 7, 10, movesHash, nonce, deadline);
+
+        vm.expectRevert(ChessEscrow.InvalidWinner.selector);
+        escrow.submitResult(roomId, alice, 2, 7, 10, movesHash, nonce, deadline, sigA, sigB);
+    }
+
+    function test_submitResult_revert_zeroWinnerWithNonDrawOutcome() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // winner is address(0) but outcome == 0 (WhiteWin)
+        bytes memory sigA = _signResult(alicePk, roomId, address(0), 0, 0, 10, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(bobPk, roomId, address(0), 0, 0, 10, movesHash, nonce, deadline);
+
+        vm.expectRevert(ChessEscrow.InvalidWinner.selector);
+        escrow.submitResult(roomId, address(0), 0, 0, 10, movesHash, nonce, deadline, sigA, sigB);
+    }
+
+    function test_submitResult_revert_invalidOutcomeCode() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // outcome == 3 (invalid)
+        bytes memory sigA = _signResult(alicePk, roomId, alice, 3, 0, 10, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(bobPk, roomId, alice, 3, 0, 10, movesHash, nonce, deadline);
+
+        vm.expectRevert(ChessEscrow.InvalidWinner.selector);
+        escrow.submitResult(roomId, alice, 3, 0, 10, movesHash, nonce, deadline, sigA, sigB);
+    }
+
+    function test_submitSingleSigned_revert_outcomeWinnerMismatch() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Single signed claiming Alice won but outcome == 2 (Draw)
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 2, 7, 10, movesHash, nonce, deadline);
+
+        vm.prank(alice);
+        vm.expectRevert(ChessEscrow.InvalidWinner.selector);
+        escrow.submitSingleSigned(roomId, alice, 2, 7, 10, movesHash, nonce, deadline, sigAlice);
+    }
+
+    function test_challenge_revert_outcomeWinnerMismatch() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 10, movesHash, nonce, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 10, movesHash, nonce, deadline, sigAlice);
+
+        // Bob challenges with mismatch: winner == bob but outcome == 2 (Draw)
+        bytes memory sigBob = _signResult(bobPk, roomId, bob, 2, 7, 10, movesHash, 2, deadline);
+        uint256 bond = escrow.getChallengeBond(STAKE);
+
+        vm.prank(bob);
+        vm.expectRevert(ChessEscrow.InvalidWinner.selector);
+        escrow.challenge{ value: bond }(roomId, bob, 2, 7, 10, movesHash, 2, deadline, sigBob);
     }
 
     function test_submitResult_revert_wrongSigner() public {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256("test");
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        // Evil signs instead of bob
-        bytes memory sigA = _signResult(alicePk, roomId, alice, movesHash, nonce);
-        bytes memory sigEvil = _signResult(evilPk, roomId, alice, movesHash, nonce);
+        bytes memory sigA = _signResult(alicePk, roomId, alice, 0, 0, 10, movesHash, nonce, deadline);
+        bytes memory sigEvil = _signResult(evilPk, roomId, alice, 0, 0, 10, movesHash, nonce, deadline);
 
         vm.expectRevert(ChessEscrow.InvalidSignature.selector);
-        escrow.submitResult(roomId, alice, movesHash, nonce, sigA, sigEvil);
+        escrow.submitResult(roomId, alice, 0, 0, 10, movesHash, nonce, deadline, sigA, sigEvil);
     }
 
     function test_submitResult_revert_sameSigner() public {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256("test");
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        // Alice signs both
-        bytes memory sigA = _signResult(alicePk, roomId, alice, movesHash, nonce);
+        bytes memory sigA = _signResult(alicePk, roomId, alice, 0, 0, 10, movesHash, nonce, deadline);
 
         vm.expectRevert(ChessEscrow.InvalidSignature.selector);
-        escrow.submitResult(roomId, alice, movesHash, nonce, sigA, sigA);
+        escrow.submitResult(roomId, alice, 0, 0, 10, movesHash, nonce, deadline, sigA, sigA);
     }
 
-    function test_submitResult_revert_replayNonce() public {
+    function test_submitResult_revert_deadlineExpired() public {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256("test");
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp - 1; // Already expired
 
-        bytes memory sigA = _signResult(alicePk, roomId, alice, movesHash, nonce);
-        bytes memory sigB = _signResult(bobPk, roomId, alice, movesHash, nonce);
+        bytes memory sigA = _signResult(alicePk, roomId, alice, 0, 0, 10, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(bobPk, roomId, alice, 0, 0, 10, movesHash, nonce, deadline);
 
-        escrow.submitResult(roomId, alice, movesHash, nonce, sigA, sigB);
-
-        // Create a new room and try same nonce on the same roomId (already settled)
-        vm.expectRevert(ChessEscrow.RoomNotActive.selector);
-        escrow.submitResult(roomId, alice, movesHash, nonce, sigA, sigB);
+        vm.expectRevert(ChessEscrow.DeadlineExpired.selector);
+        escrow.submitResult(roomId, alice, 0, 0, 10, movesHash, nonce, deadline, sigA, sigB);
     }
 
     function test_submitResult_revert_roomNotActive() public {
         uint256 roomId = _createRoom(alice, STAKE);
         bytes32 movesHash = keccak256("test");
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        bytes memory sigA = _signResult(alicePk, roomId, alice, movesHash, nonce);
-        bytes memory sigB = _signResult(bobPk, roomId, alice, movesHash, nonce);
+        bytes memory sigA = _signResult(alicePk, roomId, alice, 0, 0, 10, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(bobPk, roomId, alice, 0, 0, 10, movesHash, nonce, deadline);
 
         vm.expectRevert(ChessEscrow.RoomNotActive.selector);
-        escrow.submitResult(roomId, alice, movesHash, nonce, sigA, sigB);
+        escrow.submitResult(roomId, alice, 0, 0, 10, movesHash, nonce, deadline, sigA, sigB);
     }
 
-    function test_submitResult_revert_nonceAlreadyUsed() public {
-        // Need two rooms to test nonce reuse on same roomId
-        // But nonce is per roomId, so after settle the room won't be Active
-        // Actually, the nonce check happens before the settle, so same roomId same nonce won't work
-        // Let's test cross-room nonce isolation instead — nonce 1 on room 0 shouldn't affect room 1
+    function test_submitResult_nonceIsolation() public {
         uint256 room1 = _createAndJoin();
         bytes32 movesHash = keccak256("test");
+        uint256 deadline = block.timestamp + 1 hours;
 
-        bytes memory sigA1 = _signResult(alicePk, room1, alice, movesHash, 1);
-        bytes memory sigB1 = _signResult(bobPk, room1, alice, movesHash, 1);
-        escrow.submitResult(room1, alice, movesHash, 1, sigA1, sigB1);
+        bytes memory s1a = _signResult(alicePk, room1, alice, 0, 0, 10, movesHash, 1, deadline);
+        bytes memory s1b = _signResult(bobPk, room1, alice, 0, 0, 10, movesHash, 1, deadline);
+        escrow.submitResult(room1, alice, 0, 0, 10, movesHash, 1, deadline, s1a, s1b);
 
         // Room 2 with same nonce should work fine
         uint256 room2 = _createAndJoin();
-        bytes memory sigA2 = _signResult(alicePk, room2, alice, movesHash, 1);
-        bytes memory sigB2 = _signResult(bobPk, room2, alice, movesHash, 1);
-        escrow.submitResult(room2, alice, movesHash, 1, sigA2, sigB2);
+        bytes memory s2a = _signResult(alicePk, room2, alice, 0, 0, 10, movesHash, 1, deadline);
+        bytes memory s2b = _signResult(bobPk, room2, alice, 0, 0, 10, movesHash, 1, deadline);
+        escrow.submitResult(room2, alice, 0, 0, 10, movesHash, 1, deadline, s2a, s2b);
 
         assertEq(uint256(escrow.getRoom(room2).status), 2); // Settled
     }
@@ -312,11 +465,12 @@ contract ChessEscrowTest is Test {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256("test");
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        bytes memory sig = _signResult(alicePk, roomId, alice, movesHash, nonce);
+        bytes memory sig = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
 
         vm.prank(alice);
-        escrow.submitSingleSigned(roomId, alice, movesHash, nonce, sig);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sig);
 
         ChessEscrow.Room memory room = escrow.getRoom(roomId);
         assertEq(room.singleSignedWinner, alice);
@@ -329,25 +483,39 @@ contract ChessEscrowTest is Test {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256("test");
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        bytes memory sig = _signResult(alicePk, roomId, alice, movesHash, nonce);
+        bytes memory sig = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
 
-        vm.prank(bob); // Bob tries to submit claiming Alice won
+        vm.prank(bob);
         vm.expectRevert(ChessEscrow.NotTheWinner.selector);
-        escrow.submitSingleSigned(roomId, alice, movesHash, nonce, sig);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sig);
     }
 
     function test_submitSingleSigned_revert_invalidSig() public {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256("test");
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        // Evil signs, alice submits
-        bytes memory sig = _signResult(evilPk, roomId, alice, movesHash, nonce);
+        bytes memory sig = _signResult(evilPk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
 
         vm.prank(alice);
         vm.expectRevert(ChessEscrow.InvalidSignature.selector);
-        escrow.submitSingleSigned(roomId, alice, movesHash, nonce, sig);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sig);
+    }
+
+    function test_submitSingleSigned_revert_deadlineExpired() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 nonce = 1;
+        uint256 deadline = block.timestamp - 1;
+
+        bytes memory sig = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
+
+        vm.prank(alice);
+        vm.expectRevert(ChessEscrow.DeadlineExpired.selector);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sig);
     }
 
     // ──────── finalizeSingleSigned Tests ────────
@@ -356,10 +524,11 @@ contract ChessEscrowTest is Test {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256("test");
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        bytes memory sig = _signResult(alicePk, roomId, alice, movesHash, nonce);
+        bytes memory sig = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
         vm.prank(alice);
-        escrow.submitSingleSigned(roomId, alice, movesHash, nonce, sig);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sig);
 
         // Warp past challenge window
         vm.warp(block.timestamp + escrow.CHALLENGE_WINDOW() + 1);
@@ -367,79 +536,201 @@ contract ChessEscrowTest is Test {
         escrow.finalizeSingleSigned(roomId);
 
         assertEq(uint256(escrow.getRoom(roomId).status), 2); // Settled
-        assertEq(escrow.pendingWithdrawals(alice), STAKE * 2);
+        uint256 pot = STAKE * 2;
+        uint256 fee = (pot * 500) / 10000;
+        assertEq(escrow.pendingWithdrawals(alice), pot - fee);
     }
 
     function test_finalizeSingleSigned_revert_tooEarly() public {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256("test");
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        bytes memory sig = _signResult(alicePk, roomId, alice, movesHash, nonce);
+        bytes memory sig = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
         vm.prank(alice);
-        escrow.submitSingleSigned(roomId, alice, movesHash, nonce, sig);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sig);
 
-        // Don't warp — still within challenge window
         vm.expectRevert(ChessEscrow.ChallengeWindowNotExpired.selector);
         escrow.finalizeSingleSigned(roomId);
     }
 
-    // ──────── challenge Tests ────────
+    // ──────── challenge Tests (with bond) ────────
 
-    function test_challenge() public {
+    function test_challenge_withBond() public {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256("test");
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
         // Alice submits single-signed claiming she won
-        bytes memory sigAlice = _signResult(alicePk, roomId, alice, movesHash, nonce);
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
         vm.prank(alice);
-        escrow.submitSingleSigned(roomId, alice, movesHash, nonce, sigAlice);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sigAlice);
 
-        // Bob challenges with different result (claims he won)
+        // Bob challenges with bond
         bytes32 bobMovesHash = keccak256("different");
-        bytes memory sigBob = _signResult(bobPk, roomId, bob, bobMovesHash, 2);
+        uint256 deadline2 = block.timestamp + 1 hours;
+        bytes memory sigBob = _signResult(bobPk, roomId, bob, 1, 0, 40, bobMovesHash, 2, deadline2);
+
+        uint256 bond = escrow.getChallengeBond(STAKE);
+        vm.prank(bob);
+        escrow.challenge{value: bond}(roomId, bob, 1, 0, 40, bobMovesHash, 2, deadline2, sigBob);
+
+        assertEq(uint256(escrow.getRoom(roomId).status), 5); // Challenged
+    }
+
+    function test_challenge_revert_insufficientBond() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sigAlice);
+
+        bytes32 bobMovesHash = keccak256("different");
+        bytes memory sigBob = _signResult(bobPk, roomId, bob, 1, 0, 40, bobMovesHash, 2, deadline);
 
         vm.prank(bob);
-        escrow.challenge(roomId, bob, bobMovesHash, 2, sigBob);
-
-        assertEq(uint256(escrow.getRoom(roomId).status), 4); // Refunded
-        assertEq(escrow.pendingWithdrawals(alice), STAKE);
-        assertEq(escrow.pendingWithdrawals(bob), STAKE);
+        vm.expectRevert(ChessEscrow.InsufficientBond.selector);
+        escrow.challenge{value: 0.001 ether}(roomId, bob, 1, 0, 40, bobMovesHash, 2, deadline, sigBob);
     }
 
     function test_challenge_revert_afterWindow() public {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256("test");
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 2 hours;
 
-        bytes memory sigAlice = _signResult(alicePk, roomId, alice, movesHash, nonce);
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
         vm.prank(alice);
-        escrow.submitSingleSigned(roomId, alice, movesHash, nonce, sigAlice);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sigAlice);
 
-        // Warp past challenge window
         vm.warp(block.timestamp + escrow.CHALLENGE_WINDOW() + 1);
 
-        bytes memory sigBob = _signResult(bobPk, roomId, bob, movesHash, 2);
+        uint256 bond = escrow.getChallengeBond(STAKE);
+        bytes memory sigBob = _signResult(bobPk, roomId, bob, 1, 0, 40, movesHash, 2, deadline);
         vm.prank(bob);
         vm.expectRevert(ChessEscrow.ChallengeWindowExpired.selector);
-        escrow.challenge(roomId, bob, movesHash, 2, sigBob);
+        escrow.challenge{value: bond}(roomId, bob, 1, 0, 40, movesHash, 2, deadline, sigBob);
     }
 
     function test_challenge_revert_samePlayer() public {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256("test");
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        bytes memory sigAlice = _signResult(alicePk, roomId, alice, movesHash, nonce);
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
         vm.prank(alice);
-        escrow.submitSingleSigned(roomId, alice, movesHash, nonce, sigAlice);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sigAlice);
 
-        // Alice tries to challenge her own submission
-        bytes memory sigAlice2 = _signResult(alicePk, roomId, alice, movesHash, 2);
+        uint256 bond = escrow.getChallengeBond(STAKE);
+        bytes memory sigAlice2 = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, 2, deadline);
         vm.prank(alice);
         vm.expectRevert(ChessEscrow.NotAPlayer.selector);
-        escrow.challenge(roomId, alice, movesHash, 2, sigAlice2);
+        escrow.challenge{value: bond}(roomId, alice, 0, 0, 42, movesHash, 2, deadline, sigAlice2);
+    }
+
+    // ──────── resolveChallenge Tests ────────
+
+    function test_resolveChallenge_challengerRight() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Alice claims win (wrong)
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, 1, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, 1, deadline, sigAlice);
+
+        // Bob challenges (he actually won)
+        uint256 bond = escrow.getChallengeBond(STAKE);
+        bytes memory sigBob = _signResult(bobPk, roomId, bob, 1, 0, 40, movesHash, 2, deadline);
+        vm.prank(bob);
+        escrow.challenge{value: bond}(roomId, bob, 1, 0, 40, movesHash, 2, deadline, sigBob);
+
+        // Arbiter (relay) rules in favor of Bob
+        vm.prank(relay);
+        escrow.resolveChallenge(roomId, bob);
+
+        assertEq(uint256(escrow.getRoom(roomId).status), 2); // Settled
+        // Bob gets: bond back + pot minus fee
+        uint256 pot = STAKE * 2;
+        uint256 fee = (pot * 500) / 10000;
+        assertEq(escrow.pendingWithdrawals(bob), bond + pot - fee);
+    }
+
+    function test_resolveChallenge_challengerWrong() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Alice claims win (correct)
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, 1, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, 1, deadline, sigAlice);
+
+        // Bob challenges (wrong)
+        uint256 bond = escrow.getChallengeBond(STAKE);
+        bytes memory sigBob = _signResult(bobPk, roomId, bob, 1, 0, 40, movesHash, 2, deadline);
+        vm.prank(bob);
+        escrow.challenge{value: bond}(roomId, bob, 1, 0, 40, movesHash, 2, deadline, sigBob);
+
+        // Arbiter rules in favor of Alice
+        vm.prank(relay);
+        escrow.resolveChallenge(roomId, alice);
+
+        uint256 pot = STAKE * 2;
+        uint256 fee = (pot * 500) / 10000;
+        // Alice gets: pot minus fee + Bob's bond
+        assertEq(escrow.pendingWithdrawals(alice), pot - fee + bond);
+        assertEq(escrow.pendingWithdrawals(bob), 0);
+    }
+
+    // ──────── resolveDefaultChallenge Tests ────────
+
+    function test_resolveDefaultChallenge() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, 1, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, 1, deadline, sigAlice);
+
+        uint256 bond = escrow.getChallengeBond(STAKE);
+        bytes memory sigBob = _signResult(bobPk, roomId, bob, 1, 0, 40, movesHash, 2, deadline);
+        vm.prank(bob);
+        escrow.challenge{value: bond}(roomId, bob, 1, 0, 40, movesHash, 2, deadline, sigBob);
+
+        // Arbiter doesn't respond, warp past deadline
+        vm.warp(block.timestamp + escrow.ARBITER_DEADLINE() + 1);
+        escrow.resolveDefaultChallenge(roomId);
+
+        assertEq(uint256(escrow.getRoom(roomId).status), 4); // Refunded
+        assertEq(escrow.pendingWithdrawals(alice), STAKE);
+        assertEq(escrow.pendingWithdrawals(bob), STAKE + bond); // Bond refunded
+    }
+
+    function test_resolveDefaultChallenge_revert_tooEarly() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, 1, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, 1, deadline, sigAlice);
+
+        uint256 bond = escrow.getChallengeBond(STAKE);
+        bytes memory sigBob = _signResult(bobPk, roomId, bob, 1, 0, 40, movesHash, 2, deadline);
+        vm.prank(bob);
+        escrow.challenge{value: bond}(roomId, bob, 1, 0, 40, movesHash, 2, deadline, sigBob);
+
+        vm.expectRevert(ChessEscrow.ArbiterDeadlineNotReached.selector);
+        escrow.resolveDefaultChallenge(roomId);
     }
 
     // ──────── refundOnTimeout Tests ────────
@@ -495,18 +786,91 @@ contract ChessEscrowTest is Test {
         escrow.withdraw();
     }
 
+    // ──────── Relay Signer Rotation Tests ────────
+
+    function test_proposeAndExecuteRelaySigner() public {
+        address newRelay = makeAddr("newRelay");
+
+        escrow.proposeRelaySigner(newRelay);
+        assertEq(escrow.pendingRelaySigner(), newRelay);
+
+        vm.warp(block.timestamp + escrow.RELAY_TIMELOCK() + 1);
+        escrow.executeRelaySignerChange();
+
+        assertEq(escrow.relaySigner(), newRelay);
+        assertEq(escrow.pendingRelaySigner(), address(0));
+    }
+
+    function test_executeRelaySignerChange_revert_tooEarly() public {
+        escrow.proposeRelaySigner(makeAddr("newRelay"));
+
+        vm.expectRevert(ChessEscrow.TimelockNotReady.selector);
+        escrow.executeRelaySignerChange();
+    }
+
+    function test_proposeRelaySigner_revert_notOwner() public {
+        vm.prank(alice);
+        vm.expectRevert(ChessEscrow.NotOwner.selector);
+        escrow.proposeRelaySigner(makeAddr("newRelay"));
+    }
+
+    // ──────── Protocol Fees Tests ────────
+
+    function test_protocolFee_onWin() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sigA = _signDefault(alicePk, roomId, alice, movesHash, 1);
+        bytes memory sigB = _signDefault(bobPk, roomId, alice, movesHash, 1);
+
+        escrow.submitResult(roomId, alice, 0, 0, 42, movesHash, 1, deadline, sigA, sigB);
+
+        uint256 expectedFee = (STAKE * 2 * 500) / 10000;
+        assertEq(escrow.protocolFees(), expectedFee);
+    }
+
+    function test_protocolFee_noFeeOnDraw() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("draw");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sigA = _signResult(alicePk, roomId, address(0), 2, 7, 30, movesHash, 1, deadline);
+        bytes memory sigB = _signResult(bobPk, roomId, address(0), 2, 7, 30, movesHash, 1, deadline);
+
+        escrow.submitResult(roomId, address(0), 2, 7, 30, movesHash, 1, deadline, sigA, sigB);
+
+        assertEq(escrow.protocolFees(), 0);
+    }
+
+    function test_withdrawProtocolFees() public {
+        // Settle a game to generate fees
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sigA = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, 1, deadline);
+        bytes memory sigB = _signResult(bobPk, roomId, alice, 0, 0, 42, movesHash, 1, deadline);
+        escrow.submitResult(roomId, alice, 0, 0, 42, movesHash, 1, deadline, sigA, sigB);
+
+        uint256 fees = escrow.protocolFees();
+        assertGt(fees, 0);
+
+        uint256 treasuryBal = treasury.balance;
+        escrow.withdrawProtocolFees();
+        assertEq(treasury.balance, treasuryBal + fees);
+        assertEq(escrow.protocolFees(), 0);
+    }
+
     // ──────── Reentrancy Tests ────────
 
     function test_reentrancy_withdraw() public {
         ReentrancyAttacker attacker = new ReentrancyAttacker(escrow);
         vm.deal(address(attacker), 2 ether);
 
-        // Attacker creates and cancels room to get pending balance
         attacker.createAndCancel(STAKE);
         assertEq(escrow.pendingWithdrawals(address(attacker)), STAKE);
 
-        // Fund the escrow with extra ETH to make reentrancy worthwhile
-        // (another user also has pending balance)
         uint256 roomId2 = _createRoom(alice, STAKE);
         vm.prank(alice);
         escrow.cancelRoom(roomId2);
@@ -514,17 +878,11 @@ contract ChessEscrowTest is Test {
         uint256 escrowBalBefore = address(escrow).balance;
         uint256 attackerBalBefore = address(attacker).balance;
 
-        // Attack: withdraw triggers receive() which tries to re-enter
-        // The re-entrant call should revert due to ReentrancyGuard,
-        // but the outer withdraw should still succeed
         attacker.attack();
 
-        // Attacker should only get their STAKE, not drain the contract
         assertEq(address(attacker).balance, attackerBalBefore + STAKE);
         assertEq(escrow.pendingWithdrawals(address(attacker)), 0);
-        // Alice's balance should remain untouched
         assertEq(escrow.pendingWithdrawals(alice), STAKE);
-        // Contract should still have Alice's stake
         assertEq(address(escrow).balance, escrowBalBefore - STAKE);
     }
 
@@ -534,33 +892,37 @@ contract ChessEscrowTest is Test {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256(abi.encodePacked("e2e4 e7e5"));
         uint256 nonce = 42;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        bytes memory sigA = _signResult(alicePk, roomId, alice, movesHash, nonce);
-        bytes memory sigB = _signResult(bobPk, roomId, alice, movesHash, nonce);
+        bytes memory sigA = _signResult(alicePk, roomId, alice, 0, 0, 2, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(bobPk, roomId, alice, 0, 0, 2, movesHash, nonce, deadline);
 
-        escrow.submitResult(roomId, alice, movesHash, nonce, sigA, sigB);
+        escrow.submitResult(roomId, alice, 0, 0, 2, movesHash, nonce, deadline, sigA, sigB);
 
         uint256 balBefore = alice.balance;
         vm.prank(alice);
         escrow.withdraw();
-        assertEq(alice.balance, balBefore + STAKE * 2);
+        uint256 pot = STAKE * 2;
+        uint256 fee = (pot * 500) / 10000;
+        assertEq(alice.balance, balBefore + pot - fee);
     }
 
     function test_fullFlow_loserSilent_finalize() public {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256("game");
         uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
 
-        // Alice claims win with single sig
-        bytes memory sig = _signResult(alicePk, roomId, alice, movesHash, nonce);
+        bytes memory sig = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
         vm.prank(alice);
-        escrow.submitSingleSigned(roomId, alice, movesHash, nonce, sig);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sig);
 
-        // Bob doesn't challenge → warp past window
         vm.warp(block.timestamp + escrow.CHALLENGE_WINDOW() + 1);
         escrow.finalizeSingleSigned(roomId);
 
-        assertEq(escrow.pendingWithdrawals(alice), STAKE * 2);
+        uint256 pot = STAKE * 2;
+        uint256 fee = (pot * 500) / 10000;
+        assertEq(escrow.pendingWithdrawals(alice), pot - fee);
     }
 
     // ──────── Fuzz Tests ────────
@@ -573,26 +935,12 @@ contract ChessEscrowTest is Test {
         assertEq(escrow.getRoom(roomId).stake, stake);
     }
 
-    function testFuzz_submitResult_anyValidWinner(uint8 winnerChoice) public {
-        uint256 roomId = _createAndJoin();
-        bytes32 movesHash = keccak256("fuzz");
-        uint256 nonce = 1;
-
-        // 0 = alice, 1 = bob, else = draw
-        address winner;
-        if (winnerChoice % 3 == 0) {
-            winner = alice;
-        } else if (winnerChoice % 3 == 1) {
-            winner = bob;
-        } else {
-            winner = address(0);
-        }
-
-        bytes memory sigA = _signResult(alicePk, roomId, winner, movesHash, nonce);
-        bytes memory sigB = _signResult(bobPk, roomId, winner, movesHash, nonce);
-
-        escrow.submitResult(roomId, winner, movesHash, nonce, sigA, sigB);
-        assertEq(uint256(escrow.getRoom(roomId).status), 2); // Settled
+    function testFuzz_challengeBond(uint256 stake) public {
+        stake = bound(stake, 1, escrow.MAX_STAKE());
+        uint256 bond = escrow.getChallengeBond(stake);
+        uint256 expectedFromStake = (stake * 2000) / 10000;
+        uint256 expected = expectedFromStake > 0.01 ether ? expectedFromStake : 0.01 ether;
+        assertEq(bond, expected);
     }
 
     function testFuzz_refundTimeout_warpAmount(uint256 extraTime) public {
@@ -610,14 +958,13 @@ contract ChessEscrowTest is Test {
         uint256 room1 = _createAndJoin();
         uint256 room2 = _createAndJoin();
 
-        // Settle room1
         bytes32 hash1 = keccak256("game1");
-        bytes memory s1a = _signResult(alicePk, room1, alice, hash1, 1);
-        bytes memory s1b = _signResult(bobPk, room1, alice, hash1, 1);
-        escrow.submitResult(room1, alice, hash1, 1, s1a, s1b);
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory s1a = _signResult(alicePk, room1, alice, 0, 0, 10, hash1, 1, deadline);
+        bytes memory s1b = _signResult(bobPk, room1, alice, 0, 0, 10, hash1, 1, deadline);
+        escrow.submitResult(room1, alice, 0, 0, 10, hash1, 1, deadline, s1a, s1b);
 
-        // Room2 should still be active
-        assertEq(uint256(escrow.getRoom(room2).status), 1);
+        assertEq(uint256(escrow.getRoom(room2).status), 1); // Still Active
     }
 
     function test_maxStake() public {

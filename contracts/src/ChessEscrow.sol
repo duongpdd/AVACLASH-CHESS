@@ -327,9 +327,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard {
     ) external nonReentrant {
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
-        if (winner != room.playerA && winner != room.playerB && winner != address(0)) {
-            revert InvalidWinner();
-        }
+        _validateOutcomeAndWinner(room, winner, outcome);
         if (usedNonces[roomId][nonce]) revert NonceAlreadyUsed();
         if (block.timestamp > deadline) revert DeadlineExpired();
 
@@ -372,7 +370,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard {
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
         if (winner != msg.sender) revert NotTheWinner();
-        if (winner != room.playerA && winner != room.playerB) revert InvalidWinner();
+        _validateOutcomeAndWinner(room, winner, outcome);
         if (usedNonces[roomId][nonce]) revert NonceAlreadyUsed();
         if (block.timestamp > deadline) revert DeadlineExpired();
 
@@ -425,6 +423,8 @@ contract ChessEscrow is EIP712, ReentrancyGuard {
         address challengerAddr = msg.sender;
         if (challengerAddr != room.playerA && challengerAddr != room.playerB) revert NotAPlayer();
         if (challengerAddr == room.singleSignedWinner) revert NotAPlayer();
+
+        _validateOutcomeAndWinner(room, winner, outcome);
 
         // Verify bond
         uint256 requiredBond = _computeChallengeBond(room.stake);
@@ -705,6 +705,21 @@ contract ChessEscrow is EIP712, ReentrancyGuard {
                     emit MetaCallFailed(roomId, IAvaClashMeta.resolvePrediction.selector);
                 }
             }
+        }
+    }
+
+    /**
+     * @dev Validate consistency between outcome and winner:
+     *      - outcome == 2 (Draw) requires winner == address(0), and vice versa.
+     *      - outcome <= 1 requires winner == playerA || winner == playerB.
+     */
+    function _validateOutcomeAndWinner(Room storage room, address winner, uint8 outcome) internal view {
+        if (outcome == 2) {
+            if (winner != address(0)) revert InvalidWinner();
+        } else if (outcome <= 1) {
+            if (winner != room.playerA && winner != room.playerB) revert InvalidWinner();
+        } else {
+            revert InvalidWinner();
         }
     }
 
