@@ -30,6 +30,7 @@ contract AvaClashMeta is ReentrancyGuard {
     mapping(address => uint256) public noLossPrincipal;
     mapping(address => uint256) public seasonPoints;
     uint256 public totalNoLossStaked;
+    /// @notice Accumulated season prize pool from spectator fees (payout mechanism deferred pending ADR Q12).
     uint256 public seasonPrizePool;
 
     // ──────────────────────── 3. SPECTATOR PREDICTION ───────────────
@@ -37,9 +38,10 @@ contract AvaClashMeta is ReentrancyGuard {
     struct MatchPrediction {
         bool bettingLocked;     // locked when match starts (joinRoom)
         bool resolved;
-        bool cancelled;         // true if match was aborted/refunded
+        bool cancelled;         // true if match was aborted/refunded or winning pool was 0
         uint8 winningOption;    // 1: White, 2: Black, 3: Draw
-        uint256 totalWhiteBet;
+        uint256 createdAt;      // timestamp when prediction pool was initialized
+        uint256 totalWhiteBet;  // Gross pool amounts
         uint256 totalBlackBet;
         uint256 totalDrawBet;
         mapping(address => uint256) whiteBets;
@@ -53,8 +55,11 @@ contract AvaClashMeta is ReentrancyGuard {
 
     mapping(uint256 => MatchPrediction) internal _predictions;
 
-    /// @notice Fee on spectator bets in basis points (500 = 5%).
+    /// @notice Fee on spectator bets in basis points (500 = 5%), deducted upon resolution into seasonPrizePool.
     uint256 public constant SPECTATOR_FEE_BPS = 500;
+
+    /// @notice Maximum time a prediction pool can remain unresolved before spectators can trigger refund independently (7 days).
+    uint256 public constant MAX_UNRESOLVED = 7 days;
 
     // ──────────────────────── Events ────────────────────────
 
@@ -187,6 +192,9 @@ contract AvaClashMeta is ReentrancyGuard {
      */
     function registerMatch(uint256 matchId, address pA, address pB) external onlyEscrow {
         MatchPrediction storage p = _predictions[matchId];
+        if (p.createdAt == 0) {
+            p.createdAt = block.timestamp;
+        }
         p.playerA = pA;
         p.playerB = pB;
     }
@@ -195,34 +203,35 @@ contract AvaClashMeta is ReentrancyGuard {
      * @notice Spectators bet AVAX on White (1), Black (2), or Draw (3).
      *         Must bet BEFORE match starts (before joinRoom — auto-locked).
      *         Players cannot bet on their own match.
+     *         Stored gross (5% fee deducted upon resolution, not during betting).
      */
     function betOnMatch(uint256 matchId, uint8 option) external payable nonReentrant {
         if (option != 1 && option != 2 && option != 3) revert InvalidOption();
         if (msg.value == 0) revert ZeroBet();
 
         MatchPrediction storage p = _predictions[matchId];
-        if (p.bettingLocked || p.resolved) revert BettingClosed();
+        if (p.bettingLocked || p.resolved || p.cancelled) revert BettingClosed();
 
         // Prevent players from betting on their own match
         if (msg.sender == p.playerA || msg.sender == p.playerB) revert SelfBetNotAllowed();
 
-        // 5% fee: pumped directly into No-Loss Arena Season Prize Pool
-        uint256 fee = (msg.value * SPECTATOR_FEE_BPS) / 10000;
-        uint256 netAmount = msg.value - fee;
-        seasonPrizePool += fee;
-
-        if (option == 1) {
-            p.totalWhiteBet += netAmount;
-            p.whiteBets[msg.sender] += netAmount;
-        } else if (option == 2) {
-            p.totalBlackBet += netAmount;
-            p.blackBets[msg.sender] += netAmount;
-        } else {
-            p.totalDrawBet += netAmount;
-            p.drawBets[msg.sender] += netAmount;
+        if (p.createdAt == 0) {
+            p.createdAt = block.timestamp;
         }
 
-        emit SpectatorBet(matchId, msg.sender, option, netAmount);
+        // Store gross bets without upfront fee deduction
+        if (option == 1) {
+            p.totalWhiteBet += msg.value;
+            p.whiteBets[msg.sender] += msg.value;
+        } else if (option == 2) {
+            p.totalBlackBet += msg.value;
+            p.blackBets[msg.sender] += msg.value;
+        } else {
+            p.totalDrawBet += msg.value;
+            p.drawBets[msg.sender] += msg.value;
+        }
+
+        emit SpectatorBet(matchId, msg.sender, option, msg.value);
     }
 
     /**
@@ -239,26 +248,50 @@ contract AvaClashMeta is ReentrancyGuard {
     /**
      * @notice Resolve prediction pool after match.
      *         winningOption: 1=White, 2=Black, 3=Draw.
+     *         If winning pool is 0, treats match prediction as cancelled so all bettors get full refund.
+     *         Fee of 5% on totalPool is deducted and credited to seasonPrizePool upon resolution.
      */
     function resolvePrediction(uint256 matchId, uint8 winningOption) external onlyEscrow {
         if (winningOption != 1 && winningOption != 2 && winningOption != 3) revert InvalidOption();
         MatchPrediction storage p = _predictions[matchId];
-        if (p.resolved) revert AlreadyResolved();
+        if (p.resolved || p.cancelled) revert AlreadyResolved();
 
         p.bettingLocked = true;
+
+        uint256 winningPool = 0;
+        if (winningOption == 1) {
+            winningPool = p.totalWhiteBet;
+        } else if (winningOption == 2) {
+            winningPool = p.totalBlackBet;
+        } else {
+            winningPool = p.totalDrawBet;
+        }
+
+        // If winning option pool has 0 bets, cancel pool so all bettors receive 100% gross refund
+        if (winningPool == 0) {
+            p.cancelled = true;
+            emit PredictionCancelled(matchId);
+            return;
+        }
+
         p.resolved = true;
         p.winningOption = winningOption;
+
+        // Deduct 5% fee on total pool and credit to seasonPrizePool
+        uint256 totalPool = p.totalWhiteBet + p.totalBlackBet + p.totalDrawBet;
+        uint256 fee = (totalPool * SPECTATOR_FEE_BPS) / 10000;
+        seasonPrizePool += fee;
 
         emit PredictionResolved(matchId, winningOption);
     }
 
     /**
      * @notice Cancel prediction pool (match aborted/refunded/challenge default).
-     *         All spectators can claim full refund via pull pattern.
+     *         All spectators can claim full gross refund via pull pattern.
      */
     function cancelPrediction(uint256 matchId) external onlyEscrow {
         MatchPrediction storage p = _predictions[matchId];
-        if (p.resolved) revert AlreadyResolved();
+        if (p.resolved || p.cancelled) revert AlreadyResolved();
 
         p.bettingLocked = true;
         p.cancelled = true;
@@ -268,6 +301,7 @@ contract AvaClashMeta is ReentrancyGuard {
 
     /**
      * @notice Claim payout for winning prediction.
+     *         Payout = userBet * (totalPool - fee) / winningPool.
      */
     function claimSpectatorReward(uint256 matchId) external nonReentrant {
         MatchPrediction storage p = _predictions[matchId];
@@ -293,7 +327,9 @@ contract AvaClashMeta is ReentrancyGuard {
         if (userBet == 0) revert NoWinningBet();
 
         p.claimed[msg.sender] = true;
-        uint256 reward = (userBet * totalPool) / winningPool;
+
+        uint256 fee = (totalPool * SPECTATOR_FEE_BPS) / 10000;
+        uint256 reward = (userBet * (totalPool - fee)) / winningPool;
 
         (bool success, ) = msg.sender.call{value: reward}("");
         if (!success) revert TransferFailed();
@@ -302,11 +338,24 @@ contract AvaClashMeta is ReentrancyGuard {
     }
 
     /**
-     * @notice Claim refund when match was cancelled (pull pattern).
+     * @notice Claim refund when match was cancelled or unresolved past MAX_UNRESOLVED (pull pattern).
+     *         Spectators receive 100% gross refund.
+     *         If pool was never resolved or cancelled after MAX_UNRESOLVED (7 days), spectators
+     *         can call this independently without requiring Escrow action.
      */
     function claimSpectatorRefund(uint256 matchId) external nonReentrant {
         MatchPrediction storage p = _predictions[matchId];
-        if (!p.cancelled) revert MatchCancelled();
+        if (p.resolved) revert AlreadyResolved();
+
+        bool isTimedOut = (p.createdAt != 0 && block.timestamp > p.createdAt + MAX_UNRESOLVED);
+
+        if (!p.cancelled) {
+            if (!isTimedOut) revert MatchCancelled();
+            p.cancelled = true;
+            p.bettingLocked = true;
+            emit PredictionCancelled(matchId);
+        }
+
         if (p.claimed[msg.sender]) revert AlreadyClaimed();
 
         uint256 total = p.whiteBets[msg.sender] + p.blackBets[msg.sender] + p.drawBets[msg.sender];

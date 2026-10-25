@@ -106,8 +106,8 @@ contract AvaClashMetaTest is Test {
         vm.prank(spectator1);
         meta.betOnMatch{value: 1 ether}(matchId, 1); // Bet on White
 
-        // 5% fee = 0.05 ether => net bet = 0.95 ether
-        assertEq(meta.seasonPrizePool(), 0.05 ether);
+        // Bets are stored gross (5% fee NOT deducted at bet time)
+        assertEq(meta.seasonPrizePool(), 0);
 
         (bool locked, bool resolved, bool cancelled, uint8 winOpt, uint256 wBet, uint256 bBet, uint256 dBet) =
             meta.getPredictionPool(matchId);
@@ -115,9 +115,13 @@ contract AvaClashMetaTest is Test {
         assertFalse(resolved);
         assertFalse(cancelled);
         assertEq(winOpt, 0);
-        assertEq(wBet, 0.95 ether);
+        assertEq(wBet, 1 ether); // Gross 1 ether
         assertEq(bBet, 0);
         assertEq(dBet, 0);
+
+        // When resolved, 5% fee is deducted from totalPool into seasonPrizePool
+        meta.resolvePrediction(matchId, 1);
+        assertEq(meta.seasonPrizePool(), 0.05 ether);
     }
 
     function test_BetOnMatch_SelfBetNotAllowed() public {
@@ -141,16 +145,18 @@ contract AvaClashMetaTest is Test {
     function test_ResolveAndClaimSpectatorReward_WhiteWins() public {
         uint256 matchId = 104;
 
-        // Spectator 1 bets 1 ether on White (net 0.95)
+        // Spectator 1 bets 1 ether on White (gross 1 ether)
         vm.prank(spectator1);
         meta.betOnMatch{value: 1 ether}(matchId, 1);
 
-        // Spectator 2 bets 1 ether on Black (net 0.95)
+        // Spectator 2 bets 1 ether on Black (gross 1 ether)
         vm.prank(spectator2);
         meta.betOnMatch{value: 1 ether}(matchId, 2);
 
-        // White wins (Option 1)
+        // White wins (Option 1). Total pool = 2 ether. Fee = 5% * 2 ether = 0.1 ether.
+        // Net reward = 1 * (2 - 0.1) / 1 = 1.9 ether.
         meta.resolvePrediction(matchId, 1);
+        assertEq(meta.seasonPrizePool(), 0.1 ether);
 
         uint256 balBefore = spectator1.balance;
         vm.prank(spectator1);
@@ -174,8 +180,9 @@ contract AvaClashMetaTest is Test {
         vm.prank(spectator2);
         meta.betOnMatch{value: 1 ether}(matchId, 3); // Option 3 = Draw
 
-        // Resolved as Draw (Option 3)
+        // Resolved as Draw (Option 3). Total = 2 ether, fee = 0.1 ether, payout = 1.9 ether.
         meta.resolvePrediction(matchId, 3);
+        assertEq(meta.seasonPrizePool(), 0.1 ether);
 
         uint256 balBefore = spectator2.balance;
         vm.prank(spectator2);
@@ -188,15 +195,109 @@ contract AvaClashMetaTest is Test {
         uint256 matchId = 106;
 
         vm.prank(spectator1);
-        meta.betOnMatch{value: 1 ether}(matchId, 1); // net 0.95
+        meta.betOnMatch{value: 1 ether}(matchId, 1); // gross 1 ether
 
-        // Match cancelled / refunded
+        // Match cancelled / refunded -> 100% gross refund
         meta.cancelPrediction(matchId);
+        assertEq(meta.seasonPrizePool(), 0);
 
         uint256 balBefore = spectator1.balance;
         vm.prank(spectator1);
         meta.claimSpectatorRefund(matchId);
 
-        assertEq(spectator1.balance, balBefore + 0.95 ether);
+        assertEq(spectator1.balance, balBefore + 1.0 ether);
+    }
+
+    function test_ResolvePrediction_WinningPoolZero_TreatedAsCancelled_RefundsAll() public {
+        uint256 matchId = 107;
+
+        // Spectator 1 bets 1 ether on White (Option 1)
+        vm.prank(spectator1);
+        meta.betOnMatch{value: 1 ether}(matchId, 1);
+
+        // Match ends in Draw (Option 3), but Draw pool has 0 bets!
+        meta.resolvePrediction(matchId, 3);
+
+        // Pool must be cancelled, not resolved
+        (, bool resolved, bool cancelled,,,,) = meta.getPredictionPool(matchId);
+        assertFalse(resolved);
+        assertTrue(cancelled);
+        assertEq(meta.seasonPrizePool(), 0);
+
+        // Spectator 1 claims 100% gross refund
+        uint256 balBefore = spectator1.balance;
+        vm.prank(spectator1);
+        meta.claimSpectatorRefund(matchId);
+        assertEq(spectator1.balance, balBefore + 1.0 ether);
+    }
+
+    function test_ClaimSpectatorRefund_IndependentAfter7Days() public {
+        uint256 matchId = 108;
+
+        vm.prank(spectator1);
+        meta.betOnMatch{value: 1 ether}(matchId, 1);
+
+        // Attempting refund early without Escrow cancel reverts
+        vm.prank(spectator1);
+        vm.expectRevert(AvaClashMeta.MatchCancelled.selector);
+        meta.claimSpectatorRefund(matchId);
+
+        // Warp past MAX_UNRESOLVED (7 days)
+        vm.warp(block.timestamp + 7 days + 1);
+
+        // Spectator triggers refund independently without Escrow
+        uint256 balBefore = spectator1.balance;
+        vm.prank(spectator1);
+        meta.claimSpectatorRefund(matchId);
+
+        assertEq(spectator1.balance, balBefore + 1.0 ether);
+
+        // Pool is now marked cancelled
+        (,, bool cancelled,,,,) = meta.getPredictionPool(matchId);
+        assertTrue(cancelled);
+    }
+
+    function test_ResolvePrediction_RevertIfAlreadyCancelledOrResolved() public {
+        uint256 matchId = 109;
+
+        vm.prank(spectator1);
+        meta.betOnMatch{value: 1 ether}(matchId, 1);
+
+        meta.cancelPrediction(matchId);
+
+        // Attempting to resolve after cancel must revert
+        vm.expectRevert(AvaClashMeta.AlreadyResolved.selector);
+        meta.resolvePrediction(matchId, 1);
+    }
+
+    function test_SpectatorReward_GrossFeeConservationMultipleBettors() public {
+        uint256 matchId = 110;
+
+        // Spectator 1 bets 1 ether on White
+        vm.prank(spectator1);
+        meta.betOnMatch{value: 1 ether}(matchId, 1);
+
+        // Spectator 2 bets 3 ether on White
+        vm.prank(spectator2);
+        meta.betOnMatch{value: 3 ether}(matchId, 1);
+
+        // White wins (Option 1). Total pool = 4 ether. Fee = 5% * 4 = 0.2 ether.
+        // Net pool = 3.8 ether.
+        // Spectator 1 share: 1/4 * 3.8 = 0.95 ether.
+        // Spectator 2 share: 3/4 * 3.8 = 2.85 ether.
+        // Total payouts = 0.95 + 2.85 = 3.8 ether.
+        // With fee 0.2 ether, sum = 4.0 ether (100% exact conservation).
+        meta.resolvePrediction(matchId, 1);
+        assertEq(meta.seasonPrizePool(), 0.2 ether);
+
+        uint256 s1Before = spectator1.balance;
+        vm.prank(spectator1);
+        meta.claimSpectatorReward(matchId);
+        assertEq(spectator1.balance, s1Before + 0.95 ether);
+
+        uint256 s2Before = spectator2.balance;
+        vm.prank(spectator2);
+        meta.claimSpectatorReward(matchId);
+        assertEq(spectator2.balance, s2Before + 2.85 ether);
     }
 }
