@@ -134,6 +134,7 @@
 ### D12: Quy tắc ELO và Season Points — `Accepted` (hiện trạng) với hạn chế
 - ELO khởi đầu 1200. `Δ = 24 >> min(matchesToday, 4)`, với `matchesToday` tính theo `pairId = keccak256(min(A,B), max(A,B), currentDay)`.
 - Season Points: +15/ván thắng cho người tham gia Vault.
+- **Ràng buộc cược tối thiểu (MIN_STAKE):** Chỉ tính ELO và Season Points cho các ván đấu có mức cược $\ge 0.01$ AVAX (`MIN_STAKE = 0.01 ether`). Điều kiện này được bảo đảm trực tiếp và triệt để bởi `ChessEscrow.createRoom` (revert `StakeTooLow` nếu stake < MIN_STAKE), triệt tiêu hành vi tạo phòng cược 0 đồng hoặc cược vi mô để cày điểm.
 - Hạn chế: chỉ chặn được cặp ví cố định, chưa chống Sybil nhiều ví; mức thay đổi cố định, chưa phụ thuộc chênh lệch ELO; Season Points chưa có giảm dần. Xem kế hoạch G7.
 
 ### D13: Khóa cược Spectator theo cửa sổ ngắn — `Proposed` (đề xuất sửa Q4)

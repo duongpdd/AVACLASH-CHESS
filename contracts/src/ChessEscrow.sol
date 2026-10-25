@@ -25,6 +25,9 @@ interface IAvaClashMeta {
 contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
     // ──────────────────────── Constants ────────────────────────
 
+    /// @notice Minimum stake per player (0.01 AVAX).
+    uint256 public constant MIN_STAKE = 0.01 ether;
+
     /// @notice Maximum stake per room (1 AVAX).
     uint256 public constant MAX_STAKE = 1 ether;
 
@@ -211,7 +214,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
      * @return roomId The ID of the newly created room.
      */
     function createRoom() external payable whenNotPaused returns (uint256 roomId) {
-        if (msg.value == 0) revert StakeTooLow();
+        if (msg.value < MIN_STAKE) revert StakeTooLow();
         if (msg.value > MAX_STAKE) revert StakeTooHigh();
 
         roomId = nextRoomId++;

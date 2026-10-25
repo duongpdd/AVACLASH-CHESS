@@ -104,10 +104,14 @@ contract ChessEscrowTest is Test {
         escrow.createRoom{ value: STAKE }();
     }
 
-    function test_createRoom_revert_zeroStake() public {
+    function test_createRoom_revert_stakeBelowMin() public {
         vm.prank(alice);
         vm.expectRevert(ChessEscrow.StakeTooLow.selector);
         escrow.createRoom{ value: 0 }();
+
+        vm.prank(alice);
+        vm.expectRevert(ChessEscrow.StakeTooLow.selector);
+        escrow.createRoom{ value: 0.009 ether }();
     }
 
     function test_createRoom_revert_stakeAboveMax() public {
@@ -1021,7 +1025,7 @@ contract ChessEscrowTest is Test {
     // ──────── Fuzz Tests ────────
 
     function testFuzz_createRoom_stakeRange(uint256 stake) public {
-        stake = bound(stake, 1, escrow.MAX_STAKE());
+        stake = bound(stake, escrow.MIN_STAKE(), escrow.MAX_STAKE());
         vm.deal(alice, stake);
         vm.prank(alice);
         uint256 roomId = escrow.createRoom{ value: stake }();
@@ -1029,7 +1033,7 @@ contract ChessEscrowTest is Test {
     }
 
     function testFuzz_challengeBond(uint256 stake) public {
-        stake = bound(stake, 1, escrow.MAX_STAKE());
+        stake = bound(stake, escrow.MIN_STAKE(), escrow.MAX_STAKE());
         uint256 bond = escrow.getChallengeBond(stake);
         uint256 expectedFromStake = (stake * 2000) / 10000;
         uint256 expected = expectedFromStake > 0.01 ether ? expectedFromStake : 0.01 ether;
