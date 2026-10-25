@@ -73,29 +73,28 @@
 - **Lý do:** Hai người chơi có thể thỏa thuận kết thúc nhanh để lợi dụng cược khán giả. Chưa có cơ chế chống hiệu quả.
 - **Lưu ý:** bỏ cửa này không chặn được thông đồng qua cửa Hòa hoặc resign sớm (xem kế hoạch G6).
 
-### Q6: Phí giao thức — `Open` (mâu thuẫn đích tiền)
-- **Quyết định:** 5% trên Escrow.
-- **Chi tiết:**
-  - Phí tính trên tổng pot (2 × stake) khi settle, trước khi phân phối.
-  - Không thu phí khi hòa hoặc refund (hoàn 100%).
-- **Mâu thuẫn cần chốt:** tiêu đề cũ ghi "nạp vào quỹ thưởng mùa giải", phần chi tiết cũ ghi chuyển vào `treasury` (ban đầu là deployer, sau là multisig), còn `ARCHITECTURE.md` mục 6.2 ghi nuôi `seasonPrizePool`. Đề xuất: Escrow chuyển vào `treasury`; treasury nạp `seasonPrizePool` theo quy trình công khai. Cần xác nhận cách code đang làm.
+### Q6: Phí giao thức — `Accepted`
+- **Quyết định:** 5% trên Escrow khi có người thắng (0% khi hòa hoặc refund).
+- **Đích tiền:** Phí được tích lũy on-chain tại `ChessEscrow` và chuyển về địa chỉ `treasury` thông qua hàm `withdrawProtocolFees`. Treasury (multisig quản trị) sau đó trích một phần hoặc toàn bộ để cấp vốn nuôi Quỹ giải thưởng mùa giải (`seasonPrizePool`) theo kế hoạch công khai.
 
 ### Q7: Bond challenge — `Accepted`
 - **Quyết định:** 20% tiền cược (tối thiểu 0.01 AVAX).
 - **Lý do:** Đủ cao để ngăn challenge bừa, đủ thấp để không cản trở khiếu nại hợp lệ.
 - **Ghi chú:** chỉ bên challenge đặt bond; bên nộp `submitSingleSigned` chưa đặt bond (xem Q8).
 
-### Q8: Bond ở nhánh mặc định 24h — `Proposed`
-- **Vấn đề:** khi arbiter quá hạn, `resolveDefaultChallenge` hoàn 100% cược và hoàn bond cho cả hai. Bên thua có thể từ chối ký, challenge, chờ 24h và hòa vốn.
-- **Đề xuất:** chuyển một phần bond (đề xuất 50%) của bên challenge cho bên nộp đơn khi arbiter quá hạn, và/hoặc yêu cầu bên nộp `submitSingleSigned` đặt bond ngang bằng.
-- **Cần làm:** mô phỏng với các bậc cược; sửa bảng an ninh trong `ARCHITECTURE.md` (đang tự mâu thuẫn "tịch thu bond" và "hoàn bond").
+### Q8: Bond ở nhánh mặc định 24h — `Accepted`
+- **Vấn đề trước đây:** khi arbiter quá hạn, `resolveDefaultChallenge` hoàn 100% cược và hoàn bond cho cả hai. Bên thua có thể từ chối ký, challenge, chờ 24h và hòa vốn mà không mất gì.
+- **Giải pháp triển khai (a89ef44):**
+  - Hoàn trả 100% tiền cược gốc cho cả hai bên.
+  - Phạt 50% bond của bên khiếu nại chuyển cho bên nộp đơn (bù đắp chi phí thời gian và cơ hội), 50% bond còn lại hoàn trả cho bên khiếu nại.
+  - Bên khiếu nại gian lận chịu tổn thất ròng 10% tiền cược, triệt tiêu động lực trì hoãn để "hòa vốn". Bảo toàn 100% tổng tiền on-chain.
 
 ### Q9: Tín hiệu bắt đầu ván (`confirmStart`) — `Proposed`
 - **Vấn đề:** `abortRoom` chỉ dựa thời gian có thể bị dùng để thoát ván đang thua.
 - **Đề xuất:** Relay ký tín hiệu EIP-712 "ván đã bắt đầu" khi có nước đi đầu tiên; sau khi được xác nhận trên chain, `abortRoom` bị cấm. Chưa xác nhận thì vẫn dùng `refundOnTimeout` 60 phút làm lưới an toàn.
 - **Đánh đổi:** thêm một lời gọi on-chain và thêm phụ thuộc Relay; nếu Relay offline thì ván không xác nhận được, người chơi dùng đường refund dài.
 
-### Q10: Telemetry chỉ cảnh báo ở Fuji — `Proposed`
+### Q10: Telemetry chỉ cảnh báo ở Fuji — `Accepted` (chi tiết D10)
 - Xem D10.
 
 ---
@@ -122,16 +121,15 @@
 - Khác với kế hoạch ban đầu (có trừ phí nhỏ chống spam): hiện hoàn 100% không phí. Cần quyết định có thêm phí hay không (rủi ro spam tạo phòng).
 - Hạn chế đã biết: điều kiện chỉ dựa thời gian, xem Q9.
 
-### D10: Telemetry và đồng hồ — `Open` (chờ Q10)
-- **Hiện trạng:** `useFairPlayGuard` phát hiện rời màn hình quá 2 giây và gửi cảnh báo; Relay (theo `PROGRESS.md`) còn **trừ giờ** người vi phạm.
-- **Vấn đề:** telemetry do client tự báo, không kiểm chứng được; người ngay có thể bị phạt oan (popup, thông báo hệ thống); hết giờ quyết định thắng thua có tiền thật; cơ chế này đi ngược "Pure FIDE Core". `ARCHITECTURE.md` mục 7 lại mô tả telemetry chỉ là cảnh báo.
-- **Đề xuất cho Fuji:** chỉ hiển thị cảnh báo cho đối thủ, không trừ giờ. Nếu muốn giữ phạt, chỉ dựa trên bằng chứng phía server và công bố luật cho người chơi.
+### D10: Telemetry và đồng hồ — `Accepted` (Q10)
+- **Hiện trạng cập nhật (fda0f5e):** `useFairPlayGuard` phát hiện rời màn hình quá 2 giây và gửi cảnh báo; Relay broadcast cảnh báo và đếm vi phạm cho đối thủ thấy, **tuyệt đối không trừ giờ đồng hồ và không xử thua kỹ thuật**.
+- **Lý do:** Tuân thủ triệt để nguyên lý "Pure FIDE Core", tránh việc phạt oan do telemetry client không thể kiểm chứng mật mã học, và đảm bảo ván cờ FIDE diễn ra thuần túy theo kỹ năng trên bàn cờ.
 
-### D11: Khóa Relay và Arbiter — `Proposed`
-- `relaySigner` và `arbiter` hiện cùng thuộc Relay. Đề xuất tách thành hai khóa, lưu bằng biến môi trường/KMS, không commit vào repo.
-- Thêm `Pausable`: khi tạm dừng chỉ chặn `createRoom`/`joinRoom`, vẫn cho phép hoàn tiền và rút tiền.
+### D11: Khóa Relay và Arbiter, Pausable — `Accepted` (f925d42, 26e184a)
+- Đã tách riêng biến `arbiter` khỏi `relaySigner` trong `ChessEscrow.sol`. Cả hai đều thay đổi qua timelock 2 ngày và phát event.
+- Xóa hoàn toàn private key hardcode trong mã nguồn Relay; bắt buộc nạp qua biến môi trường `RELAY_PRIVATE_KEY` hoặc dừng server với lỗi rõ ràng.
+- Tích hợp OpenZeppelin `Pausable` vào `ChessEscrow.sol`: khi tạm dừng chỉ chặn `createRoom`/`joinRoom`; các luồng rút tiền, hoàn tiền, abort, claim hoàn toàn không bị ảnh hưởng, đảm bảo không bao giờ kẹt tiền người chơi.
 - Giữ trần cược 1 AVAX trong giai đoạn testnet.
-- Đổi khóa Relay/Arbiter phải qua timelock và phát sự kiện công khai (đã có theo Q2).
 
 ### D12: Quy tắc ELO và Season Points — `Accepted` (hiện trạng) với hạn chế
 - ELO khởi đầu 1200. `Δ = 24 >> min(matchesToday, 4)`, với `matchesToday` tính theo `pairId = keccak256(min(A,B), max(A,B), currentDay)`.
