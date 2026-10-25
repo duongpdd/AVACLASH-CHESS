@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 
 interface IAvaClashMeta {
     function registerMatch(uint256 matchId, address pA, address pB) external;
@@ -21,7 +22,7 @@ interface IAvaClashMeta {
  *         Supports single-signed submissions with challenge+bond, abort, timeout,
  *         and a 5% protocol fee on settlements.
  */
-contract ChessEscrow is EIP712, ReentrancyGuard {
+contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
     // ──────────────────────── Constants ────────────────────────
 
     /// @notice Maximum stake per room (1 AVAX).
@@ -106,6 +107,14 @@ contract ChessEscrow is EIP712, ReentrancyGuard {
     uint256 public relaySignerChangeAt;
     uint256 public constant RELAY_TIMELOCK = 2 days;
 
+    /// @notice Arbiter address (dispute resolution).
+    address public arbiter;
+
+    /// @notice Pending arbiter change (timelock).
+    address public pendingArbiter;
+    uint256 public arbiterChangeAt;
+    uint256 public constant ARBITER_TIMELOCK = 2 days;
+
     /// @notice Treasury address for protocol fees.
     address public treasury;
 
@@ -139,6 +148,8 @@ contract ChessEscrow is EIP712, ReentrancyGuard {
     event Withdrawn(address indexed account, uint256 amount);
     event RelaySignerChangeProposed(address indexed newSigner, uint256 effectiveAt);
     event RelaySignerChanged(address indexed oldSigner, address indexed newSigner);
+    event ArbiterChangeProposed(address indexed newArbiter, uint256 effectiveAt);
+    event ArbiterChanged(address indexed oldArbiter, address indexed newArbiter);
     event ChallengeResolved(uint256 indexed roomId, address winner);
     event MetaContractSet(address indexed metaContract);
     event MetaCallFailed(uint256 indexed roomId, bytes4 selector);
@@ -174,6 +185,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard {
     error ArbiterDeadlineNotReached();
     error NoFailedResolution();
     error MetaNotConfigured();
+    error NotArbiter();
 
     // ──────────────────────── Modifiers ────────────────────────
 
@@ -187,6 +199,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard {
     constructor(address _relaySigner, address _treasury) EIP712("AvaClashChess", "1") {
         owner = msg.sender;
         relaySigner = _relaySigner;
+        arbiter = _relaySigner;
         treasury = _treasury;
     }
 
@@ -196,7 +209,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard {
      * @notice Create a new room and stake AVAX.
      * @return roomId The ID of the newly created room.
      */
-    function createRoom() external payable returns (uint256 roomId) {
+    function createRoom() external payable whenNotPaused returns (uint256 roomId) {
         if (msg.value == 0) revert StakeTooLow();
         if (msg.value > MAX_STAKE) revert StakeTooHigh();
 
@@ -213,7 +226,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard {
      * @notice Join an open room by matching the stake.
      * @param roomId The room to join.
      */
-    function joinRoom(uint256 roomId) external payable {
+    function joinRoom(uint256 roomId) external payable whenNotPaused {
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Open) revert RoomNotOpen();
         if (msg.sender == room.playerA) revert CannotJoinOwnRoom();
@@ -454,7 +467,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard {
      * @param validWinner The arbiter's determined winner (address(0) for draw).
      */
     function resolveChallenge(uint256 roomId, address validWinner) external nonReentrant {
-        if (msg.sender != relaySigner) revert InvalidSignature(); // relaySigner acts as arbiter
+        if (msg.sender != arbiter) revert NotArbiter();
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Challenged) revert RoomNotChallenged();
         if (validWinner != room.playerA && validWinner != room.playerB && validWinner != address(0)) {
@@ -592,6 +605,46 @@ contract ChessEscrow is EIP712, ReentrancyGuard {
         relaySignerChangeAt = 0;
 
         emit RelaySignerChanged(oldSigner, relaySigner);
+    }
+
+    /**
+     * @notice Propose an arbiter change (timelock enforced).
+     * @param newArbiter The new arbiter address.
+     */
+    function proposeArbiter(address newArbiter) external onlyOwner {
+        pendingArbiter = newArbiter;
+        arbiterChangeAt = block.timestamp + ARBITER_TIMELOCK;
+        emit ArbiterChangeProposed(newArbiter, arbiterChangeAt);
+    }
+
+    /**
+     * @notice Execute an arbiter change after timelock.
+     */
+    function executeArbiterChange() external onlyOwner {
+        if (pendingArbiter == address(0)) revert NoPendingChange();
+        if (block.timestamp < arbiterChangeAt) revert TimelockNotReady();
+
+        address oldArbiter = arbiter;
+        arbiter = pendingArbiter;
+        pendingArbiter = address(0);
+        arbiterChangeAt = 0;
+
+        emit ArbiterChanged(oldArbiter, arbiter);
+    }
+
+    /**
+     * @notice Pause new room creation and joining in an emergency.
+     *         Existing rooms can still abort, refund, settle, and withdraw.
+     */
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /**
+     * @notice Unpause the contract.
+     */
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     /**

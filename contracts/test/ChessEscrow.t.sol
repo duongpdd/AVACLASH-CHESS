@@ -989,6 +989,90 @@ contract ChessEscrowTest is Test {
         bytes32 ds = escrow.getDomainSeparator();
         assertNotEq(ds, bytes32(0));
     }
+
+    // ──────── Arbiter & Pausable Tests (G5) ────────
+
+    function test_arbiter_different_from_relaySigner() public {
+        address newArbiter = address(0xAAAA9999);
+
+        // Propose new arbiter
+        escrow.proposeArbiter(newArbiter);
+        assertEq(escrow.pendingArbiter(), newArbiter);
+
+        // Cannot execute before timelock (2 days)
+        vm.expectRevert(ChessEscrow.TimelockNotReady.selector);
+        escrow.executeArbiterChange();
+
+        // Warp 2 days and execute
+        vm.warp(block.timestamp + 2 days);
+        escrow.executeArbiterChange();
+        assertEq(escrow.arbiter(), newArbiter);
+        assertTrue(escrow.arbiter() != escrow.relaySigner());
+
+        // Setup a challenge
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, 1, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, 1, deadline, sigAlice);
+
+        uint256 bond = escrow.getChallengeBond(STAKE);
+        bytes memory sigBob = _signResult(bobPk, roomId, bob, 1, 0, 40, movesHash, 2, deadline);
+        vm.prank(bob);
+        escrow.challenge{ value: bond }(roomId, bob, 1, 0, 40, movesHash, 2, deadline, sigBob);
+
+        // Relay signer can no longer resolve challenge
+        vm.prank(relay);
+        vm.expectRevert(ChessEscrow.NotArbiter.selector);
+        escrow.resolveChallenge(roomId, bob);
+
+        // New arbiter resolves successfully
+        vm.prank(newArbiter);
+        escrow.resolveChallenge(roomId, bob);
+        assertEq(uint256(escrow.getRoom(roomId).status), 2); // Settled
+    }
+
+    function test_pause_blocksCreateAndJoin_allowsAbortRefundWithdraw() public {
+        // Create and join room 1 before pause
+        uint256 roomId = _createAndJoin();
+
+        // Owner pauses contract
+        escrow.pause();
+
+        // 1. Cannot create new room while paused
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        escrow.createRoom{ value: STAKE }();
+
+        // 2. Cannot join existing open room while paused
+        // Unpause temporarily to create an open room
+        escrow.unpause();
+        vm.prank(alice);
+        uint256 openRoomId = escrow.createRoom{ value: STAKE }();
+        escrow.pause();
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        escrow.joinRoom{ value: STAKE }(openRoomId);
+
+        // 3. Creator can still cancel their open room while paused
+        vm.prank(alice);
+        escrow.cancelRoom(openRoomId);
+        assertEq(escrow.pendingWithdrawals(alice), STAKE);
+
+        // 4. Players can still abort an active room while paused
+        vm.warp(block.timestamp + escrow.ABORT_TIMEOUT() + 1);
+        escrow.abortRoom(roomId);
+        assertEq(escrow.pendingWithdrawals(bob), STAKE);
+
+        // 5. Players can withdraw all funds without being blocked by pause
+        uint256 bobBalBefore = bob.balance;
+        vm.prank(bob);
+        escrow.withdraw();
+        assertEq(bob.balance, bobBalBefore + STAKE);
+    }
 }
 
 // ──────── Reentrancy Attacker Helper ────────
