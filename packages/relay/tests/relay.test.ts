@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import WebSocket from "ws";
 import { recoverTypedDataAddress } from "viem";
+import { generatePrivateKey } from "viem/accounts";
 import { buildResultTypedData } from "@avaclash/shared";
 import { RelayServer } from "../src/RelayServer.js";
 
 const TEST_PORT = 9876;
-const RELAY_KEY = "0x4f3edf983ac636a65a842ce7c78d9aa706d3b113bce9c46f30d7d21715b23b1d";
+const RELAY_KEY = generatePrivateKey();
 const CONTRACT = "0x1234567890123456789012345678901234567890";
 const CHAIN_ID = 43113;
 
@@ -232,5 +233,14 @@ describe("RelayServer WebSocket Daemon", () => {
 
     wsA.close();
     wsB.close();
+  });
+
+  it("throws error when private key is missing and env is not set", () => {
+    const origEnv = process.env.RELAY_PRIVATE_KEY;
+    delete process.env.RELAY_PRIVATE_KEY;
+    expect(() => new RelayServer({ port: 9999 })).toThrow(
+      "Missing required Relay private key"
+    );
+    if (origEnv) process.env.RELAY_PRIVATE_KEY = origEnv;
   });
 });

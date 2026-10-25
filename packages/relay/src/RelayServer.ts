@@ -34,10 +34,17 @@ export class RelayServer {
   public initialTimeMs?: number;
 
   constructor(options: RelayServerOptions = {}) {
-    // Default test key if not specified
-    const privateKey =
+    const rawKey =
       options.relayPrivateKey ??
-      "0x4f3edf983ac636a65a842ce7c78d9aa706d3b113bce9c46f30d7d21715b23b1d";
+      (process.env.RELAY_PRIVATE_KEY as `0x${string}` | undefined);
+    if (!rawKey) {
+      throw new Error(
+        "Missing required Relay private key. Please set RELAY_PRIVATE_KEY environment variable or pass relayPrivateKey in options."
+      );
+    }
+    const privateKey = rawKey.startsWith("0x")
+      ? (rawKey as `0x${string}`)
+      : (`0x${rawKey}` as `0x${string}`);
     this.relayAccount = privateKeyToAccount(privateKey);
     this.contractAddress = options.contractAddress ?? ZERO_ADDRESS;
     this.chainId = options.chainId ?? FUJI_CHAIN_ID;
