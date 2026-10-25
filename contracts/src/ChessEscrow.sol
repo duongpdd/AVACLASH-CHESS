@@ -508,8 +508,11 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
         // Refund stakes
         pendingWithdrawals[room.playerA] += room.stake;
         pendingWithdrawals[room.playerB] += room.stake;
-        // Refund challenge bond
-        pendingWithdrawals[room.challenger] += room.challengeBond;
+        // Default challenge resolution (Q8): 50% bond goes to submitter as compensation, 50% refunded to challenger
+        uint256 submitterCompensation = room.challengeBond / 2;
+        uint256 challengerRefund = room.challengeBond - submitterCompensation;
+        pendingWithdrawals[room.singleSignedWinner] += submitterCompensation;
+        pendingWithdrawals[room.challenger] += challengerRefund;
 
         if (metaContract != address(0)) {
             try IAvaClashMeta(metaContract).cancelPrediction(roomId) {}

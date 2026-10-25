@@ -711,8 +711,60 @@ contract ChessEscrowTest is Test {
         escrow.resolveDefaultChallenge(roomId);
 
         assertEq(uint256(escrow.getRoom(roomId).status), 4); // Refunded
-        assertEq(escrow.pendingWithdrawals(alice), STAKE);
-        assertEq(escrow.pendingWithdrawals(bob), STAKE + bond); // Bond refunded
+        // Alice gets stake + 50% bond compensation
+        assertEq(escrow.pendingWithdrawals(alice), STAKE + bond / 2);
+        // Bob gets stake + remaining 50% bond
+        assertEq(escrow.pendingWithdrawals(bob), STAKE + (bond - bond / 2));
+    }
+
+    function test_resolveDefaultChallenge_conservationAndBondPenalty() public {
+        uint256 aliceInitialBal = alice.balance;
+        uint256 bobInitialBal = bob.balance;
+
+        // Alice creates room, Bob joins
+        vm.prank(alice);
+        uint256 roomId = escrow.createRoom{ value: STAKE }();
+        vm.prank(bob);
+        escrow.joinRoom{ value: STAKE }(roomId);
+
+        bytes32 movesHash = keccak256("test");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, 1, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned(roomId, alice, 0, 0, 42, movesHash, 1, deadline, sigAlice);
+
+        uint256 bond = escrow.getChallengeBond(STAKE);
+        bytes memory sigBob = _signResult(bobPk, roomId, bob, 1, 0, 40, movesHash, 2, deadline);
+        vm.prank(bob);
+        escrow.challenge{ value: bond }(roomId, bob, 1, 0, 40, movesHash, 2, deadline, sigBob);
+
+        // Contract holds exactly 2 * STAKE + bond
+        assertEq(address(escrow).balance, 2 * STAKE + bond);
+
+        // Arbiter is silent for 24h
+        vm.warp(block.timestamp + escrow.ARBITER_DEADLINE() + 1);
+        escrow.resolveDefaultChallenge(roomId);
+
+        // Verify total funds are 100% conserved
+        uint256 totalCredited = escrow.pendingWithdrawals(alice) + escrow.pendingWithdrawals(bob);
+        assertEq(totalCredited, 2 * STAKE + bond);
+        assertEq(totalCredited, address(escrow).balance);
+
+        // Both players withdraw
+        vm.prank(alice);
+        escrow.withdraw();
+        vm.prank(bob);
+        escrow.withdraw();
+
+        // Total contract balance after full withdrawals is 0
+        assertEq(address(escrow).balance, 0);
+
+        // Bob lost 50% of his challenge bond (penalty for challenging without arbiter resolution):
+        // Bob's balance is strictly lower than bobInitialBal by bond/2:
+        assertEq(bob.balance, bobInitialBal - (bond / 2));
+        // Alice was compensated with 50% of Bob's bond:
+        assertEq(alice.balance, aliceInitialBal + (bond / 2));
     }
 
     function test_resolveDefaultChallenge_revert_tooEarly() public {
