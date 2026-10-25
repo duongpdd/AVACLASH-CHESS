@@ -12,22 +12,27 @@ export const FUJI_CHAIN_ID = 43113;
 export function getEip712Domain(verifyingContract: `0x${string}`, chainId: number = FUJI_CHAIN_ID) {
   return {
     name: "AvaClashChess",
-    version: "1",
+    version: "2",
     chainId: BigInt(chainId),
     verifyingContract,
   } as const;
 }
 
 /**
- * EIP-712 types definition for the Result struct.
- * Matches Solidity: Result(uint256 matchId, address winner, bytes32 movesHash, uint256 nonce)
+ * EIP-712 types definition for the expanded Result struct.
+ * Matches Solidity: Result(uint256 matchId, address winner, uint8 outcome,
+ *   uint8 reason, uint16 moveCount, bytes32 movesHash, uint256 nonce, uint256 deadline)
  */
 export const EIP712_TYPES = {
   Result: [
     { name: "matchId", type: "uint256" },
     { name: "winner", type: "address" },
+    { name: "outcome", type: "uint8" },
+    { name: "reason", type: "uint8" },
+    { name: "moveCount", type: "uint16" },
     { name: "movesHash", type: "bytes32" },
     { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
   ],
 } as const;
 
@@ -39,7 +44,7 @@ export const EIP712_TYPES = {
  *     domain: getEip712Domain(contractAddress),
  *     types: EIP712_TYPES,
  *     primaryType: "Result",
- *     message: { matchId, winner, movesHash, nonce },
+ *     message: { matchId, winner, outcome, reason, moveCount, movesHash, nonce, deadline },
  *   })
  */
 export function buildResultTypedData(
@@ -54,8 +59,12 @@ export function buildResultTypedData(
     message: {
       matchId: result.matchId,
       winner: result.winner,
+      outcome: result.outcome,
+      reason: result.reason,
+      moveCount: result.moveCount,
       movesHash: result.movesHash,
       nonce: result.nonce,
+      deadline: result.deadline,
     },
   };
 }

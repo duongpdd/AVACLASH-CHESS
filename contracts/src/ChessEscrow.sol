@@ -196,7 +196,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
 
     // ──────────────────────── Constructor ────────────────────────
 
-    constructor(address _relaySigner, address _treasury) EIP712("AvaClashChess", "1") {
+    constructor(address _relaySigner, address _treasury) EIP712("AvaClashChess", "2") {
         owner = msg.sender;
         relaySigner = _relaySigner;
         arbiter = _relaySigner;

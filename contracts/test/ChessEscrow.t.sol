@@ -1042,6 +1042,20 @@ contract ChessEscrowTest is Test {
         assertNotEq(ds, bytes32(0));
     }
 
+    function test_EIP712_DomainSeparator_Matches_V2_Spec() public view {
+        bytes32 typeHash = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+        bytes32 expectedDomainSeparator = keccak256(
+            abi.encode(
+                typeHash,
+                keccak256(bytes("AvaClashChess")),
+                keccak256(bytes("2")),
+                block.chainid,
+                address(escrow)
+            )
+        );
+        assertEq(escrow.getDomainSeparator(), expectedDomainSeparator);
+    }
+
     // ──────── Arbiter & Pausable Tests (G5) ────────
 
     function test_arbiter_different_from_relaySigner() public {
