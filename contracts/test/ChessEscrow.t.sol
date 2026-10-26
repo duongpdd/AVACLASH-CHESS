@@ -248,6 +248,21 @@ contract ChessEscrowTest is Test {
         escrow.abortRoom(roomId);
     }
 
+    function test_abortRoom_revert_singleSignedPending() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 bond = escrow.getChallengeBond(STAKE);
+
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, 1, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned{ value: bond }(roomId, alice, 0, 0, 42, movesHash, 1, deadline, sigAlice);
+
+        vm.warp(block.timestamp + escrow.ABORT_TIMEOUT() + 1);
+        vm.expectRevert(ChessEscrow.SingleSignedAlreadySubmitted.selector);
+        escrow.abortRoom(roomId);
+    }
+
     // ──────── signalGameStarted Tests ────────
 
     function test_signalGameStarted() public {
@@ -1017,6 +1032,21 @@ contract ChessEscrowTest is Test {
         uint256 roomId = _createAndJoin();
 
         vm.expectRevert(ChessEscrow.RefundTooEarly.selector);
+        escrow.refundOnTimeout(roomId);
+    }
+
+    function test_refundOnTimeout_revert_singleSignedPending() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 bond = escrow.getChallengeBond(STAKE);
+
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, 1, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned{ value: bond }(roomId, alice, 0, 0, 42, movesHash, 1, deadline, sigAlice);
+
+        vm.warp(block.timestamp + escrow.REFUND_TIMEOUT() + 1);
+        vm.expectRevert(ChessEscrow.SingleSignedAlreadySubmitted.selector);
         escrow.refundOnTimeout(roomId);
     }
 

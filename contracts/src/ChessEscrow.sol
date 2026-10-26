@@ -285,6 +285,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
     function abortRoom(uint256 roomId) external {
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
+        if (room.singleSignedAt != 0) revert SingleSignedAlreadySubmitted();
         if (room.gameStarted) revert GameAlreadyStarted();
         if (block.timestamp < room.startedAt + ABORT_TIMEOUT) revert AbortTooEarly();
 
@@ -565,6 +566,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
     function refundOnTimeout(uint256 roomId) external nonReentrant {
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
+        if (room.singleSignedAt != 0) revert SingleSignedAlreadySubmitted();
         if (block.timestamp < room.startedAt + REFUND_TIMEOUT) revert RefundTooEarly();
 
         room.status = RoomStatus.Refunded;
