@@ -1,6 +1,6 @@
 # Tiến độ Phát triển Dự án — AvaClash Chess
 
-> **Cập nhật lần cuối:** 25/10/2026 | **Trạng thái tổng thể:** Hoàn thiện Phase 5 (~95%) — Nâng cấp toàn diện Kinh tế, An ninh On-chain & WebSocket Relay Server
+> **Cập nhật lần cuối:** 26/10/2026 (Lượt 2c) | **Trạng thái tổng thể:** Phase 5 Đang thực hiện (~60%) — Đã hoàn thành Xác thực Relay, Cấu hình Màu Q13, Submitter Bond Q11 & Bảo vệ An ninh On-chain
 
 AvaClash Chess là nền tảng cờ vua Web3 1v1 PvP trên mạng Avalanche Fuji Testnet, kết hợp giữa luật cờ vua chuẩn quốc tế FIDE (5+0 Blitz) và hạ tầng kinh tế phi tập trung (Escrow cá cược AVAX, On-chain ELO, No-Loss Vault, Parimutuel Spectator Betting).
 
@@ -10,20 +10,20 @@ AvaClash Chess là nền tảng cờ vua Web3 1v1 PvP trên mạng Avalanche Fuj
 
 ```
 [Phase 1: Core Engine & Shared] ──────► 100% Hoàn thành (95/95 tests pass)
-[Phase 2: Smart Contract Escrow] ─────► 100% Hoàn thành (76/76 tests pass)
+[Phase 2: Smart Contract Escrow] ─────► 100% Hoàn thành (83/83 tests pass)
 [Phase 3: Phaser 3 Game Arena] ───────► 100% Hoàn thành (17/17 tests pass)
 [Phase 4: Web3 Meta Layer & Anti-Cheat] ► 100% Hoàn thành (18/18 tests pass)
-[Phase 5: Relay, Security & Integration] ► ~60% Thực tế (Chưa Deploy Fuji, Chưa Nối Ví Web, Relay Chưa Xác Thực)
+[Phase 5: Relay, Security & Integration] ► ~60% Thực tế (Relay đã xác thực EIP-712 & On-chain; CHƯA Deploy Fuji, CHƯA Nối Ví Wagmi)
 [Phase 6: Audit, Mainnet & Season 1] ──► 0% Lập kế hoạch
 ```
 
 | Giai đoạn   | Mô tả                           | Trọng tâm kỹ thuật                                                                     |    Trạng thái     |   Test Coverage    |
 | :---------- | :------------------------------ | :------------------------------------------------------------------------------------- | :---------------: | :----------------: |
 | **Phase 1** | Monorepo Setup & Shared Package | UCI move format, keccak256 hash, EIP-712 v2, Zod validation, Replay, Cross-spec fixture|   ✅ Hoàn thành   | 95/95 tests (100%) |
-| **Phase 2** | Smart Contract Escrow           | `ChessEscrow.sol`, SingleSigned isolation, MIN_STAKE, Arbiter constructor, Pausable    |   ✅ Hoàn thành   | 76/76 tests (100%) |
-| **Phase 3** | Local Chess Game Arena          | Phaser 3 canvas, `GameState.ts`, FIDE 5+0 clocks, UI 100dvh, Victory Modal             |   ✅ Hoàn thành   | 17/17 tests (100%) |
+| **Phase 2** | Smart Contract Escrow           | `ChessEscrow.sol`, SingleSigned submitter bond (Q11), MIN_STAKE (Q14), creatorIsWhite (Q13)|   ✅ Hoàn thành   | 83/83 tests (100%) |
+| **Phase 3** | Local Chess Game Arena          | Phaser 3 canvas, `GameState.ts`, FIDE 5+0 clocks, UI 100dvh, Victory Modal, Room Lobby |   ✅ Hoàn thành   | 17/17 tests (100%) |
 | **Phase 4** | Web3 Meta Layer & Fair Play     | `AvaClashMeta.sol` (Gross fee on resolve, zero pool cancel, 7-day timeout refund)      |   ✅ Hoàn thành   | 18/18 tests (100%) |
-| **Phase 5** | Relay, Security & Integration   | WebSocket Relay (`packages/relay`), Try/Catch Escrow-Meta, Keystore Deploy script      |  ⚠️ Đang hoàn thiện (~60%) | 18/18 tests (100%) |
+| **Phase 5** | Relay, Security & Integration   | WebSocket Relay (`packages/relay`), Try/Catch Escrow-Meta, Keystore Deploy script      |  ⚠️ Đang hoàn thiện (~60%) | 22/22 tests (100%) |
 | **Phase 6** | Audit & Avalanche Mainnet       | Security Audit, Subnet/C-Chain mainnet, Season leaderboard                             |    ⚪ Dự kiến     |    Chưa bắt đầu    |
 
 ---
@@ -106,28 +106,28 @@ AvaClash Chess là nền tảng cờ vua Web3 1v1 PvP trên mạng Avalanche Fuj
 
 ### Phase 5: P2P Matchmaking Relay & Tích hợp Ví Web3 (Thực tế: ~60% Hoàn tất)
 
-- **Tiến độ thực tế:** ~60% (Đã xây dựng kiến trúc, đang hoàn thiện an ninh và tích hợp thực tế)
-- **Công việc đã làm:**
-  - [x] Cập nhật toàn diện Smart Contracts (`ChessEscrow.sol`, `AvaClashMeta.sol`) đáp ứng các quyết định kinh tế và an ninh.
-  - [x] Thư viện `@avaclash/shared` cập nhật đầy đủ EIP-712 v2, schema Zod, và cross-spec fixture.
+- **Tiến độ thực tế:** ~60% (Đã xây dựng kiến trúc, hoàn thành xác thực Relay và an ninh On-chain Lượt 2c; CHƯA Deploy Fuji, CHƯA Nối Ví Wagmi)
+- **Công việc đã làm (Lượt 2c hoàn thiện):**
+  - [x] Cập nhật toàn diện Smart Contracts (`ChessEscrow.sol`, `AvaClashMeta.sol`) đáp ứng các quyết định kinh tế và an ninh (Q11-Q14, D14).
+  - [x] Thư viện `@avaclash/shared` cập nhật đầy đủ EIP-712 v2, schema Zod, Relay Join EIP-712, và cross-spec fixture tự sinh khóa ngẫu nhiên.
   - [x] **WebSocket Relay Server daemon (`packages/relay`):**
-    - Định tuyến kết nối, quản lý phòng, đồng hồ và đồng thuận FIDE 5+0 Blitz.
-    - Cấp chữ ký thứ 2 (2-of-3 scheme EIP-712) cho kết quả ván đấu.
-    - Đã loại bỏ hardcoded private key (G14), yêu cầu biến môi trường `RELAY_PRIVATE_KEY`.
-    - 7/7 tests passing (`vitest`).
+    - Xác thực `join_room` bằng chữ ký EIP-712 Join với Auth Challenge (32-byte crypto nonce, 60s expiration).
+    - Đối chiếu on-chain với `ChessEscrow.getRoom(roomId)` qua Viem PublicClient: fail-closed, bắt buộc trạng thái Active (1) và kiểm tra đúng ghế người chơi.
+    - Màu quân lấy trực tiếp từ chain theo `creatorIsWhite` (Q13 thay thế Q3).
+    - Mỗi địa chỉ một ghế (kết nối mới thay thế kết nối cũ), cô lập lệnh chỉ nhận từ socket ghế đó; xác thực và recover chữ ký `result_signature`.
+    - Giới hạn an ninh: `maxPayload: 4096` (4 KB), giới hạn kết nối theo IP, rate limit gói tin mỗi socket, timeout đóng socket chưa xác thực sau 10s, dọn phòng kết thúc sau 10 phút, deadline 30 phút cho `handleGameOver`.
+    - 11/11 tests passing (`vitest`).
   - [x] **Liên kết hai chiều ChessEscrow ↔ AvaClashMeta:**
     - Fail-fast tại `joinRoom` và try/catch tại các hàm phân phối/hủy.
     - Cung cấp cơ chế cứu hộ `retryResolvePrediction` và `fallbackCancelPrediction` bảo toàn 100% vốn.
     - 11/11 tests passing (`ChessEscrowMetaIntegration` + `ChessEscrowMetaTryCatch`).
+  - [x] **Giao diện Web Lobby (`RoomLobbyWidget.tsx`):** Chọn màu khi tạo phòng (`creatorIsWhite`), hiển thị màu cố định cho người vào phòng trước khi stake cược.
   - [x] **Deploy Script hỗ trợ Keystore (`Deploy.s.sol`):**
     - Yêu cầu bắt buộc 3 địa chỉ khác nhau: `RELAY_SIGNER_ADDRESS`, `ARBITER_ADDRESS`, `TREASURY_ADDRESS` (không dùng địa chỉ 0, không trùng nhau).
     - Hỗ trợ triển khai an toàn bằng Foundry Keystore (`--account`) thay vì biến môi trường trần.
-- **Hạn chế kỹ thuật phát hiện qua rà soát Lượt 2B (Mục 7):**
-  - ⚠️ **Relay chưa xác thực chữ ký của người kết nối:** Gói tin `join_room` nhận chuỗi địa chỉ trần từ client, chưa yêu cầu chữ ký mật mã (SIWE) để chứng minh quyền sở hữu khóa.
-  - ⚠️ **Relay chưa đối chiếu on-chain:** Khi nhận `join_room`, server chưa kiểm tra `ChessEscrow.getRoom(roomId)` để xác thực người kết nối có đúng là `playerA`/`playerB` và phòng đã `Active` hay chưa.
-  - ⚠️ **Chưa triển khai seed chọn màu quân (Q3):** Relay đang gán màu quân theo thứ tự socket kết nối (FCFS - ai vào trước cầm Trắng), chưa có thuật toán sinh seed ngẫu nhiên.
-  - ⚠️ **Hàm `signalGameStarted` chưa được gọi:** Không có daemon nào gọi giao dịch on-chain này khi ván cờ bắt đầu.
-  - ⚠️ **Chưa deploy testnet và chưa nối ví người dùng thật:** Hợp đồng chưa được broadcast lên Fuji Testnet; giao diện Web chưa kết nối RPC thực tế của người dùng.
+- **Rủi ro tồn đọng & Giới hạn thực tế trước khi Deploy:**
+  - ⚠️ **Lỗ hổng `abortRoom` chưa triệt để (G2):** Hàm `signalGameStarted` trên hợp đồng hiện chưa có dịch vụ daemon nào gọi on-chain khi ván cờ bắt đầu; kỳ thủ có thể hủy phòng sau 3 phút nếu chưa có giao dịch on-chain khóa phòng. **Hệ thống KHÔNG ĐƯỢC PHÉP DEPLOY lên Testnet/Mainnet cho đến khi hoàn thành thiết kế vòng đời GameStart ở lượt kế tiếp.**
+  - ⚠️ **Chưa tích hợp ví Web3 (Wagmi/RainbowKit):** Giao diện Web hiện hoạt động ở chế độ mô phỏng/hot-seat, chưa kết nối trực tiếp ví người dùng để gửi giao dịch on-chain.
 
 ---
 
@@ -135,10 +135,11 @@ AvaClash Chess là nền tảng cờ vua Web3 1v1 PvP trên mạng Avalanche Fuj
 
 - **Tiến độ hiện tại:** 0%
 - **Các cột mốc dự kiến:**
+  - [ ] Thiết kế cơ chế GameStart on-chain triệt tiêu khai thác `abortRoom`.
   - [ ] Audit độc lập các Smart Contract (ChessEscrow và AvaClashMeta).
-  - [ ] Bug Bounty cho cơ chế Challenge Window, Bond và Single-Signed Settlement.
-  - [ ] Triển khai Avalanche C-Chain Mainnet.
-  - [ ] Khởi tranh Season 1 No-Loss Tournament với bảng xếp hạng ELO toàn cầu.
+  - [ ] Tích hợp ví Wagmi/Viem trên Web Client.
+  - [ ] Deploy Avalanche Fuji Testnet bằng Keystore.
+  - [ ] Triển khai Avalanche C-Chain Mainnet & Khởi tranh Season 1.
 
 ---
 
@@ -147,25 +148,19 @@ AvaClash Chess là nền tảng cờ vua Web3 1v1 PvP trên mạng Avalanche Fuj
 | Hạng mục kiểm thử                                            | Công cụ | Số lượng Test |          Kết quả          |
 | :----------------------------------------------------------- | :------ | :-----------: | :-----------------------: |
 | **Logic cờ vua, Mã hóa, EIP-712 v2, Replay, Schema, Cross-Spec**| Vitest |      95       |      ✅ 95/95 Passed      |
-| **WebSocket Relay Server (packages/relay)**                  | Vitest  |       7       |       ✅ 7/7 Passed       |
+| **WebSocket Relay Server (packages/relay)**                  | Vitest  |      11       |      ✅ 11/11 Passed      |
 | **Giao diện Client & Game State (web)**                      | Vitest  |      17       |      ✅ 17/17 Passed      |
-| **Hợp đồng ký quỹ cược (ChessEscrow unit, fuzz, cross-spec)** | Foundry |      76       |      ✅ 76/76 Passed      |
+| **Hợp đồng ký quỹ cược (ChessEscrow unit, fuzz, cross-spec)** | Foundry |      83       |      ✅ 83/83 Passed      |
 | **Hợp đồng Meta Layer (AvaClashMeta unit tests)**            | Foundry |      18       |      ✅ 18/18 Passed      |
 | **Tích hợp Escrow ↔ Meta (ChessEscrowMetaIntegration)**       | Foundry |       3       |       ✅ 3/3 Passed       |
 | **Cô lập try/catch & Cứu hộ (ChessEscrowMetaTryCatch)**      | Foundry |       8       |       ✅ 8/8 Passed       |
-| **TỔNG CỘNG TOÀN DỰ ÁN**                                    | —       |    **224**    | **224/224 Passed (100%)** |
+| **TỔNG CỘNG TOÀN DỰ ÁN**                                    | —       |    **235**    | **235/235 Passed (100%)** |
 
 ---
 
 ## 4. Kế hoạch Hành động Tiếp theo
 
-1. **Deploy Fuji Testnet bằng Keystore:**
-   - Tạo keystore: `cast wallet import avaclash-deployer --interactive`
-   - Cấu hình địa chỉ: `RELAY_SIGNER_ADDRESS`, `ARBITER_ADDRESS`, `TREASURY_ADDRESS`
-   - Broadcast: `forge script contracts/script/Deploy.s.sol:DeployScript --rpc-url $FUJI_RPC_URL --account avaclash-deployer --broadcast`
-2. **Nâng cấp an ninh cho Relay Server:**
-   - Bổ sung xác thực chữ ký EIP-4361 (SIWE) trong gói tin `join_room`.
-   - Kết nối Viem `PublicClient` trong Relay để đối chiếu `playerA`/`playerB` và trạng thái `Active` on-chain.
-   - Triển khai thuật toán bốc thăm màu quân theo seed ngẫu nhiên (Q3).
-3. **Audit & Chuẩn bị Mainnet:** Khởi động Phase 6 rà soát an ninh cho toàn bộ hệ thống.
+1. **Thiết kế GameStart (P0 bắt buộc trước Deploy):** Triển khai giao dịch ký bởi Relay báo hiệu `signalGameStarted` ngay khi nước đi đầu tiên thực hiện để triệt tiêu lỗ hổng `abortRoom`.
+2. **Tích hợp ví Wagmi/RainbowKit trên Web:** Kết nối luồng `createRoom(creatorIsWhite)` và `joinRoom` với ví Web3 của người dùng.
+3. **Deploy Fuji Testnet bằng Keystore:** Khi đã hoàn thành GameStart, broadcast hợp đồng lên Fuji qua `Deploy.s.sol`.
 

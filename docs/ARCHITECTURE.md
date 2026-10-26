@@ -116,8 +116,8 @@ avaclash-chess/
 │       ├── game/            # GameState.ts, ChessScene.ts (Phaser 3 canvas 60fps)
 │       └── hooks/           # useFairPlayGuard (Anti-cheat focus telemetry)
 └── docs/                    # Tài liệu kiến trúc và tiến độ dự án
-    ├── DECISIONS.md         # Bản ghi các quyết định thiết kế (ADR Q1-Q10, D1-D14)
-    ├── PROGRESS.md          # Báo cáo tiến độ chi tiết và kết quả test 211/211
+    ├── DECISIONS.md         # Bản ghi các quyết định thiết kế (ADR Q1-Q14, D1-D14)
+    ├── PROGRESS.md          # Báo cáo tiến độ chi tiết và kết quả test 235/235
     ├── IMPROVEMENT_PLAN.md  # Kế hoạch cải tiến kinh tế & an ninh on-chain
     └── ARCHITECTURE.md      # Tài liệu kiến trúc hệ thống (file này)
 ```
@@ -137,25 +137,25 @@ sequenceDiagram
     participant Meta as AvaClashMeta.sol
     participant Relay as WebSocket Relay
 
-    PlayerA->>Escrow: createRoom{value: 0.1 AVAX}() [Yêu cầu >= 0.01 AVAX MIN_STAKE]
+    PlayerA->>Escrow: createRoom{value: 0.1 AVAX}(creatorIsWhite) [Yêu cầu >= 0.01 AVAX MIN_STAKE, Q13, Q14]
     Escrow-->>PlayerA: Emits RoomCreated(roomId, 0.1 AVAX)
 
     Note over Meta: Khán giả có thể cược vào Trắng / Đen / Hòa trước khi ván bắt đầu
 
-    PlayerB->>Escrow: joinRoom{value: 0.1 AVAX}(roomId)
+    PlayerB->>Escrow: joinRoom{value: 0.1 AVAX}(roomId) [Quan sát thấy màu đối ứng trước khi stake]
     Escrow->>Meta: registerMatch(roomId, PlayerA, PlayerB) [Fail-Fast: Revert nếu Meta lỗi]
     Escrow->>Meta: lockBetting(roomId) [Fail-Fast: Revert nếu Meta lỗi]
     Escrow-->>PlayerB: Emits RoomJoined(roomId, PlayerB)
 
     Note over PlayerA, PlayerB: Trận đấu bắt đầu (Room Status: Active)
-    Note over Relay: Phân bổ màu quân: Hiện trạng Relay theo thứ tự kết nối FCFS (Socket 1 = White, Socket 2 = Black); Đề xuất Q3 dùng Seed ngẫu nhiên
+    Note over Relay: Phân bổ màu quân: Đọc trực tiếp từ on-chain room.creatorIsWhite (Q13 thay thế Q3)
 
     rect rgb(20, 25, 40)
         Note over PlayerA, Relay, PlayerB: Giai đoạn chơi cờ qua WebSocket (Off-Chain)
         loop Mỗi nước đi (FIDE 5+0 Blitz)
-            PlayerA->>Relay: Gửi nước đi (UCI)
+            PlayerA->>Relay: Gửi nước đi (UCI) [Xác thực ghế ký EIP-712 Join]
             Relay->>PlayerB: Chuyển tiếp nước đi & đồng bộ đồng hồ
-            PlayerB->>Relay: Gửi nước đi (UCI)
+            PlayerB->>Relay: Gửi nước đi (UCI) [Xác thực ghế ký EIP-712 Join]
             Relay->>PlayerA: Chuyển tiếp nước đi & đồng bộ đồng hồ
         end
     end
@@ -166,46 +166,46 @@ sequenceDiagram
         PlayerA->>Escrow: submitResult(roomId, winner, outcome, reason, moveCount, movesHash, nonce, deadline, sig1, sig2)
         Escrow->>Escrow: Xác thực 2 chữ ký hợp lệ & kiểm tra deadline (Không dùng usedNonces toàn phòng)
         Escrow->>Escrow: Khấu trừ 5% phí giao thức tích lũy vào protocolFees (Rút về treasury qua withdrawProtocolFees theo Q6)
-        Escrow-->>PlayerA: Ghi có 95% tổng pot vào số dư rút tiền (balances)
+        Escrow-->>PlayerA: Ghi có 95% tổng pot vào số dư rút tiền (pendingWithdrawals)
         Escrow->>Meta: try/catch updateEloOnSettle(winner, loser)
-        Escrow->>Meta: try/catch resolvePrediction(roomId, winningOption)
+        Escrow->>Meta: try/catch resolvePrediction(roomId, outcome + 1)
     else Nhánh 2: Kết quả Hòa (Outcome = Draw)
-        PlayerA->>Escrow: submitResult(..., outcome=Draw, ...)
+        PlayerA->>Escrow: submitResult(..., outcome=Draw, winner=address(0), ...)
         Escrow->>Escrow: Miễn 100% phí giao thức
         Escrow-->>PlayerA: Hoàn trả 100% tiền cược (0.1 AVAX)
         Escrow-->>PlayerB: Hoàn trả 100% tiền cược (0.1 AVAX)
         Escrow->>Meta: try/catch resolvePrediction(roomId, 3) [Cửa Hòa thắng]
-    else Nhánh 3: Bên thua bất hợp tác & Relay offline (Optimistic Single-Signed)
-        PlayerA->>Escrow: submitSingleSigned(roomId, winner, ..., sigA)
+    else Nhánh 3: Bên thua bất hợp tác & Relay offline (Optimistic Single-Signed + Bond Q11)
+        PlayerA->>Escrow: submitSingleSigned{value: 0.02 AVAX}(roomId, winner, ..., sigA) [Bond người nộp = 20% stake, tối thiểu 0.01 AVAX theo Q11]
         Note over Escrow: Kích hoạt Challenge Window (10 phút); Chỉ chấp nhận claim đầu tiên (singleSignedAt == 0), claim sau revert; Nonce cô lập theo [roomId][msg.sender][nonce]
         alt Hết 10 phút không ai khiếu nại
             PlayerA->>Escrow: finalizeSingleSigned(roomId)
-            Escrow-->>PlayerA: Giải ngân tiền thưởng (sau 5% phí)
-        else Bên B nộp khiếu nại (Challenge có Bond)
-            PlayerB->>Escrow: challenge{value: 0.02 AVAX}(roomId) [Bond = 20% stake]
+            Escrow-->>PlayerA: Giải ngân tiền thưởng (sau 5% phí) + Hoàn 100% bond người nộp (0.02 AVAX)
+        else Bên B nộp khiếu nại (Challenge có Bond đối ứng)
+            PlayerB->>Escrow: challenge{value: 0.02 AVAX}(roomId, ...) [Bond challenger = 20% stake]
             Note over Escrow: Chuyển sang trạng thái Challenged
             alt Arbiter phán quyết trong 24h
-                Relay->>Escrow: resolveChallenge(roomId, challengerWon)
-                Note over Escrow: Bên thắng nhận pot + bond của bên thua
+                Relay->>Escrow: resolveChallenge(roomId, validWinner)
+                Note over Escrow: Bên thắng nhận pot; Bên đúng nhận bond của mình + toàn bộ bond của bên sai (Q11)
             else Arbiter quá hạn 24h không phán quyết (Q8)
                 PlayerA->>Escrow: resolveDefaultChallenge(roomId)
-                Escrow-->>PlayerA: Hoàn trả 100% cược + 50% bond bên B
-                Escrow-->>PlayerB: Hoàn trả 100% cược + hoàn 50% bond
+                Escrow-->>PlayerA: Hoàn 100% cược + Hoàn 100% bond người nộp + 50% bond bên B (bồi thường)
+                Escrow-->>PlayerB: Hoàn 100% cược + hoàn 50% bond bên B
             end
         end
-    else Nhánh 4: Hủy phòng sớm hoặc Bỏ dở
-        alt Hủy sớm sau 3 phút nếu chưa bắt đầu nước nào
+    else Nhánh 4: Hủy phòng sớm hoặc Bỏ dở (Chặn khi có singleSigned)
+        alt Hủy sớm sau 3 phút nếu chưa bắt đầu nước nào (revert nếu singleSignedAt != 0)
             PlayerA->>Escrow: abortRoom(roomId)
-            Escrow-->>PlayerA: Hoàn trả 100% tiền cược
-        else Treo ván cờ quá 60 phút
+            Escrow-->>PlayerA: Hoàn trả 100% tiền cược cho 2 bên
+        else Treo ván cờ quá 60 phút (revert nếu singleSignedAt != 0)
             PlayerA->>Escrow: refundOnTimeout(roomId)
-            Escrow-->>PlayerA: Hoàn trả 100% tiền cược cho cả 2 bên
+            Escrow-->>PlayerA: Hoàn trả 100% tiền cược cho 2 bên
         end
         Escrow->>Meta: try/catch cancelPrediction(roomId) [Khán giả rút lại 100% cược]
     end
 ```
 
-> **Ghi chú về Màu quân (Mục 4.1 & Q3):** Trong mã nguồn hiện tại của Relay (`RelayRoom.ts:80-89`), màu quân được gán theo thứ tự socket kết nối FCFS (kỳ thủ kết nối WebSocket trước cầm Trắng, kỳ thủ sau cầm Đen), người tạo phòng on-chain (`playerA`) chưa tự động cố định là White. Đề xuất Q3 đã được phê chuẩn sẽ chuyển sang cơ chế seed ngẫu nhiên do Relay ký sau khi cả hai người chơi kết nối WebSocket thành công.
+> **Ghi chú về Màu quân (Mục 4.1 & Q13):** Theo quyết định Q13 (thay thế hoàn toàn Q3 và D5), người tạo phòng chọn màu quân trực tiếp thông qua tham số `creatorIsWhite` trong `createRoom(bool creatorIsWhite)`, lưu trữ cố định on-chain. Người vào phòng quan sát thấy màu đối ứng trước khi stake cược. Relay Server chỉ đọc cấu hình màu từ chain, tuyệt đối không tự quyết định màu quân.
 
 > **Ghi chú về Phí Giao thức và Treasury (Q6):** Phí 5% chỉ thu khi có người thắng (Hòa hoặc Refund được miễn 100%). Khoản phí này không chuyển thẳng ngay trong hàm settle mà được tích lũy on-chain tại biến `protocolFees` của `ChessEscrow`. Địa chỉ quản trị `treasury` (được cấu hình qua constructor và script `Deploy.s.sol`) sẽ rút về định kỳ thông qua hàm `withdrawProtocolFees()` để quản lý và phân bổ cho Quỹ giải thưởng mùa giải (`seasonPrizePool`).
 
@@ -224,7 +224,7 @@ sequenceDiagram
 
 ### 5.2. Cấu trúc Biên bản Trận đấu EIP-712 Mở rộng (`Result Struct`)
 
-Để đảm bảo tính toàn vẹn và ngăn chặn gian lận, TypeHash EIP-712 được mở rộng và đồng bộ ở `version="2"` (hệ thống ADR Q1-Q10, D1-D14; chi tiết D7, G12):
+Để đảm bảo tính toàn vẹn và ngăn chặn gian lận, TypeHash EIP-712 được mở rộng và đồng bộ ở `version="2"` (hệ thống ADR Q1-Q14, D1-D14; chi tiết D7, G12):
 
 ```solidity
 bytes32 public constant RESULT_TYPEHASH = keccak256(
@@ -308,11 +308,12 @@ stateDiagram-v2
   - Nếu phát hiện người chơi rời màn hình quá 2 giây trong khi ván đấu đang diễn ra, hệ thống tự động ghi nhận một vi phạm và broadcast gói tin đo lường viễn thấu (Telemetry) cảnh báo lên server và đối thủ.
   - Tuân thủ nguyên lý "Pure FIDE Core" (ADR Q10 / D10), hệ thống chỉ cảnh báo trực quan, tuyệt đối KHÔNG trừ giờ và KHÔNG xử thua kỹ thuật.
 
-- **Kết quả Rà soát Thực tế Tầng Relay Off-Chain (Báo cáo Lượt 2B — Mục 7):**
-  1. **Xác thực danh tính WebSocket (`join_room`):** Hàm `handleJoinRoom` (`packages/relay/src/RelayServer.ts:187-202`) chấp nhận chuỗi địa chỉ ví trực tiếp từ client mà chưa yêu cầu chữ ký mật mã (EIP-4361 SIWE) để chứng minh quyền sở hữu khóa.
-  2. **Đối chiếu On-Chain:** Relay Server đóng vai trò trung chuyển độc lập, chưa khởi tạo `PublicClient` (Viem/Ethers) để kiểm tra trên smart contract xem `roomId` có tồn tại, địa chỉ có thuộc về `playerA`/`playerB`, và phòng đã nạp cược `Active` hay chưa.
-  3. **Thuật toán Phân bổ Màu quân:** `RelayRoom.ts:80-89` hiện gán màu quân theo cơ chế First-Come First-Served (socket kết nối trước cầm Trắng, socket kết nối sau cầm Đen). Thuật toán bốc thăm màu ngẫu nhiên có chữ ký Relay theo quyết định Q3 chưa được tích hợp vào Relay.
-  4. **Tín hiệu Bắt đầu Trận đấu (`signalGameStarted`):** Hàm `signalGameStarted(roomId)` trên `ChessEscrow.sol` hiện chưa được gọi bởi Relay hay bất kỳ dịch vụ daemon tự động nào khi ván cờ bắt đầu.
+- **Hiện trạng Tầng Relay Off-Chain (Hoàn thành Lượt 2c):**
+  1. **Xác thực danh tính WebSocket (`join_room`):** Client ký EIP-712 Join với Auth Challenge ngẫu nhiên 32-byte crypto nonce, 60s expiration, domain `{name: "AvaClashRelay", version: "1", chainId}`. Server recover bằng Viem, từ chối địa chỉ giả mạo, nonce dùng lại hoặc hết hạn. Role "spectator" riêng biệt không cần ký nhưng không gửi được lệnh cờ.
+  2. **Đối chiếu On-Chain:** Relay Server kết nối Viem `PublicClient` kiểm tra `ChessEscrow.getRoom(roomId)` (fail-closed): bắt buộc phòng tồn tại, trạng thái `Active`, người chơi khớp `playerA`/`playerB`. Đọc lại trạng thái on-chain trước khi ký kết quả (`handleGameOver`).
+  3. **Phân bổ Màu quân On-Chain (Q13):** Relay đọc cấu hình màu quân từ `room.creatorIsWhite` on-chain (thay thế hoàn toàn FCFS và Q3).
+  4. **Bảo vệ Hệ thống Relay:** MaxPayload 4 KB, giới hạn kết nối theo IP, rate limit gói tin mỗi socket, timeout ngắt kết nối chưa xác thực sau 10s, dọn phòng kết thúc sau 10 phút, deadline 30 phút cho biên bản ký `handleGameOver`.
+  5. **Tín hiệu Bắt đầu Trận đấu (`signalGameStarted`):** Hàm `signalGameStarted(roomId)` trên `ChessEscrow.sol` hiện chưa có daemon gọi tự động; lỗ hổng `abortRoom` vẫn tồn tại và sẽ được xử lý ở lượt thiết kế GameStart tiếp theo trước khi deploy.
 
 ---
 
@@ -322,7 +323,7 @@ stateDiagram-v2
    - Chịu trách nhiệm render bàn cờ 64 ô, quân cờ SVG độ tương phản cao, xử lý thao tác chuột và hoạt ảnh mượt mà ở tốc độ 60fps.
    - Giao tiếp hai chiều với React thông qua `GameState.ts` mà không gây ra hiện tượng giật lag hoặc re-render toàn bộ DOM.
 2. **React DOM Shell (Next.js App Router):**
-   - Đảm nhiệm việc hiển thị đồng hồ đếm ngược Blitz 5+0, danh sách quân bị bắt, chênh lệch vật chất (+1, +3,...), widget dự đoán khán giả (`SpectatorPoolWidget.tsx`) và modal vinh danh chiến thắng (`VictoryModal.tsx`).
+   - Đảm nhiệm việc hiển thị đồng hồ đếm ngược Blitz 5+0, danh sách quân bị bắt, chênh lệch vật chất (+1, +3,...), widget dự đoán khán giả (`SpectatorPoolWidget.tsx`), modal vinh danh chiến thắng (`VictoryModal.tsx`), và Lobby tạo/vào phòng chọn màu quân (`RoomLobbyWidget.tsx`).
    - Thiết kế chuẩn `100dvh` (Dynamic Viewport Height) loại bỏ thanh cuộn ngoài không mong muốn, vừa vặn trên mọi kích cỡ màn hình từ điện thoại đến desktop.
 
 ---
@@ -335,14 +336,15 @@ stateDiagram-v2
 | **Giả mạo chữ ký / Replay Attack**                  | EIP-712 TypeHash ràng buộc định danh: `matchId`, `chainId`, `verifyingContract`, `nonce` và `deadline` hết hạn. Domain `version="2"`. Đã kiểm chứng tương thích chéo (cross-spec) giữa Viem TypeScript và Foundry. |
 | **Ghi đè hoặc quấy rối claim đơn lẻ (`submitSingleSigned`)** | Chỉ cho phép claim đầu tiên (`singleSignedAt == 0`); các lượt claim sau đó revert hoàn toàn (phản hồi duy nhất cho bên đối diện là `challenge()`). Chặn gọi khi hết hạn challenge window. Nonce được cô lập theo `usedNonces[roomId][msg.sender][nonce]`, không dùng chung nonce toàn phòng để triệt tiêu hành vi đốt nonce của đối thủ. `submitResult` (chữ ký kép) không dùng usedNonces. |
 | **Bên thua cố tình ngắt kết nối (Rage Quit)**       | Cơ chế chữ ký 2-trong-3 (Người thắng + Relay) giải ngân ngay; đường dự phòng 1 chữ ký kèm Challenge Window 10 phút.                    |
-| **Khiếu nại bừa bãi để quấy rối (Challenge Spam)**  | Yêu cầu nộp **Bond = 20% tiền cược** (tối thiểu 0.01 AVAX). Khiếu nại sai sẽ bị tịch thu toàn bộ bond chuyển cho bên bị khiếu nại.   |
+| **Khiếu nại bừa bãi (Challenge Spam) & Submitter Bond (Q11)** | Yêu cầu nộp **Bond = 20% tiền cược** (tối thiểu 0.01 AVAX) cho CẢ bên nộp đơn (`submitSingleSigned`) và bên khiếu nại (`challenge`). Nếu không challenge, hoàn 100% bond cho người nộp. Khi bị challenge: bên đúng nhận bond mình + bond bên sai; nhánh mặc định 24h: hoàn 100% bond người nộp, chia 50/50 bond challenger. |
 | **Trọng tài Arbiter lười hoặc offline (Q8)**        | Cơ chế phán quyết mặc định (`resolveDefaultChallenge` sau 24h) hoàn trả 100% tiền cược cho 2 bên; phạt 50% bond của bên khiếu nại chuyển cho bên nộp đơn đền bù thời gian chờ, 50% bond còn lại hoàn cho bên khiếu nại (Accepted with residual risk, Q8). |
 | **Phân quyền và bảo vệ khóa vận hành (G5/D11)**    | Constructor `ChessEscrow` tách riêng `arbiter != relaySigner != address(0)`. Script `Deploy.s.sol` bắt buộc 3 biến môi trường địa chỉ phân biệt (`RELAY_SIGNER_ADDRESS`, `ARBITER_ADDRESS`, `TREASURY_ADDRESS`), không mặc định về deployer; hỗ trợ triển khai bằng Foundry Keystore (`--account`) tránh lộ private key trần. Cả relaySigner và arbiter đều đổi qua timelock 2 ngày; tích hợp OpenZeppelin `Pausable` chỉ chặn tạo/vào phòng mới, không kẹt tiền rút/hoàn. |
 | **Lỗi từ Meta Layer làm nghẽn hoặc kẹt tiền Escrow (D14)** | **Fail-Fast tại `joinRoom`:** `registerMatch` và `lockBetting` không được nuốt lỗi; nếu Meta revert thì `joinRoom` revert (khi `metaContract != address(0)`), ngăn chặn phòng mở khi chưa sẵn sàng. **Cô lập tại các hàm hậu kỳ:** Settle, abort, refund bọc `try/catch`, phát event `MetaCallFailed`. Escrow hỗ trợ `retryResolvePrediction` và `fallbackCancelPrediction` để khán giả luôn bảo toàn 100% vốn. |
 | **Rủi ro kẹt quỹ và thao túng Spectator Pool**      | Lưu tiền cược gross (100%). Phí 5% chỉ trích từ tổng pool nộp `seasonPrizePool` khi resolve. Nếu pool của cửa thắng bằng 0 khi resolve, tự động coi là hủy (`cancelled = true`) để hoàn trả 100% gross cho người tham gia. Nếu pool bị treo quá 7 ngày (`MAX_UNRESOLVED`), khán giả có quyền gọi trực tiếp `claimSpectatorRefund` rút tiền mà không phụ thuộc vào Escrow. |
-| **Spam tạo phòng cược vi mô & cày điểm ELO ảo (D12)** | Bắt buộc `MIN_STAKE = 0.01 ether` tại `createRoom` (revert `StakeTooLow`). ELO và Season Points chỉ tính cho các ván đấu đạt chuẩn cược $\ge 0.01$ AVAX, triệt tiêu động cơ tạo hàng loạt phòng 0 đồng để spam cày xếp hạng. |
+| **Spam tạo phòng cược vi mô & cày điểm ELO ảo (Q14, D12)** | Bắt buộc `MIN_STAKE = 0.01 ether` tại `createRoom` (revert `StakeTooLow`). ELO và Season Points chỉ tính cho các ván đấu đạt chuẩn cược $\ge 0.01$ AVAX, triệt tiêu động cơ tạo hàng loạt phòng 0 đồng để spam cày xếp hạng. |
 | **Khán giả cược muộn bằng engine AI**               | Tự động khóa cược trước khi ván cờ bắt đầu ngay tại thời điểm gọi `joinRoom`.                                                         |
 | **Hai kỳ thủ bắt tay gian lận cược khán giả**       | Chặn 2 kỳ thủ cược vào ván của mình (`registerMatch`); loại bỏ cửa cược "Under 40 moves" trên Fuji Testnet.                             |
-| **Treo ván cờ hoặc không ai đi nước nào**           | Cơ chế `abortRoom` hủy sớm sau 3 phút nếu chưa bắt đầu; lưới an toàn `refundOnTimeout` sau 60 phút.                                     |
+| **Treo ván cờ hoặc hủy phòng khi đang thua**       | `abortRoom` và `refundOnTimeout` bị chặn hoàn toàn nếu phòng đã có claim (`singleSignedAt != 0`). Lưu ý: `abortRoom` vẫn bị khai thác được khi chưa có lệnh gọi `signalGameStarted` on-chain; cần thiết kế cơ chế GameStart trước khi deploy. |
 | **Thất thoát hoặc nhầm lẫn phí giao thức (Q6)**    | Phí 5% được tích lũy độc lập on-chain tại `protocolFees` (chỉ thu khi ván có người thắng; Hòa và Refund miễn phí). Rút về ví quản trị `treasury` thông qua `withdrawProtocolFees()` bởi Owner. |
-| **Nghẽn mạng do đẩy tiền trực tiếp (Push pattern)** | Áp dụng mẫu **Pull-over-Push**: tiền thưởng được ghi có vào số dư chờ rút (`balances`), người chơi tự thực hiện lệnh rút (`withdraw`). |
+| **Nghẽn mạng do đẩy tiền trực tiếp (Push pattern)** | Áp dụng mẫu **Pull-over-Push**: tiền thưởng được ghi có vào số dư chờ rút (`pendingWithdrawals`), người chơi tự thực hiện lệnh rút (`withdraw`). |
+| **Gian lận chuyển tab tra cứu AI (Q10, D10)**       | Client hook `useFairPlayGuard` phát hiện rời màn hình quá 2s và gửi cảnh báo; Relay broadcast cảnh báo cho đối thủ và khán giả thấy. Tuyệt đối chỉ cảnh báo trực quan, không can thiệp đồng hồ FIDE và không xử thua kỹ thuật (Q10/D10). |
