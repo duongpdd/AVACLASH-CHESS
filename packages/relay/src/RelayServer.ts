@@ -47,6 +47,20 @@ export interface SavedGameResult {
   timestamp: number; // Unix epoch ms
 }
 
+export interface ActiveGameState {
+  chainId: number;
+  contractAddress: string;
+  roomId: number;
+  moves: string[];
+  whiteMs: number;
+  blackMs: number;
+  activeTurn: "w" | "b";
+  whiteAddress: string;
+  blackAddress: string;
+  status: "waiting" | "active";
+  savedAt: number; // Unix epoch ms
+}
+
 export interface RelayServerOptions {
   port?: number;
   server?: any; // For attaching to existing http/https server in tests
@@ -98,6 +112,58 @@ export class RelayServer {
 
   public getResultKey(roomId: number): string {
     return `${this.chainId}:${this.contractAddress.toLowerCase()}:${roomId}`;
+  }
+
+  public getActiveGamesDir(): string {
+    return path.join(this.resultsDir, "active");
+  }
+
+  public getActiveGameFilePath(roomId: number): string {
+    const fileName = `${this.chainId}_${this.contractAddress.toLowerCase()}_${roomId}.json`;
+    return path.join(this.getActiveGamesDir(), fileName);
+  }
+
+  public saveActiveGameState(room: RelayRoom): void {
+    try {
+      const activeDir = this.getActiveGamesDir();
+      if (!fs.existsSync(activeDir)) {
+        fs.mkdirSync(activeDir, { recursive: true });
+      }
+      const state: ActiveGameState = {
+        chainId: this.chainId,
+        contractAddress: this.contractAddress,
+        roomId: room.roomId,
+        moves: [...room.moves],
+        whiteMs: room.whiteMs,
+        blackMs: room.blackMs,
+        activeTurn: room.activeTurn,
+        whiteAddress: room.whiteAddress,
+        blackAddress: room.blackAddress,
+        status: room.status === "active" ? "active" : "waiting",
+        savedAt: Date.now(),
+      };
+      const finalPath = this.getActiveGameFilePath(room.roomId);
+      const tmpPath = path.join(
+        activeDir,
+        `tmp_${room.roomId}_${Date.now()}_${Math.random().toString(36).slice(2)}.tmp`
+      );
+      fs.writeFileSync(tmpPath, JSON.stringify(state, null, 2), "utf-8");
+      fs.renameSync(tmpPath, finalPath);
+    } catch (err) {
+      console.error(`[Relay] Error saving active game state for room ${room.roomId}:`, err);
+    }
+  }
+
+  public deleteActiveGameState(roomId: number): void {
+    try {
+      const finalPath = this.getActiveGameFilePath(roomId);
+      if (fs.existsSync(finalPath)) {
+        fs.unlinkSync(finalPath);
+        console.log(`[Relay] Removed active game file for room ${roomId}`);
+      }
+    } catch (err) {
+      console.warn(`[Relay] Error deleting active game state for room ${roomId}:`, err);
+    }
   }
 
   public maxConnectionsPerIp: number;
@@ -608,6 +674,25 @@ export class RelayServer {
         return;
       }
 
+      // Check if an active game state file exists for this room (Turn 3b Item 2 / Q19)
+      const activeFilePath = this.getActiveGameFilePath(msg.roomId);
+      let recoveredState: ActiveGameState | null = null;
+      if (fs.existsSync(activeFilePath)) {
+        try {
+          const raw = fs.readFileSync(activeFilePath, "utf-8");
+          const parsed = JSON.parse(raw) as ActiveGameState;
+          if (
+            parsed.chainId === this.chainId &&
+            parsed.contractAddress.toLowerCase() === this.contractAddress.toLowerCase() &&
+            parsed.roomId === msg.roomId
+          ) {
+            recoveredState = parsed;
+          }
+        } catch (err) {
+          console.warn(`[Relay] Failed to read active game file for room ${msg.roomId}:`, err);
+        }
+      }
+
       const whiteAddr = roomData.creatorIsWhite ? roomData.playerA : roomData.playerB;
       const blackAddr = roomData.creatorIsWhite ? roomData.playerB : roomData.playerA;
 
@@ -616,21 +701,55 @@ export class RelayServer {
         whiteAddress: whiteAddr as `0x${string}`,
         blackAddress: blackAddr as `0x${string}`,
         initialTimeMs: this.initialTimeMs,
+        onMoveAccepted: (r) => {
+          this.saveActiveGameState(r);
+        },
         onGameStarted: (r) => {
-          this.handleGameStarted(r).catch((err) => {
-            console.error(`[Relay] handleGameStarted error for room ${r.roomId}:`, err);
-          });
+          this.saveActiveGameState(r);
+          // Không gọi lại signalGameStarted nếu on-chain đã gameStarted
+          if (!roomData.gameStarted) {
+            this.handleGameStarted(r).catch((err) => {
+              console.error(`[Relay] handleGameStarted error for room ${r.roomId}:`, err);
+            });
+          }
         },
         onWaitingTimeout: (r) => {
           this.rooms.delete(r.roomId);
+          this.deleteActiveGameState(r.roomId);
           console.log(`[Relay] Removed stale waiting room ${r.roomId} after 10m timeout`);
         },
         onGameOver: (r, outcome, reason, winner) => {
+          this.deleteActiveGameState(r.roomId);
           this.handleGameOver(r, outcome, reason, winner).catch((err) => {
             console.error(`[Relay] handleGameOver unhandled rejection for room ${r.roomId}:`, err);
           });
         },
       });
+
+      if (recoveredState) {
+        // Reconstruct RelayRoom from active file:
+        // 1. Replay moves through ChessGame
+        for (const mv of recoveredState.moves) {
+          const ok = room.chess.makeMove(mv);
+          if (ok) {
+            room.moves.push(mv);
+            room.seq++;
+          }
+        }
+        // 2. Restore clocks without deducting downtime
+        room.whiteMs = recoveredState.whiteMs;
+        room.blackMs = recoveredState.blackMs;
+        room.activeTurn = recoveredState.activeTurn;
+        room.status = recoveredState.status;
+        room.lastClockUpdate = Date.now();
+        if (room.status === "active") {
+          room.startClock();
+        }
+        console.log(
+          `[Relay] Restored active room ${room.roomId} from disk (${room.moves.length} moves, whiteMs=${room.whiteMs}, blackMs=${room.blackMs}, turn=${room.activeTurn})`
+        );
+      }
+
       this.rooms.set(msg.roomId, room);
     }
 
@@ -650,6 +769,7 @@ export class RelayServer {
     winnerAddress: `0x${string}`,
   ): Promise<void> {
     try {
+      this.deleteActiveGameState(room.roomId);
       const resultKey = this.getResultKey(room.roomId);
       // Turn 3b Item 1d: nếu đã có kết quả lưu cho phòng này thì không ghi đè và không ký ván thứ hai
       if (this.savedResults.has(resultKey)) {

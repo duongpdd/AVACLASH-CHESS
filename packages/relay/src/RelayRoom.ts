@@ -27,6 +27,7 @@ export interface RelayRoomConfig {
   waitingTimeoutMs?: number; // Default 10 mins (600,000 ms)
   onWaitingTimeout?: (room: RelayRoom) => void;
   onGameStarted?: (room: RelayRoom) => void;
+  onMoveAccepted?: (room: RelayRoom) => void;
   onGameOver?: (
     room: RelayRoom,
     outcome: GameOutcome,
@@ -59,6 +60,7 @@ export class RelayRoom {
   private waitingTimeoutTimer?: NodeJS.Timeout;
   private onWaitingTimeout?: (room: RelayRoom) => void;
   private onGameStarted?: (room: RelayRoom) => void;
+  private onMoveAccepted?: (room: RelayRoom) => void;
   private onGameOver?: (
     room: RelayRoom,
     outcome: GameOutcome,
@@ -82,6 +84,7 @@ export class RelayRoom {
     this.blackMs = initialTime;
     this.chess = new ChessGame();
     this.onGameStarted = config.onGameStarted;
+    this.onMoveAccepted = config.onMoveAccepted;
     this.onGameOver = config.onGameOver;
     this.onWaitingTimeout = config.onWaitingTimeout;
 
@@ -108,8 +111,15 @@ export class RelayRoom {
         }
       }
       this.whitePlayer = { address, ws, color: "w", warnings: this.whitePlayer?.warnings ?? 0 };
-      if (this.blackPlayer && this.status === "waiting") {
-        this.startGame();
+      if (this.blackPlayer) {
+        if (this.status === "waiting") {
+          this.startGame();
+        } else if (this.status === "active") {
+          this.lastClockUpdate = Date.now();
+          if (!this.clockInterval) {
+            this.startClock();
+          }
+        }
       }
       return "w";
     }
@@ -123,8 +133,15 @@ export class RelayRoom {
         }
       }
       this.blackPlayer = { address, ws, color: "b", warnings: this.blackPlayer?.warnings ?? 0 };
-      if (this.whitePlayer && this.status === "waiting") {
-        this.startGame();
+      if (this.whitePlayer) {
+        if (this.status === "waiting") {
+          this.startGame();
+        } else if (this.status === "active") {
+          this.lastClockUpdate = Date.now();
+          if (!this.clockInterval) {
+            this.startClock();
+          }
+        }
       }
       return "b";
     }
@@ -165,12 +182,18 @@ export class RelayRoom {
     this.onGameStarted?.(this);
   }
 
-  private startClock(): void {
+  public startClock(): void {
     if (this.clockInterval) clearInterval(this.clockInterval);
 
     this.clockInterval = setInterval(() => {
       if (this.status !== "active") {
         if (this.clockInterval) clearInterval(this.clockInterval);
+        return;
+      }
+
+      // Requirement: clock only ticks when both players are connected
+      if (!this.whitePlayer || !this.blackPlayer) {
+        this.lastClockUpdate = Date.now();
         return;
       }
 
@@ -255,6 +278,8 @@ export class RelayRoom {
       whiteMs: this.whiteMs,
       blackMs: this.blackMs,
     });
+
+    this.onMoveAccepted?.(this);
 
     // Check for game over (checkmate, draw)
     if (this.chess.isGameOver()) {
