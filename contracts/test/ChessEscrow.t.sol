@@ -891,7 +891,7 @@ contract ChessEscrowTest is Test {
         assertEq(escrow.pendingWithdrawals(bob), STAKE + (bond - bond / 2));
     }
 
-    function test_resolveDefaultChallenge_conservationAndFundFlow() public {
+    function test_resolveDefaultChallenge_conservationAndBondPenalty() public {
         uint256 aliceInitialBal = alice.balance;
         uint256 bobInitialBal = bob.balance;
 
@@ -1277,6 +1277,33 @@ contract ChessEscrowTest is Test {
             assertEq(escrow.pendingWithdrawals(winner), pot - fee);
             assertEq(escrow.protocolFees(), fee);
         }
+    }
+
+    function testFuzz_submitResult_invalidOutcomesAndWinners(
+        uint8 outcome,
+        address invalidWinner,
+        uint8 reason,
+        uint16 moveCount,
+        uint256 nonce
+    ) public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Ensure the combination is actually invalid
+        bool isValid = (outcome == 0 && invalidWinner == alice)
+            || (outcome == 1 && invalidWinner == bob)
+            || (outcome == 2 && invalidWinner == address(0));
+
+        if (isValid) {
+            outcome = 3; // Out-of-bounds outcome code
+        }
+
+        bytes memory sigA = _signResult(alicePk, roomId, invalidWinner, outcome, reason, moveCount, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(bobPk, roomId, invalidWinner, outcome, reason, moveCount, movesHash, nonce, deadline);
+
+        vm.expectRevert(ChessEscrow.InvalidWinner.selector);
+        escrow.submitResult(roomId, invalidWinner, outcome, reason, moveCount, movesHash, nonce, deadline, sigA, sigB);
     }
 
     function testFuzz_refundTimeout_warpAmount(uint256 extraTime) public {

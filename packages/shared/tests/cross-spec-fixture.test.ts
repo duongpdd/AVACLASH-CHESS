@@ -103,9 +103,7 @@ describe("Cross-Spec EIP-712 Signature Generation", () => {
     }
 
     const fixturePath = path.join(fixturesDir, "cross_spec_result.json");
-    if (!fs.existsSync(fixturePath)) {
-      fs.writeFileSync(fixturePath, JSON.stringify(fixture, null, 2), "utf8");
-    }
+    fs.writeFileSync(fixturePath, JSON.stringify(fixture, null, 2), "utf8");
 
     expect(fs.existsSync(fixturePath)).toBe(true);
   });
