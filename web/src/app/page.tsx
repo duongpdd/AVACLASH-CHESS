@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import RoomLobbyWidget from "@/components/RoomLobbyWidget";
 
 export default function HomePage() {
   const [selectedTab, setSelectedTab] = useState<"hotseat" | "noloss" | "wager">("hotseat");
@@ -139,24 +140,7 @@ export default function HomePage() {
           )}
 
           {selectedTab === "wager" && (
-            <div className="flex flex-col items-center gap-3 animate-fade-in">
-              <span className="text-3xl text-rose-400">⚔️</span>
-              <h3 className="text-lg font-bold text-slate-100">Direct 1v1 AVAX Wager Mode</h3>
-              <p className="text-xs sm:text-sm text-slate-400 max-w-md">
-                Deposit matching AVAX into ChessEscrow.sol. Fast off-chain moves with dual EIP-712 cryptographic settlement on Avalanche Fuji.
-              </p>
-              <div className="mt-3 flex items-center gap-3 text-xs font-mono text-rose-300">
-                <span className="rounded-md bg-rose-500/10 border border-rose-500/20 px-2.5 py-1">Escrow: ChessEscrow.sol</span>
-                <span className="rounded-md bg-rose-500/10 border border-rose-500/20 px-2.5 py-1">Max Stake: 1 AVAX</span>
-              </div>
-              <Link
-                href="/game"
-                className="mt-4 inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-orange-500 px-8 py-3.5 text-base font-bold text-slate-950 shadow-lg shadow-rose-500/25 transition-all hover:scale-[1.02] active:scale-95"
-              >
-                <span>Launch Escrow Match</span>
-                <span>→</span>
-              </Link>
-            </div>
+            <RoomLobbyWidget />
           )}
         </div>
 
