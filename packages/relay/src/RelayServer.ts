@@ -35,11 +35,15 @@ import { CHESS_ESCROW_ABI } from "./abi/ChessEscrow.js";
 export const ESCROW_ABI = CHESS_ESCROW_ABI;
 
 export interface SavedGameResult {
+  chainId?: number;
+  contractAddress?: string;
   roomId: number;
   moves: string[];
   outcome: GameOutcome;
   reason: EndReason;
   winner: `0x${string}`;
+  whiteAddress?: string;
+  blackAddress?: string;
   timestamp: number; // Unix epoch ms
 }
 
@@ -90,7 +94,11 @@ export class RelayServer {
   public minRelayBalance: bigint;
   public resultsDir: string;
   public trustProxy: boolean;
-  public savedResults: Map<number, SavedGameResult> = new Map();
+  public savedResults: Map<string, SavedGameResult> = new Map();
+
+  public getResultKey(roomId: number): string {
+    return `${this.chainId}:${this.contractAddress.toLowerCase()}:${roomId}`;
+  }
 
   public maxConnectionsPerIp: number;
   public maxRooms: number;
@@ -403,6 +411,13 @@ export class RelayServer {
             this.sendError(ws, "Signature recovered address does not match player address");
             return;
           }
+
+          const isWhite = signer.toLowerCase() === room.whiteAddress.toLowerCase();
+          const isBlack = signer.toLowerCase() === room.blackAddress.toLowerCase();
+          if (!isWhite && !isBlack) {
+            this.sendError(ws, "Signer is not a player of this room");
+            return;
+          }
         } catch (err: any) {
           this.sendError(ws, `Failed to verify signature: ${err.message}`);
           return;
@@ -560,6 +575,31 @@ export class RelayServer {
       }
     }
 
+    // Turn 3b Item 1b: If room already has a saved result and no active RelayRoom in memory,
+    // do NOT create a new RelayRoom; send game_finished and only allow request_result.
+    // Only allow when address is a player of the room.
+    const resultKey = this.getResultKey(msg.roomId);
+    const existingResult = this.savedResults.get(resultKey);
+    const existingRoom = this.rooms.get(msg.roomId);
+    const isRoomActive = existingRoom && existingRoom.status === "active";
+
+    if (existingResult && !isRoomActive) {
+      if (isSpectator || !session.authenticatedAddress) {
+        this.sendError(ws, "Game has finished. Only room players can access this room.");
+        return;
+      }
+      const playerAddr = session.authenticatedAddress.toLowerCase();
+      if (playerAddr !== playerA && playerAddr !== playerB) {
+        this.sendError(ws, "Address is not a player of this room.");
+        return;
+      }
+      this.send(ws, {
+        type: "game_finished",
+        roomId: msg.roomId,
+      });
+      return;
+    }
+
     // Get or Create RelayRoom with immutable colors determined on-chain (Q13)
     let room = this.rooms.get(msg.roomId);
     if (!room) {
@@ -610,6 +650,13 @@ export class RelayServer {
     winnerAddress: `0x${string}`,
   ): Promise<void> {
     try {
+      const resultKey = this.getResultKey(room.roomId);
+      // Turn 3b Item 1d: nếu đã có kết quả lưu cho phòng này thì không ghi đè và không ký ván thứ hai
+      if (this.savedResults.has(resultKey)) {
+        console.warn(`[Relay] Room ${room.roomId} already has a saved result. Refusing to sign a second game.`);
+        return;
+      }
+
       if (!this.contractAddress || this.contractAddress.toLowerCase() === ZERO_ADDRESS.toLowerCase()) {
         console.warn("[Relay] contractAddress not configured. Skipping co-signature.");
         return;
@@ -683,13 +730,17 @@ export class RelayServer {
       };
       room.broadcast(signatureMsg);
 
-      // Save finished game to resultsDir (Turn 3a Item 4)
+      // Save finished game to resultsDir (Turn 3a Item 4 / Turn 3b Item 1)
       this.saveGameResult({
+        chainId: this.chainId,
+        contractAddress: this.contractAddress,
         roomId: room.roomId,
         moves: [...room.moves],
         outcome,
         reason,
         winner: winnerAddress,
+        whiteAddress: room.whiteAddress,
+        blackAddress: room.blackAddress,
         timestamp: Date.now(),
       });
 
@@ -800,9 +851,39 @@ export class RelayServer {
           if (now - data.timestamp > maxAgeMs) {
             fs.unlinkSync(filePath);
             console.log(`[Relay] Pruned expired result (>48h): ${file}`);
-          } else {
-            this.savedResults.set(data.roomId, data);
           }
+
+          // Item 1a: Khi nạp, bỏ qua file khác chainId hoặc contract
+          const baseName = path.basename(file, ".json");
+          const separator = baseName.includes(":") ? ":" : baseName.includes("_") ? "_" : null;
+          if (separator) {
+            const parts = baseName.split(separator);
+            if (parts.length === 3) {
+              const [fileChainId, fileContract] = parts;
+              if (
+                Number(fileChainId) !== this.chainId ||
+                fileContract.toLowerCase() !== this.contractAddress.toLowerCase()
+              ) {
+                console.log(`[Relay] Skipping result ${file}: chainId or contract mismatch in filename`);
+                continue;
+              }
+            }
+          }
+
+          if (data.chainId !== undefined && data.chainId !== this.chainId) {
+            console.log(`[Relay] Skipping result ${file}: chainId mismatch (${data.chainId} !== ${this.chainId})`);
+            continue;
+          }
+          if (
+            data.contractAddress &&
+            data.contractAddress.toLowerCase() !== this.contractAddress.toLowerCase()
+          ) {
+            console.log(`[Relay] Skipping result ${file}: contractAddress mismatch (${data.contractAddress} !== ${this.contractAddress})`);
+            continue;
+          }
+
+          const key = this.getResultKey(data.roomId);
+          this.savedResults.set(key, data);
         } catch (err) {
           console.warn(`[Relay] Could not read result file ${file}:`, err);
         }
@@ -814,11 +895,15 @@ export class RelayServer {
 
   public saveGameResult(result: SavedGameResult): void {
     try {
-      this.savedResults.set(result.roomId, result);
+      const key = this.getResultKey(result.roomId);
+      this.savedResults.set(key, result);
       if (!fs.existsSync(this.resultsDir)) {
         fs.mkdirSync(this.resultsDir, { recursive: true });
       }
-      const filePath = path.join(this.resultsDir, `${result.roomId}.json`);
+      const cId = result.chainId ?? this.chainId;
+      const cAddr = (result.contractAddress ?? this.contractAddress).toLowerCase();
+      const fileName = `${cId}_${cAddr}_${result.roomId}.json`;
+      const filePath = path.join(this.resultsDir, fileName);
       fs.writeFileSync(filePath, JSON.stringify(result, null, 2), "utf-8");
       console.log(`[Relay] Saved game result for room ${result.roomId} to ${filePath}`);
     } catch (err) {
@@ -865,9 +950,25 @@ export class RelayServer {
     }
 
     // Must have saved result
-    const saved = this.savedResults.get(roomId);
+    const resultKey = this.getResultKey(roomId);
+    const saved = this.savedResults.get(resultKey);
     if (!saved) {
       this.sendError(ws, `No saved result found for room ${roomId}`);
+      return;
+    }
+
+    // Turn 3b Item 1c: đối chiếu địa chỉ trắng/đen đã lưu với getRoom/creatorIsWhite hiện tại; không khớp thì từ chối và ghi log.
+    const expectedWhite = (roomData.creatorIsWhite ? roomData.playerA : roomData.playerB as string).toLowerCase();
+    const expectedBlack = (roomData.creatorIsWhite ? roomData.playerB : roomData.playerA as string).toLowerCase();
+
+    if (
+      (saved.whiteAddress && saved.whiteAddress.toLowerCase() !== expectedWhite) ||
+      (saved.blackAddress && saved.blackAddress.toLowerCase() !== expectedBlack)
+    ) {
+      console.error(
+        `[Relay] Player address mismatch for room ${roomId}. Saved white=${saved.whiteAddress}, black=${saved.blackAddress}. Expected white=${expectedWhite}, black=${expectedBlack}`
+      );
+      this.sendError(ws, "Player address mismatch with saved game result");
       return;
     }
 

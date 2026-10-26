@@ -162,6 +162,11 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
   requestResultSchema,
 ]);
 
+export const gameFinishedSchema = z.object({
+  type: z.literal("game_finished"),
+  roomId: roomIdSchema,
+});
+
 /**
  * Discriminated union of all relay → client messages.
  */
@@ -181,6 +186,7 @@ export const serverMessageSchema = z.discriminatedUnion("type", [
   timeoutSchema,
   focusWarningSchema,
   spectatorPoolUpdateSchema,
+  gameFinishedSchema,
 ]);
 
 // Inferred types
@@ -202,5 +208,6 @@ export type TimeoutMessage = z.infer<typeof timeoutSchema>;
 export type FocusWarningMessage = z.infer<typeof focusWarningSchema>;
 export type SpectatorPoolUpdateMessage = z.infer<typeof spectatorPoolUpdateSchema>;
 export type RequestResultMessage = z.infer<typeof requestResultSchema>;
+export type GameFinishedMessage = z.infer<typeof gameFinishedSchema>;
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 export type ServerMessage = z.infer<typeof serverMessageSchema>;

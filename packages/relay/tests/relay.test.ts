@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import WebSocket from "ws";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { recoverTypedDataAddress, type PrivateKeyAccount } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
@@ -149,8 +152,10 @@ async function authenticateAndJoin(
 
 describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
   let server: RelayServer;
+  let tempResultsDir: string;
 
   beforeAll(async () => {
+    tempResultsDir = fs.mkdtempSync(path.join(os.tmpdir(), "relay-unit-results-"));
     server = new RelayServer({
       port: TEST_PORT,
       relayPrivateKey: RELAY_KEY,
@@ -158,11 +163,15 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       chainId: CHAIN_ID,
       initialTimeMs: 60 * 1000,
       publicClient: mockPublicClient,
+      resultsDir: tempResultsDir,
     });
   });
 
   afterAll(async () => {
     await server.close();
+    try {
+      fs.rmSync(tempResultsDir, { recursive: true, force: true });
+    } catch {}
   });
 
   it("handles ping/pong", async () => {

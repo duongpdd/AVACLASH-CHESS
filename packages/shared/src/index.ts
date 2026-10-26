@@ -41,6 +41,7 @@ export {
   spectatorPoolUpdateSchema,
   SpectatorPoolUpdateSchema,
   requestResultSchema,
+  gameFinishedSchema,
   clientMessageSchema,
   serverMessageSchema,
 } from "./schemas.js";
@@ -86,6 +87,7 @@ export type {
   FocusWarningMessage,
   SpectatorPoolUpdateMessage,
   RequestResultMessage,
+  GameFinishedMessage,
   ClientMessage,
   ServerMessage,
 } from "./schemas.js";
