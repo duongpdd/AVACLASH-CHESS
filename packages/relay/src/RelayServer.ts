@@ -3,7 +3,9 @@ import type { IncomingMessage } from "node:http";
 import crypto from "node:crypto";
 import {
   createPublicClient,
+  createWalletClient,
   http,
+  parseEther,
   recoverTypedDataAddress,
   type PrivateKeyAccount,
 } from "viem";
@@ -39,6 +41,9 @@ export interface RelayServerOptions {
   chainId?: number;
   initialTimeMs?: number;
   publicClient?: any;
+  walletClient?: any;
+  signalGameStartedEnabled?: boolean;
+  minRelayBalance?: bigint;
   maxPayload?: number; // bytes, default 4096 (4 KB)
   maxConnectionsPerIp?: number;
   maxRooms?: number;
@@ -67,6 +72,9 @@ export class RelayServer {
   public chainId: number;
   public initialTimeMs?: number;
   public publicClient: any;
+  public walletClient?: any;
+  public signalGameStartedEnabled: boolean;
+  public minRelayBalance: bigint;
 
   public maxConnectionsPerIp: number;
   public maxRooms: number;
@@ -107,6 +115,15 @@ export class RelayServer {
     this.maxRooms = options.maxRooms ?? 500;
     this.rateLimitPerSecond = options.rateLimitPerSecond ?? 25;
 
+    this.signalGameStartedEnabled =
+      options.signalGameStartedEnabled ??
+      (process.env.SIGNAL_GAME_STARTED_ENABLED !== "false");
+
+    const envMinBal = process.env.RELAY_MIN_BALANCE;
+    this.minRelayBalance =
+      options.minRelayBalance ??
+      (envMinBal ? parseEther(envMinBal) : parseEther("0.1"));
+
     if (options.publicClient) {
       this.publicClient = options.publicClient;
     } else {
@@ -119,6 +136,18 @@ export class RelayServer {
       });
     }
 
+    if (options.walletClient) {
+      this.walletClient = options.walletClient;
+    } else {
+      const rpcUrl = options.rpcUrl ?? process.env.RPC_URL;
+      if (rpcUrl) {
+        this.walletClient = createWalletClient({
+          account: this.relayAccount,
+          transport: http(rpcUrl),
+        });
+      }
+    }
+
     const maxPayload = options.maxPayload ?? 4 * 1024; // 4 KB maxPayload
 
     if (options.server) {
@@ -128,6 +157,11 @@ export class RelayServer {
     }
 
     this.setupWss();
+
+    // Check balance asynchronously on startup
+    this.checkRelayBalance().catch((err) => {
+      console.warn("[Relay] Startup balance check error:", err);
+    });
   }
 
   public get relayAddress(): `0x${string}` {
@@ -509,6 +543,11 @@ export class RelayServer {
         whiteAddress: whiteAddr as `0x${string}`,
         blackAddress: blackAddr as `0x${string}`,
         initialTimeMs: this.initialTimeMs,
+        onGameStarted: (r) => {
+          this.handleGameStarted(r).catch((err) => {
+            console.error(`[Relay] handleGameStarted error for room ${r.roomId}:`, err);
+          });
+        },
         onGameOver: (r, outcome, reason, winner) => {
           this.handleGameOver(r, outcome, reason, winner).catch((err) => {
             console.error(`[Relay] handleGameOver unhandled rejection for room ${r.roomId}:`, err);
@@ -617,6 +656,81 @@ export class RelayServer {
       }, 10 * 60 * 1000);
     } catch (err) {
       console.error(`[Relay] Error in handleGameOver for room ${room.roomId}:`, err);
+    }
+  }
+
+  public async handleGameStarted(room: RelayRoom): Promise<void> {
+    if (!this.signalGameStartedEnabled) {
+      console.log(`[Relay] signalGameStarted disabled; skipping on-chain call for room ${room.roomId}`);
+      return;
+    }
+    if (!this.walletClient) {
+      console.warn(`[Relay] walletClient not configured; skipping signalGameStarted for room ${room.roomId}`);
+      return;
+    }
+
+    const startTime = Date.now();
+    const maxDurationMs = 150_000; // 150 seconds, safely before 3m ABORT_TIMEOUT
+    let attempt = 0;
+    let delayMs = 1000;
+
+    while (Date.now() - startTime < maxDurationMs) {
+      attempt++;
+      try {
+        console.log(`[Relay] Calling signalGameStarted for room ${room.roomId} (attempt ${attempt})...`);
+        const txHash = await this.walletClient.writeContract({
+          address: this.contractAddress,
+          abi: CHESS_ESCROW_ABI,
+          functionName: "signalGameStarted",
+          args: [BigInt(room.roomId)],
+        });
+        console.log(`[Relay] signalGameStarted tx sent for room ${room.roomId}: ${txHash}. Waiting receipt...`);
+        const receipt = await this.publicClient.waitForTransactionReceipt({
+          hash: txHash,
+          timeout: 30_000,
+        });
+        if (receipt.status === "success") {
+          console.log(`[Relay] signalGameStarted confirmed on-chain for room ${room.roomId} in tx ${txHash}`);
+          return;
+        } else {
+          console.warn(`[Relay] signalGameStarted tx reverted for room ${room.roomId}: ${txHash}`);
+        }
+      } catch (err: any) {
+        console.warn(`[Relay] signalGameStarted attempt ${attempt} for room ${room.roomId} failed: ${err.message}`);
+        if (
+          err.message?.includes("GameAlreadyStarted") ||
+          err.message?.includes("RoomNotActive") ||
+          err.message?.includes("AlreadySettled")
+        ) {
+          return;
+        }
+      }
+
+      const remaining = maxDurationMs - (Date.now() - startTime);
+      if (remaining <= 0) break;
+      const sleep = Math.min(delayMs, remaining);
+      await new Promise((resolve) => setTimeout(resolve, sleep));
+      delayMs = Math.min(delayMs * 2, 10_000);
+    }
+
+    console.error(`[Relay] signalGameStarted timed out after 150s for room ${room.roomId}`);
+  }
+
+  public async checkRelayBalance(): Promise<bigint> {
+    try {
+      if (!this.publicClient || typeof this.publicClient.getBalance !== "function") return 0n;
+      const balance = await this.publicClient.getBalance({
+        address: this.relayAccount.address,
+      });
+      if (balance < this.minRelayBalance) {
+        console.warn(
+          `[Relay] WARNING: Relay account balance (${balance} wei) is below minimum threshold (${this.minRelayBalance} wei)!`
+        );
+      }
+      return balance;
+    } catch (err: any) {
+      console.warn(`[Relay] Could not check relay balance: ${err.message}`);
+      return 0n;
     }
   }
 

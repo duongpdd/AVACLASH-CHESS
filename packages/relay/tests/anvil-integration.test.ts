@@ -50,6 +50,12 @@ describe("RelayServer Anvil End-to-End Integration", () => {
     bobAccount = privateKeyToAccount(ANVIL_ACCOUNTS[5].privateKey);
     charlieAccount = privateKeyToAccount(ANVIL_ACCOUNTS[6].privateKey);
 
+    const relayWallet = createWalletClient({
+      account: relayAccount,
+      chain: { ...localhost, id: 31337, rpcUrls: { default: { http: [anvil.rpcUrl] } } },
+      transport: http(),
+    });
+
     relayPort = 9200 + Math.floor(Math.random() * 500);
     server = new RelayServer({
       port: relayPort,
@@ -58,6 +64,8 @@ describe("RelayServer Anvil End-to-End Integration", () => {
       rpcUrl: anvil.rpcUrl,
       chainId: 31337,
       publicClient: anvil.publicClient,
+      walletClient: relayWallet,
+      signalGameStartedEnabled: true,
     });
   }, 30000);
 
@@ -379,5 +387,163 @@ describe("RelayServer Anvil End-to-End Integration", () => {
 
     aliceConn.ws.close();
     bobConn.ws.close();
+  });
+
+  it("Relay automatically signals gameStarted on-chain when both players join; abortRoom reverts GameAlreadyStarted", { timeout: 25000 }, async () => {
+    if (!anvil) return;
+
+    const aliceWallet = createWalletClient({
+      account: aliceAccount,
+      chain: { ...localhost, id: 31337, rpcUrls: { default: { http: [anvil.rpcUrl] } } },
+      transport: http(),
+    });
+    const bobWallet = createWalletClient({
+      account: bobAccount,
+      chain: { ...localhost, id: 31337, rpcUrls: { default: { http: [anvil.rpcUrl] } } },
+      transport: http(),
+    });
+
+    const roomId = await createAndGetRoomId(aliceWallet, true);
+    const joinTx = await bobWallet.writeContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "joinRoom",
+      args: [BigInt(roomId)],
+      value: parseEther("0.05"),
+    });
+    await anvil.publicClient.waitForTransactionReceipt({ hash: joinTx });
+
+    // Alice and Bob connect to relay -> room becomes active
+    const aliceConn = await connectAndAuthenticate(roomId, aliceAccount);
+    const bobConn = await connectAndAuthenticate(roomId, bobAccount);
+
+    // Wait for relay to send signalGameStarted tx and confirm on-chain
+    let gameStarted = false;
+    for (let i = 0; i < 30; i++) {
+      const onChainRoom: any = await anvil.publicClient.readContract({
+        address: escrowAddress,
+        abi: escrowAbi,
+        functionName: "getRoom",
+        args: [BigInt(roomId)],
+      });
+      if (onChainRoom.gameStarted) {
+        gameStarted = true;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(gameStarted).toBe(true);
+
+    // Fast forward anvil time past 3 minutes (181s)
+    await (anvil.publicClient as any).request({ method: "evm_increaseTime", params: [181] });
+    await (anvil.publicClient as any).request({ method: "evm_mine" });
+
+    // Attempting abortRoom should revert because gameStarted is true
+    await expect(
+      aliceWallet.writeContract({
+        address: escrowAddress,
+        abi: escrowAbi,
+        functionName: "abortRoom",
+        args: [BigInt(roomId)],
+      })
+    ).rejects.toThrow();
+
+    aliceConn.ws.close();
+    bobConn.ws.close();
+  });
+
+  it("When signalGameStarted is disabled, relay does not call signalGameStarted and abortRoom succeeds after 3 minutes", { timeout: 25000 }, async () => {
+    if (!anvil) return;
+
+    // Create another RelayServer with signalGameStartedEnabled = false
+    const disabledPort = relayPort + 15;
+    const disabledServer = new RelayServer({
+      port: disabledPort,
+      relayPrivateKey: ANVIL_ACCOUNTS[1].privateKey,
+      contractAddress: escrowAddress,
+      rpcUrl: anvil.rpcUrl,
+      chainId: 31337,
+      publicClient: anvil.publicClient,
+      signalGameStartedEnabled: false,
+    });
+
+    const aliceWallet = createWalletClient({
+      account: aliceAccount,
+      chain: { ...localhost, id: 31337, rpcUrls: { default: { http: [anvil.rpcUrl] } } },
+      transport: http(),
+    });
+    const bobWallet = createWalletClient({
+      account: bobAccount,
+      chain: { ...localhost, id: 31337, rpcUrls: { default: { http: [anvil.rpcUrl] } } },
+      transport: http(),
+    });
+
+    const roomId = await createAndGetRoomId(aliceWallet, true);
+    const joinTx = await bobWallet.writeContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "joinRoom",
+      args: [BigInt(roomId)],
+      value: parseEther("0.05"),
+    });
+    await anvil.publicClient.waitForTransactionReceipt({ hash: joinTx });
+
+    // Connect to disabledServer
+    async function connectToDisabled(rId: number, acct: any) {
+      return new Promise<{ ws: WebSocket }>((resolve) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${disabledPort}`);
+        ws.on("message", async (data) => {
+          const msg = JSON.parse(data.toString());
+          if (msg.type === "auth_challenge") {
+            const typedData = buildJoinTypedData(rId, acct.address, msg.nonce as Hex, msg.expiresAt, 31337);
+            const signature = await acct.signTypedData(typedData);
+            ws.send(JSON.stringify({ type: "join_room", roomId: rId, address: acct.address, signature, nonce: msg.nonce }));
+          } else if (msg.type === "room_state") {
+            resolve({ ws });
+          }
+        });
+      });
+    }
+
+    const aliceConn = await connectToDisabled(roomId, aliceAccount);
+    const bobConn = await connectToDisabled(roomId, bobAccount);
+
+    // Give it a brief moment
+    await new Promise((r) => setTimeout(r, 300));
+
+    // Check on-chain room.gameStarted remains false
+    const onChainRoom: any = await anvil.publicClient.readContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "getRoom",
+      args: [BigInt(roomId)],
+    });
+    expect(onChainRoom.gameStarted).toBe(false);
+
+    // Fast forward anvil time past 3 minutes (181s)
+    await (anvil.publicClient as any).request({ method: "evm_increaseTime", params: [181] });
+    await (anvil.publicClient as any).request({ method: "evm_mine" });
+
+    // abortRoom succeeds
+    const abortTx = await aliceWallet.writeContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "abortRoom",
+      args: [BigInt(roomId)],
+    });
+    const receipt = await anvil.publicClient.waitForTransactionReceipt({ hash: abortTx });
+    expect(receipt.status).toBe("success");
+
+    const abortedRoom: any = await anvil.publicClient.readContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "getRoom",
+      args: [BigInt(roomId)],
+    });
+    expect(Number(abortedRoom.status)).toBe(6); // Aborted
+
+    aliceConn.ws.close();
+    bobConn.ws.close();
+    await disabledServer.close();
   });
 });

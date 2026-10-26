@@ -24,6 +24,7 @@ export interface RelayRoomConfig {
   whiteAddress: `0x${string}`;
   blackAddress: `0x${string}`;
   initialTimeMs?: number; // Default 5 mins (300,000 ms)
+  onGameStarted?: (room: RelayRoom) => void;
   onGameOver?: (
     room: RelayRoom,
     outcome: GameOutcome,
@@ -53,6 +54,7 @@ export class RelayRoom {
   public drawOfferFrom?: "w" | "b";
 
   private clockInterval?: NodeJS.Timeout;
+  private onGameStarted?: (room: RelayRoom) => void;
   private onGameOver?: (
     room: RelayRoom,
     outcome: GameOutcome,
@@ -75,6 +77,7 @@ export class RelayRoom {
     this.whiteMs = initialTime;
     this.blackMs = initialTime;
     this.chess = new ChessGame();
+    this.onGameStarted = config.onGameStarted;
     this.onGameOver = config.onGameOver;
   }
 
@@ -139,6 +142,7 @@ export class RelayRoom {
 
     this.startClock();
     this.broadcastRoomState();
+    this.onGameStarted?.(this);
   }
 
   private startClock(): void {
