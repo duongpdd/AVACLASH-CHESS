@@ -773,7 +773,8 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
                 catch {
                     emit MetaCallFailed(roomId, IAvaClashMeta.updateEloOnSettle.selector);
                 }
-                uint8 winningOption = (winner == room.playerA) ? 1 : 2;
+                address whitePlayer = room.creatorIsWhite ? room.playerA : room.playerB;
+                uint8 winningOption = (winner == whitePlayer) ? 1 : 2;
                 try IAvaClashMeta(metaContract).resolvePrediction(roomId, winningOption) {}
                 catch {
                     metaResolutionFailed[roomId] = true;
@@ -786,14 +787,21 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
 
     /**
      * @dev Validate consistency between outcome and winner:
-     *      - outcome == 2 (Draw) requires winner == address(0), and vice versa.
-     *      - outcome <= 1 requires winner == playerA || winner == playerB.
+     *      - outcome == 0 (WhiteWin) requires winner == whitePlayer.
+     *      - outcome == 1 (BlackWin) requires winner == blackPlayer.
+     *      - outcome == 2 (Draw) requires winner == address(0).
+     *      - outcome > 2 reverts InvalidWinner.
      */
     function _validateOutcomeAndWinner(Room storage room, address winner, uint8 outcome) internal view {
-        if (outcome == 2) {
+        address whitePlayer = room.creatorIsWhite ? room.playerA : room.playerB;
+        address blackPlayer = room.creatorIsWhite ? room.playerB : room.playerA;
+
+        if (outcome == 0) {
+            if (winner != whitePlayer || winner == address(0)) revert InvalidWinner();
+        } else if (outcome == 1) {
+            if (winner != blackPlayer || winner == address(0)) revert InvalidWinner();
+        } else if (outcome == 2) {
             if (winner != address(0)) revert InvalidWinner();
-        } else if (outcome <= 1) {
-            if (winner != room.playerA && winner != room.playerB) revert InvalidWinner();
         } else {
             revert InvalidWinner();
         }

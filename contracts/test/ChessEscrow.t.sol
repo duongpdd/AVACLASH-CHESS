@@ -350,6 +350,53 @@ contract ChessEscrowTest is Test {
         escrow.submitResult(roomId, evil, 0, 0, 10, movesHash, nonce, deadline, sigA, sigB);
     }
 
+    function test_submitResult_revert_winnerColorMismatch() public {
+        uint256 roomId = _createAndJoin(); // alice is White, bob is Black
+        bytes32 movesHash = keccak256("test");
+        uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // 1. Outcome 0 (WhiteWin) but winner is bob (Black player) -> revert InvalidWinner
+        bytes memory sigA1 = _signResult(alicePk, roomId, bob, 0, 0, 10, movesHash, nonce, deadline);
+        bytes memory sigB1 = _signResult(bobPk, roomId, bob, 0, 0, 10, movesHash, nonce, deadline);
+        vm.expectRevert(ChessEscrow.InvalidWinner.selector);
+        escrow.submitResult(roomId, bob, 0, 0, 10, movesHash, nonce, deadline, sigA1, sigB1);
+
+        // 2. Outcome 1 (BlackWin) but winner is alice (White player) -> revert InvalidWinner
+        bytes memory sigA2 = _signResult(alicePk, roomId, alice, 1, 0, 10, movesHash, nonce, deadline);
+        bytes memory sigB2 = _signResult(bobPk, roomId, alice, 1, 0, 10, movesHash, nonce, deadline);
+        vm.expectRevert(ChessEscrow.InvalidWinner.selector);
+        escrow.submitResult(roomId, alice, 1, 0, 10, movesHash, nonce, deadline, sigA2, sigB2);
+    }
+
+    function test_submitResult_creatorIsBlack_validWinnerAndMetaOption() public {
+        // Alice creates room with creatorIsWhite = false (Alice is Black, Bob is White)
+        uint256 roomId = _createRoomWithColor(alice, STAKE, false);
+        _joinRoom(bob, roomId, STAKE);
+
+        assertEq(escrow.getWhitePlayer(roomId), bob);
+        assertEq(escrow.getBlackPlayer(roomId), alice);
+
+        bytes32 movesHash = keccak256("test");
+        uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Outcome 0 (WhiteWin) with Alice (who is Black) -> reverts
+        bytes memory sigA1 = _signResult(alicePk, roomId, alice, 0, 0, 10, movesHash, nonce, deadline);
+        bytes memory sigB1 = _signResult(bobPk, roomId, alice, 0, 0, 10, movesHash, nonce, deadline);
+        vm.expectRevert(ChessEscrow.InvalidWinner.selector);
+        escrow.submitResult(roomId, alice, 0, 0, 10, movesHash, nonce, deadline, sigA1, sigB1);
+
+        // Outcome 0 (WhiteWin) with Bob (White) -> success!
+        bytes memory sigA2 = _signResult(alicePk, roomId, bob, 0, 0, 10, movesHash, nonce, deadline);
+        bytes memory sigB2 = _signResult(bobPk, roomId, bob, 0, 0, 10, movesHash, nonce, deadline);
+        escrow.submitResult(roomId, bob, 0, 0, 10, movesHash, nonce, deadline, sigA2, sigB2);
+
+        uint256 pot = STAKE * 2;
+        uint256 fee = (pot * 500) / 10000;
+        assertEq(escrow.pendingWithdrawals(bob), pot - fee);
+    }
+
     function test_submitResult_revert_drawWithNonZeroWinner() public {
         uint256 roomId = _createAndJoin();
         bytes32 movesHash = keccak256("test");
