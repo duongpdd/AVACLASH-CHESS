@@ -43,7 +43,12 @@ contract ChessEscrowTest is Test {
 
     function _createRoom(address creator, uint256 stake) internal returns (uint256) {
         vm.prank(creator);
-        return escrow.createRoom{ value: stake }();
+        return escrow.createRoom{ value: stake }(true);
+    }
+
+    function _createRoomWithColor(address creator, uint256 stake, bool creatorIsWhite) internal returns (uint256) {
+        vm.prank(creator);
+        return escrow.createRoom{ value: stake }(creatorIsWhite);
     }
 
     function _joinRoom(address joiner, uint256 roomId, uint256 stake) internal {
@@ -91,36 +96,59 @@ contract ChessEscrowTest is Test {
 
     function test_createRoom() public {
         vm.prank(alice);
-        uint256 roomId = escrow.createRoom{ value: STAKE }();
+        uint256 roomId = escrow.createRoom{ value: STAKE }(true);
 
         ChessEscrow.Room memory room = escrow.getRoom(roomId);
         assertEq(room.playerA, alice);
         assertEq(room.playerB, address(0));
         assertEq(room.stake, STAKE);
+        assertTrue(room.creatorIsWhite);
         assertEq(uint256(room.status), 0); // Open
+        assertEq(escrow.getWhitePlayer(roomId), alice);
+        assertEq(escrow.getBlackPlayer(roomId), address(0));
     }
 
     function test_createRoom_emitsEvent() public {
         vm.prank(alice);
         vm.expectEmit(true, true, false, true);
-        emit ChessEscrow.RoomCreated(0, alice, STAKE);
-        escrow.createRoom{ value: STAKE }();
+        emit ChessEscrow.RoomCreated(0, alice, STAKE, true);
+        escrow.createRoom{ value: STAKE }(true);
     }
 
     function test_createRoom_revert_stakeBelowMin() public {
         vm.prank(alice);
         vm.expectRevert(ChessEscrow.StakeTooLow.selector);
-        escrow.createRoom{ value: 0 }();
+        escrow.createRoom{ value: 0 }(true);
 
         vm.prank(alice);
         vm.expectRevert(ChessEscrow.StakeTooLow.selector);
-        escrow.createRoom{ value: 0.009 ether }();
+        escrow.createRoom{ value: 0.009 ether }(true);
     }
 
     function test_createRoom_revert_stakeAboveMax() public {
         vm.prank(alice);
         vm.expectRevert(ChessEscrow.StakeTooHigh.selector);
-        escrow.createRoom{ value: 2 ether }();
+        escrow.createRoom{ value: 2 ether }(true);
+    }
+
+    function test_createRoom_bothColorModes() public {
+        // Mode 1: creator is White
+        vm.prank(alice);
+        uint256 rWhite = escrow.createRoom{ value: STAKE }(true);
+        assertEq(escrow.getWhitePlayer(rWhite), alice);
+        assertEq(escrow.getBlackPlayer(rWhite), address(0));
+        _joinRoom(bob, rWhite, STAKE);
+        assertEq(escrow.getWhitePlayer(rWhite), alice);
+        assertEq(escrow.getBlackPlayer(rWhite), bob);
+
+        // Mode 2: creator is Black
+        vm.prank(alice);
+        uint256 rBlack = escrow.createRoom{ value: STAKE }(false);
+        assertEq(escrow.getWhitePlayer(rBlack), address(0));
+        assertEq(escrow.getBlackPlayer(rBlack), alice);
+        _joinRoom(bob, rBlack, STAKE);
+        assertEq(escrow.getWhitePlayer(rBlack), bob);
+        assertEq(escrow.getBlackPlayer(rBlack), alice);
     }
 
     function test_createRoom_incrementsId() public {
@@ -771,7 +799,7 @@ contract ChessEscrowTest is Test {
 
         // Alice creates room, Bob joins
         vm.prank(alice);
-        uint256 roomId = escrow.createRoom{ value: STAKE }();
+        uint256 roomId = escrow.createRoom{ value: STAKE }(true);
         vm.prank(bob);
         escrow.joinRoom{ value: STAKE }(roomId);
 
@@ -1087,7 +1115,7 @@ contract ChessEscrowTest is Test {
         stake = bound(stake, escrow.MIN_STAKE(), escrow.MAX_STAKE());
         vm.deal(alice, stake);
         vm.prank(alice);
-        uint256 roomId = escrow.createRoom{ value: stake }();
+        uint256 roomId = escrow.createRoom{ value: stake }(true);
         assertEq(escrow.getRoom(roomId).stake, stake);
     }
 
@@ -1165,7 +1193,7 @@ contract ChessEscrowTest is Test {
     function test_maxStake() public {
         vm.deal(alice, 2 ether);
         vm.prank(alice);
-        uint256 roomId = escrow.createRoom{ value: 1 ether }();
+        uint256 roomId = escrow.createRoom{ value: 1 ether }(true);
         assertEq(escrow.getRoom(roomId).stake, 1 ether);
     }
 
@@ -1229,7 +1257,7 @@ contract ChessEscrowTest is Test {
 
         // Signer A creates room
         vm.prank(fixtureSignerA);
-        uint256 roomId = escrow.createRoom{ value: STAKE }();
+        uint256 roomId = escrow.createRoom{ value: STAKE }(true);
         assertEq(roomId, fixtureMatchId);
 
         // Signer B joins room
@@ -1330,13 +1358,13 @@ contract ChessEscrowTest is Test {
         // 1. Cannot create new room while paused
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
-        escrow.createRoom{ value: STAKE }();
+        escrow.createRoom{ value: STAKE }(true);
 
         // 2. Cannot join existing open room while paused
         // Unpause temporarily to create an open room
         escrow.unpause();
         vm.prank(alice);
-        uint256 openRoomId = escrow.createRoom{ value: STAKE }();
+        uint256 openRoomId = escrow.createRoom{ value: STAKE }(true);
         escrow.pause();
 
         vm.prank(bob);
@@ -1372,7 +1400,7 @@ contract ReentrancyAttacker {
     }
 
     function createAndCancel(uint256 stake) external {
-        uint256 roomId = escrow.createRoom{ value: stake }();
+        uint256 roomId = escrow.createRoom{ value: stake }(true);
         escrow.cancelRoom(roomId);
     }
 

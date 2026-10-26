@@ -104,7 +104,7 @@ contract ChessEscrowMetaTryCatchTest is Test {
 
     function test_JoinRoom_RevertsWhenMetaRegisterMatchFails() public {
         vm.prank(playerA);
-        uint256 roomId = escrow.createRoom{ value: 0.1 ether }();
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
 
         revertingMeta.setFailRegisterMatch(true);
 
@@ -115,7 +115,7 @@ contract ChessEscrowMetaTryCatchTest is Test {
 
     function test_JoinRoom_RevertsWhenMetaLockBettingFails() public {
         vm.prank(playerA);
-        uint256 roomId = escrow.createRoom{ value: 0.1 ether }();
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
 
         revertingMeta.setFailLockBetting(true);
 
@@ -126,7 +126,7 @@ contract ChessEscrowMetaTryCatchTest is Test {
 
     function test_AbortRoom_SuccessWhenMetaReverts() public {
         vm.prank(playerA);
-        uint256 roomId = escrow.createRoom{ value: 0.1 ether }();
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
 
         vm.prank(playerB);
         escrow.joinRoom{ value: 0.1 ether }(roomId);
@@ -150,7 +150,7 @@ contract ChessEscrowMetaTryCatchTest is Test {
 
     function test_RefundOnTimeout_SuccessWhenMetaReverts() public {
         vm.prank(playerA);
-        uint256 roomId = escrow.createRoom{ value: 0.1 ether }();
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
 
         vm.prank(playerB);
         escrow.joinRoom{ value: 0.1 ether }(roomId);
@@ -169,7 +169,7 @@ contract ChessEscrowMetaTryCatchTest is Test {
 
     function test_SubmitResult_SettleSuccessWhenMetaReverts() public {
         vm.prank(playerA);
-        uint256 roomId = escrow.createRoom{ value: 0.1 ether }();
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
 
         vm.prank(playerB);
         escrow.joinRoom{ value: 0.1 ether }(roomId);
@@ -206,7 +206,7 @@ contract ChessEscrowMetaTryCatchTest is Test {
 
     function test_SubmitResult_DrawSuccessWhenMetaReverts() public {
         vm.prank(playerA);
-        uint256 roomId = escrow.createRoom{ value: 0.1 ether }();
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
 
         vm.prank(playerB);
         escrow.joinRoom{ value: 0.1 ether }(roomId);
@@ -232,7 +232,7 @@ contract ChessEscrowMetaTryCatchTest is Test {
 
     function test_RetryResolvePrediction_SuccessAndFailure() public {
         vm.prank(playerA);
-        uint256 roomId = escrow.createRoom{ value: 0.1 ether }();
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
 
         vm.prank(playerB);
         escrow.joinRoom{ value: 0.1 ether }(roomId);
@@ -283,7 +283,7 @@ contract ChessEscrowMetaTryCatchTest is Test {
 
         // Alice creates room
         vm.prank(playerA);
-        uint256 roomId = escrow.createRoom{ value: 0.1 ether }();
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
 
         // Spectators bet before match starts
         vm.prank(spec1);

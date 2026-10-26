@@ -67,7 +67,7 @@ contract ChessEscrowMetaIntegrationTest is Test {
     function test_FullMatchFlow_EloAndSpectatorPayout() public {
         // 1. Player A creates room with 0.1 AVAX
         vm.prank(playerA);
-        uint256 roomId = escrow.createRoom{ value: 0.1 ether }();
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
 
         // 2. Spectators bet before match starts
         vm.prank(spectator1);
@@ -116,7 +116,7 @@ contract ChessEscrowMetaIntegrationTest is Test {
 
     function test_DrawMatchFlow_EloAndSpectatorDrawOption() public {
         vm.prank(playerA);
-        uint256 roomId = escrow.createRoom{ value: 0.1 ether }();
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
 
         // Spectator 1 bets on Draw (option 3)
         vm.prank(spectator1);
@@ -153,7 +153,7 @@ contract ChessEscrowMetaIntegrationTest is Test {
 
     function test_AbortRoom_CancelsPredictionAndRefundsSpectators() public {
         vm.prank(playerA);
-        uint256 roomId = escrow.createRoom{ value: 0.1 ether }();
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
 
         vm.prank(spectator1);
         meta.betOnMatch{ value: 0.5 ether }(roomId, 1);

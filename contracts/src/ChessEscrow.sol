@@ -65,17 +65,19 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
     }
 
     struct Room {
-        address playerA;            // creator (white by default, or per relay seed)
-        address playerB;            // joiner (black by default)
+        address playerA;            // creator
+        address playerB;            // joiner
         uint256 stake;              // amount each player staked
         RoomStatus status;
         uint256 startedAt;          // timestamp when playerB joined
         bool gameStarted;           // relay signals first move was made
+        bool creatorIsWhite;        // true if creator chose White, false if Black
         // Single-signed submission fields
         address singleSignedWinner;
         bytes32 singleSignedMovesHash;
         uint256 singleSignedNonce;
         uint256 singleSignedAt;     // timestamp of submitSingleSigned
+        uint256 singleSignedBond;   // submitter bond
         // Challenge fields
         address challenger;
         uint256 challengeBond;
@@ -138,7 +140,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
 
     // ──────────────────────── Events ────────────────────────
 
-    event RoomCreated(uint256 indexed roomId, address indexed creator, uint256 stake);
+    event RoomCreated(uint256 indexed roomId, address indexed creator, uint256 stake, bool creatorIsWhite);
     event RoomJoined(uint256 indexed roomId, address indexed joiner);
     event RoomCancelled(uint256 indexed roomId);
     event RoomAborted(uint256 indexed roomId);
@@ -213,10 +215,11 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
     // ──────────────────────── External Functions ────────────────────────
 
     /**
-     * @notice Create a new room and stake AVAX.
+     * @notice Create a new room, choose piece color, and stake AVAX.
+     * @param creatorIsWhite True if creator plays White, false if Black.
      * @return roomId The ID of the newly created room.
      */
-    function createRoom() external payable whenNotPaused returns (uint256 roomId) {
+    function createRoom(bool creatorIsWhite) external payable whenNotPaused returns (uint256 roomId) {
         if (msg.value < MIN_STAKE) revert StakeTooLow();
         if (msg.value > MAX_STAKE) revert StakeTooHigh();
 
@@ -225,8 +228,9 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
         room.playerA = msg.sender;
         room.stake = msg.value;
         room.status = RoomStatus.Open;
+        room.creatorIsWhite = creatorIsWhite;
 
-        emit RoomCreated(roomId, msg.sender, msg.value);
+        emit RoomCreated(roomId, msg.sender, msg.value, creatorIsWhite);
     }
 
     /**
@@ -704,6 +708,22 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
      */
     function getRoom(uint256 roomId) external view returns (Room memory) {
         return rooms[roomId];
+    }
+
+    /**
+     * @notice Get white player address (address(0) if not yet joined/assigned).
+     */
+    function getWhitePlayer(uint256 roomId) external view returns (address) {
+        Room storage room = rooms[roomId];
+        return room.creatorIsWhite ? room.playerA : room.playerB;
+    }
+
+    /**
+     * @notice Get black player address (address(0) if not yet joined/assigned).
+     */
+    function getBlackPlayer(uint256 roomId) external view returns (address) {
+        Room storage room = rooms[roomId];
+        return room.creatorIsWhite ? room.playerB : room.playerA;
     }
 
     /**
