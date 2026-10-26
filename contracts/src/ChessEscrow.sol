@@ -489,11 +489,11 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
             || (validWinner == address(0) && room.singleSignedWinner != address(0));
 
         if (challengerWasRight) {
-            // Challenger was right: refund bond + submitter loses
-            pendingWithdrawals[room.challenger] += room.challengeBond;
+            // Challenger was right: challenger receives their bond + submitter's bond
+            pendingWithdrawals[room.challenger] += room.challengeBond + room.singleSignedBond;
         } else {
-            // Challenger was wrong: bond goes to the other player (single-signed submitter)
-            pendingWithdrawals[room.singleSignedWinner] += room.challengeBond;
+            // Challenger was wrong: submitter receives their bond + challenger's bond
+            pendingWithdrawals[room.singleSignedWinner] += room.singleSignedBond + room.challengeBond;
         }
 
         uint256 fee = _distribute(roomId, room, validWinner);
@@ -516,7 +516,9 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
         // Refund stakes
         pendingWithdrawals[room.playerA] += room.stake;
         pendingWithdrawals[room.playerB] += room.stake;
-        // Default challenge resolution (Q8): 50% bond goes to submitter as compensation, 50% refunded to challenger
+        // Refund submitter bond (Q11)
+        pendingWithdrawals[room.singleSignedWinner] += room.singleSignedBond;
+        // Default challenge resolution (Q8): 50% challenger bond to submitter as compensation, 50% refunded to challenger
         uint256 submitterCompensation = room.challengeBond / 2;
         uint256 challengerRefund = room.challengeBond - submitterCompensation;
         pendingWithdrawals[room.singleSignedWinner] += submitterCompensation;
@@ -534,7 +536,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
 
     /**
      * @notice Finalize a single-signed result after the challenge window expires
-     *         without challenge. Winner gets the full pot (minus fee).
+     *         without challenge. Winner gets the full pot (minus fee) plus submitter bond refund.
      * @param roomId The room ID.
      */
     function finalizeSingleSigned(uint256 roomId) external nonReentrant {
@@ -547,6 +549,9 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
 
         room.status = RoomStatus.Settled;
         address winner = room.singleSignedWinner;
+
+        // Refund submitter bond (Q11)
+        pendingWithdrawals[winner] += room.singleSignedBond;
 
         uint256 fee = _distribute(roomId, room, winner);
 

@@ -695,7 +695,7 @@ contract ChessEscrowTest is Test {
         assertEq(uint256(escrow.getRoom(roomId).status), 2); // Settled
         uint256 pot = STAKE * 2;
         uint256 fee = (pot * 500) / 10000;
-        assertEq(escrow.pendingWithdrawals(alice), pot - fee);
+        assertEq(escrow.pendingWithdrawals(alice), pot - fee + bond);
     }
 
     function test_finalizeSingleSigned_revert_tooEarly() public {
@@ -816,10 +816,10 @@ contract ChessEscrowTest is Test {
         escrow.resolveChallenge(roomId, bob);
 
         assertEq(uint256(escrow.getRoom(roomId).status), 2); // Settled
-        // Bob gets: bond back + pot minus fee
+        // Bob gets: his bond + Alice's bond + pot minus fee
         uint256 pot = STAKE * 2;
         uint256 fee = (pot * 500) / 10000;
-        assertEq(escrow.pendingWithdrawals(bob), bond + pot - fee);
+        assertEq(escrow.pendingWithdrawals(bob), bond + bond + pot - fee);
     }
 
     function test_resolveChallenge_challengerWrong() public {
@@ -844,8 +844,8 @@ contract ChessEscrowTest is Test {
 
         uint256 pot = STAKE * 2;
         uint256 fee = (pot * 500) / 10000;
-        // Alice gets: pot minus fee + Bob's bond
-        assertEq(escrow.pendingWithdrawals(alice), pot - fee + bond);
+        // Alice gets: pot minus fee + her bond + Bob's bond
+        assertEq(escrow.pendingWithdrawals(alice), pot - fee + bond + bond);
         assertEq(escrow.pendingWithdrawals(bob), 0);
     }
 
@@ -870,9 +870,9 @@ contract ChessEscrowTest is Test {
         escrow.resolveDefaultChallenge(roomId);
 
         assertEq(uint256(escrow.getRoom(roomId).status), 4); // Refunded
-        // Alice gets stake + 50% bond compensation
-        assertEq(escrow.pendingWithdrawals(alice), STAKE + bond / 2);
-        // Bob gets stake + remaining 50% bond
+        // Alice gets stake + 100% her bond + 50% Bob's bond compensation
+        assertEq(escrow.pendingWithdrawals(alice), STAKE + bond + bond / 2);
+        // Bob gets stake + remaining 50% of his bond
         assertEq(escrow.pendingWithdrawals(bob), STAKE + (bond - bond / 2));
     }
 
@@ -907,8 +907,22 @@ contract ChessEscrowTest is Test {
 
         // Verify total funds are 100% conserved
         uint256 totalCredited = escrow.pendingWithdrawals(alice) + escrow.pendingWithdrawals(bob);
-        assertEq(totalCredited, 2 * STAKE + bond);
-        // Note: submitter bond refund will be tested fully in 2d
+        assertEq(totalCredited, 2 * STAKE + bond + bond);
+        assertEq(totalCredited, address(escrow).balance);
+
+        // Both players withdraw
+        vm.prank(alice);
+        escrow.withdraw();
+        vm.prank(bob);
+        escrow.withdraw();
+
+        // Total contract balance after full withdrawals is 0
+        assertEq(address(escrow).balance, 0);
+
+        // Bob lost 50% of his challenge bond (penalty for challenging without arbiter resolution):
+        assertEq(bob.balance, bobInitialBal - (bond / 2));
+        // Alice was compensated with 50% of Bob's bond (and got 100% of her submitter bond back):
+        assertEq(alice.balance, aliceInitialBal + (bond / 2));
     }
 
     function test_G1_payoffComparison_loserSignsVsChallengeWithSilentArbiter() public {
@@ -1175,7 +1189,7 @@ contract ChessEscrowTest is Test {
 
         uint256 pot = STAKE * 2;
         uint256 fee = (pot * 500) / 10000;
-        assertEq(escrow.pendingWithdrawals(alice), pot - fee);
+        assertEq(escrow.pendingWithdrawals(alice), pot - fee + bond);
     }
 
     // ──────── Fuzz Tests ────────
