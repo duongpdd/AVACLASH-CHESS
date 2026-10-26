@@ -26,37 +26,9 @@ import {
   type EndReason,
 } from "@avaclash/shared";
 import { RelayRoom } from "./RelayRoom.js";
+import { CHESS_ESCROW_ABI } from "./abi/ChessEscrow.js";
 
-export const ESCROW_ABI = [
-  {
-    name: "getRoom",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "roomId", type: "uint256" }],
-    outputs: [
-      {
-        components: [
-          { name: "id", type: "uint256" },
-          { name: "playerA", type: "address" },
-          { name: "playerB", type: "address" },
-          { name: "stake", type: "uint256" },
-          { name: "status", type: "uint8" },
-          { name: "startedAt", type: "uint256" },
-          { name: "creatorIsWhite", type: "bool" },
-          { name: "gameStarted", type: "bool" },
-          { name: "singleSignedWinner", type: "address" },
-          { name: "singleSignedBond", type: "uint256" },
-          { name: "singleSignedAt", type: "uint256" },
-          { name: "challenger", type: "address" },
-          { name: "challengeBond", type: "uint256" },
-          { name: "challengedAt", type: "uint256" },
-        ],
-        name: "",
-        type: "tuple",
-      },
-    ],
-  },
-] as const;
+export const ESCROW_ABI = CHESS_ESCROW_ABI;
 
 export interface RelayServerOptions {
   port?: number;
