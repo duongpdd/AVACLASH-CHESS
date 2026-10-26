@@ -40,6 +40,7 @@ export {
   FocusWarningSchema,
   spectatorPoolUpdateSchema,
   SpectatorPoolUpdateSchema,
+  requestResultSchema,
   clientMessageSchema,
   serverMessageSchema,
 } from "./schemas.js";
@@ -84,6 +85,7 @@ export type {
   TimeoutMessage,
   FocusWarningMessage,
   SpectatorPoolUpdateMessage,
+  RequestResultMessage,
   ClientMessage,
   ServerMessage,
 } from "./schemas.js";

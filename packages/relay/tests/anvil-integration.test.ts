@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import WebSocket from "ws";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 import {
   parseEther,
   createWalletClient,
@@ -546,4 +549,224 @@ describe("RelayServer Anvil End-to-End Integration", () => {
     bobConn.ws.close();
     await disabledServer.close();
   });
+
+  it("Persists game result to RESULTS_DIR and re-signs result upon request_result after server restart", { timeout: 35000 }, async () => {
+    if (!anvil) return;
+
+    const tempResultsDir = fs.mkdtempSync(path.join(os.tmpdir(), "avaclash-results-"));
+    const dedicatedPort = relayPort + 30;
+    const testServer = new RelayServer({
+      port: dedicatedPort,
+      relayPrivateKey: ANVIL_ACCOUNTS[1].privateKey,
+      contractAddress: escrowAddress,
+      rpcUrl: anvil.rpcUrl,
+      chainId: 31337,
+      publicClient: anvil.publicClient,
+      resultsDir: tempResultsDir,
+      signalGameStartedEnabled: true,
+    });
+
+    const aliceWallet = createWalletClient({
+      account: aliceAccount,
+      chain: { ...localhost, id: 31337, rpcUrls: { default: { http: [anvil.rpcUrl] } } },
+      transport: http(),
+    });
+    const bobWallet = createWalletClient({
+      account: bobAccount,
+      chain: { ...localhost, id: 31337, rpcUrls: { default: { http: [anvil.rpcUrl] } } },
+      transport: http(),
+    });
+
+    const roomId = await createAndGetRoomId(aliceWallet, true);
+    const joinTx = await bobWallet.writeContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "joinRoom",
+      args: [BigInt(roomId)],
+      value: parseEther("0.05"),
+    });
+    await anvil.publicClient.waitForTransactionReceipt({ hash: joinTx });
+
+    // Helper to connect and authenticate to custom port
+    async function connectToPort(rId: number, acct: any, port: number, role?: "player" | "spectator") {
+      return new Promise<{ ws: WebSocket; roomStateMsg: any }>((resolve, reject) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+        const timer = setTimeout(() => {
+          ws.close();
+          reject(new Error("connectToPort timed out"));
+        }, 5000);
+
+        ws.on("message", async (data) => {
+          const msg = JSON.parse(data.toString());
+          if (msg.type === "auth_challenge") {
+            if (role === "spectator") {
+              ws.send(JSON.stringify({ type: "join_room", roomId: rId, role: "spectator" }));
+            } else {
+              const typedData = buildJoinTypedData(rId, acct.address, msg.nonce as Hex, msg.expiresAt, 31337);
+              const signature = await acct.signTypedData(typedData);
+              ws.send(JSON.stringify({ type: "join_room", roomId: rId, address: acct.address, signature, nonce: msg.nonce }));
+            }
+          } else if (msg.type === "room_state" || msg.type === "error") {
+            clearTimeout(timer);
+            resolve({ ws, roomStateMsg: msg });
+          }
+        });
+        ws.on("error", (err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+      });
+    }
+
+    const aliceConn1 = await connectToPort(roomId, aliceAccount, dedicatedPort);
+    const bobConn1 = await connectToPort(roomId, bobAccount, dedicatedPort);
+
+    // Bob resigns -> game completes
+    const gameOverPromise = new Promise<void>((resolve) => {
+      aliceConn1.ws.on("message", (data) => {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === "result_signature") {
+          resolve();
+        }
+      });
+    });
+
+    bobConn1.ws.send(JSON.stringify({ type: "resign", roomId }));
+    await gameOverPromise;
+
+    // Both players close their sockets
+    aliceConn1.ws.close();
+    bobConn1.ws.close();
+
+    // Check result file written to tempResultsDir
+    const resultFile = path.join(tempResultsDir, `${roomId}.json`);
+    expect(fs.existsSync(resultFile)).toBe(true);
+    const savedContent = JSON.parse(fs.readFileSync(resultFile, "utf-8"));
+    expect(savedContent.roomId).toBe(roomId);
+    expect(savedContent.winner.toLowerCase()).toBe(aliceAccount.address.toLowerCase());
+    expect(savedContent.outcome).toBe("white");
+
+    // Close testServer (simulate server shutdown)
+    await testServer.close();
+
+    // Start a new RelayServer restarting from the same resultsDir
+    const restartPort = dedicatedPort + 1;
+    const restartedServer = new RelayServer({
+      port: restartPort,
+      relayPrivateKey: ANVIL_ACCOUNTS[1].privateKey,
+      contractAddress: escrowAddress,
+      rpcUrl: anvil.rpcUrl,
+      chainId: 31337,
+      publicClient: anvil.publicClient,
+      resultsDir: tempResultsDir,
+      signalGameStartedEnabled: true,
+    });
+
+    // Verify restartedServer loaded the saved result
+    expect(restartedServer.savedResults.has(roomId)).toBe(true);
+
+    // 1. Charlie (not in room) connects as spectator and tries to request result -> rejected
+    const charlieConn = await connectToPort(roomId, charlieAccount, restartPort, "spectator");
+    const charlieErrorPromise = new Promise<string>((resolve) => {
+      charlieConn.ws.on("message", (data) => {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === "error") resolve(msg.message);
+      });
+    });
+    charlieConn.ws.send(JSON.stringify({ type: "request_result", roomId }));
+    const charlieErrorMsg = await charlieErrorPromise;
+    expect(charlieErrorMsg).toContain("Authentication required");
+    charlieConn.ws.close();
+
+    // 2. Alice (winner) opens a new socket, joins/authenticates, and sends request_result
+    const aliceConn2 = await connectToPort(roomId, aliceAccount, restartPort);
+    const aliceReSignPromise = new Promise<{ proposal: any; signatureMsg: any }>((resolve) => {
+      let proposal: any = null;
+      aliceConn2.ws.on("message", (data) => {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === "result_proposal") proposal = msg;
+        if (msg.type === "result_signature") resolve({ proposal, signatureMsg: msg });
+      });
+    });
+
+    aliceConn2.ws.send(JSON.stringify({ type: "request_result", roomId }));
+    const { proposal, signatureMsg } = await aliceReSignPromise;
+
+    expect(proposal.roomId).toBe(roomId);
+    expect(proposal.winner.toLowerCase()).toBe(aliceAccount.address.toLowerCase());
+    expect(signatureMsg.signature).toMatch(/^0x[0-9a-fA-F]+$/);
+
+    // Alice signs and settles on anvil
+    const aliceSig = await aliceAccount.signTypedData({
+      domain: {
+        name: "AvaClashChess",
+        version: "2",
+        chainId: 31337,
+        verifyingContract: escrowAddress,
+      },
+      types: EIP712_TYPES,
+      primaryType: "Result",
+      message: {
+        matchId: BigInt(proposal.roomId),
+        winner: proposal.winner as `0x${string}`,
+        outcome: proposal.outcome,
+        reason: proposal.reason,
+        moveCount: proposal.moveCount,
+        movesHash: proposal.movesHash as Hex,
+        nonce: BigInt(proposal.nonce),
+        deadline: BigInt(proposal.deadline),
+      },
+    });
+
+    const submitTx = await aliceWallet.writeContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "submitResult",
+      args: [
+        BigInt(proposal.roomId),
+        proposal.winner as `0x${string}`,
+        proposal.outcome,
+        proposal.reason,
+        proposal.moveCount,
+        proposal.movesHash as Hex,
+        BigInt(proposal.nonce),
+        BigInt(proposal.deadline),
+        aliceSig,
+        signatureMsg.signature as Hex,
+      ],
+    });
+    const receipt = await anvil.publicClient.waitForTransactionReceipt({ hash: submitTx });
+    expect(receipt.status).toBe("success");
+
+    // Verify room is Settled (2)
+    const onChainRoom: any = await anvil.publicClient.readContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "getRoom",
+      args: [BigInt(roomId)],
+    });
+    expect(Number(onChainRoom.status)).toBe(2);
+
+    // 3. Requesting result on a Settled room is rejected
+    const settledErrorPromise = new Promise<string>((resolve) => {
+      aliceConn2.ws.on("message", (data) => {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === "error") resolve(msg.message);
+      });
+    });
+    aliceConn2.ws.send(JSON.stringify({ type: "request_result", roomId }));
+    const settledErrorMsg = await settledErrorPromise;
+    expect(settledErrorMsg).toContain("is not Active on-chain (status=2)");
+
+    aliceConn2.ws.close();
+    await restartedServer.close();
+
+    // Clean up temp directory
+    try {
+      fs.rmSync(tempResultsDir, { recursive: true, force: true });
+    } catch {
+      // ignore
+    }
+  });
 });
+

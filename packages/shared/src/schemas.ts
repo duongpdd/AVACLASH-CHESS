@@ -138,6 +138,11 @@ export const spectatorPoolUpdateSchema = z.object({
   isLocked: z.boolean(),
 });
 
+export const requestResultSchema = z.object({
+  type: z.literal("request_result"),
+  roomId: roomIdSchema,
+});
+
 export const SpectatorPoolUpdateSchema = spectatorPoolUpdateSchema;
 
 /**
@@ -154,6 +159,7 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
   pingSchema,
   timeoutSchema,
   focusWarningSchema,
+  requestResultSchema,
 ]);
 
 /**
@@ -195,5 +201,6 @@ export type ErrorMessage = z.infer<typeof errorSchema>;
 export type TimeoutMessage = z.infer<typeof timeoutSchema>;
 export type FocusWarningMessage = z.infer<typeof focusWarningSchema>;
 export type SpectatorPoolUpdateMessage = z.infer<typeof spectatorPoolUpdateSchema>;
+export type RequestResultMessage = z.infer<typeof requestResultSchema>;
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 export type ServerMessage = z.infer<typeof serverMessageSchema>;

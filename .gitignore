@@ -7,6 +7,7 @@ dist/
 out/
 .next/
 cache/
+results/
 
 # Environment
 .env

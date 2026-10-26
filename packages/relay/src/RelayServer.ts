@@ -1,6 +1,8 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "node:http";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import {
   createPublicClient,
   createWalletClient,
@@ -32,6 +34,15 @@ import { CHESS_ESCROW_ABI } from "./abi/ChessEscrow.js";
 
 export const ESCROW_ABI = CHESS_ESCROW_ABI;
 
+export interface SavedGameResult {
+  roomId: number;
+  moves: string[];
+  outcome: GameOutcome;
+  reason: EndReason;
+  winner: `0x${string}`;
+  timestamp: number; // Unix epoch ms
+}
+
 export interface RelayServerOptions {
   port?: number;
   server?: any; // For attaching to existing http/https server in tests
@@ -44,6 +55,7 @@ export interface RelayServerOptions {
   walletClient?: any;
   signalGameStartedEnabled?: boolean;
   minRelayBalance?: bigint;
+  resultsDir?: string;
   maxPayload?: number; // bytes, default 4096 (4 KB)
   maxConnectionsPerIp?: number;
   maxRooms?: number;
@@ -75,6 +87,8 @@ export class RelayServer {
   public walletClient?: any;
   public signalGameStartedEnabled: boolean;
   public minRelayBalance: bigint;
+  public resultsDir: string;
+  public savedResults: Map<number, SavedGameResult> = new Map();
 
   public maxConnectionsPerIp: number;
   public maxRooms: number;
@@ -147,6 +161,9 @@ export class RelayServer {
         });
       }
     }
+
+    this.resultsDir = options.resultsDir ?? process.env.RESULTS_DIR ?? "./results";
+    this.loadAndPruneResults();
 
     const maxPayload = options.maxPayload ?? 4 * 1024; // 4 KB maxPayload
 
@@ -395,6 +412,11 @@ export class RelayServer {
           if (room.whiteMs <= 0) room.handleTimeout("w");
           else if (room.blackMs <= 0) room.handleTimeout("b");
         }
+        break;
+      }
+
+      case "request_result": {
+        await this.handleRequestResult(ws, session, msg.roomId);
         break;
       }
     }
@@ -646,6 +668,16 @@ export class RelayServer {
       };
       room.broadcast(signatureMsg);
 
+      // Save finished game to resultsDir (Turn 3a Item 4)
+      this.saveGameResult({
+        roomId: room.roomId,
+        moves: [...room.moves],
+        outcome,
+        reason,
+        winner: winnerAddress,
+        timestamp: Date.now(),
+      });
+
       // 4. Schedule automatic room cleanup after 10 minutes
       setTimeout(() => {
         const r = this.rooms.get(room.roomId);
@@ -731,6 +763,155 @@ export class RelayServer {
     } catch (err: any) {
       console.warn(`[Relay] Could not check relay balance: ${err.message}`);
       return 0n;
+    }
+  }
+
+  public loadAndPruneResults(): void {
+    try {
+      if (!fs.existsSync(this.resultsDir)) {
+        fs.mkdirSync(this.resultsDir, { recursive: true });
+        return;
+      }
+      const files = fs.readdirSync(this.resultsDir);
+      const now = Date.now();
+      const maxAgeMs = 48 * 60 * 60 * 1000; // 48 hours
+
+      for (const file of files) {
+        if (!file.endsWith(".json")) continue;
+        const filePath = path.join(this.resultsDir, file);
+        try {
+          const raw = fs.readFileSync(filePath, "utf-8");
+          const data: SavedGameResult = JSON.parse(raw);
+          if (now - data.timestamp > maxAgeMs) {
+            fs.unlinkSync(filePath);
+            console.log(`[Relay] Pruned expired result (>48h): ${file}`);
+          } else {
+            this.savedResults.set(data.roomId, data);
+          }
+        } catch (err) {
+          console.warn(`[Relay] Could not read result file ${file}:`, err);
+        }
+      }
+    } catch (err) {
+      console.warn(`[Relay] Error loading results from ${this.resultsDir}:`, err);
+    }
+  }
+
+  public saveGameResult(result: SavedGameResult): void {
+    try {
+      this.savedResults.set(result.roomId, result);
+      if (!fs.existsSync(this.resultsDir)) {
+        fs.mkdirSync(this.resultsDir, { recursive: true });
+      }
+      const filePath = path.join(this.resultsDir, `${result.roomId}.json`);
+      fs.writeFileSync(filePath, JSON.stringify(result, null, 2), "utf-8");
+      console.log(`[Relay] Saved game result for room ${result.roomId} to ${filePath}`);
+    } catch (err) {
+      console.error(`[Relay] Error saving game result for room ${result.roomId}:`, err);
+    }
+  }
+
+  public async handleRequestResult(
+    ws: WebSocket,
+    session: SocketSession,
+    roomId: number
+  ): Promise<void> {
+    if (!session.authenticatedAddress) {
+      this.sendError(ws, "Authentication required to request result");
+      return;
+    }
+
+    let roomData: any;
+    try {
+      roomData = await this.publicClient.readContract({
+        address: this.contractAddress,
+        abi: CHESS_ESCROW_ABI,
+        functionName: "getRoom",
+        args: [BigInt(roomId)],
+      });
+    } catch (err: any) {
+      this.sendError(ws, `Failed to fetch on-chain room ${roomId}: ${err.message}`);
+      return;
+    }
+
+    // Room must still be Active on-chain (status == 1)
+    if (Number(roomData.status) !== 1) {
+      this.sendError(ws, `Room ${roomId} is not Active on-chain (status=${roomData.status})`);
+      return;
+    }
+
+    // Requester must be playerA or playerB
+    const caller = session.authenticatedAddress.toLowerCase();
+    const pA = (roomData.playerA as string).toLowerCase();
+    const pB = (roomData.playerB as string).toLowerCase();
+    if (caller !== pA && caller !== pB) {
+      this.sendError(ws, `Address ${session.authenticatedAddress} is not a player of room ${roomId}`);
+      return;
+    }
+
+    // Must have saved result
+    const saved = this.savedResults.get(roomId);
+    if (!saved) {
+      this.sendError(ws, `No saved result found for room ${roomId}`);
+      return;
+    }
+
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      const deadline = BigInt(now + 1800); // fresh 30-minute deadline
+      const nonce = BigInt(now) * 1000n + BigInt(roomId % 1000);
+      const moveCount = saved.moves.length;
+      const movesHash = computeMovesHash(saved.moves);
+      const outcomeCode = outcomeToCode(saved.outcome);
+      const reasonCode = reasonToCode(saved.reason);
+
+      const resultMessage: ResultMessage = {
+        matchId: BigInt(roomId),
+        winner: saved.winner,
+        outcome: outcomeCode,
+        reason: reasonCode,
+        moveCount,
+        movesHash,
+        nonce,
+        deadline,
+      };
+
+      const typedData = buildResultTypedData(
+        this.contractAddress,
+        resultMessage,
+        this.chainId
+      );
+      const relaySignature = await this.relayAccount.signTypedData(typedData);
+
+      const proposalMsg: ResultProposalMessage = {
+        type: "result_proposal",
+        roomId,
+        winner: saved.winner,
+        outcome: outcomeCode,
+        reason: reasonCode,
+        moveCount,
+        movesHash,
+        nonce: Number(nonce % BigInt(Number.MAX_SAFE_INTEGER)),
+        deadline: Number(deadline),
+      };
+
+      const signatureMsg: ServerMessage = {
+        type: "result_signature",
+        roomId,
+        signature: relaySignature,
+      };
+
+      // Send proposal and signature exclusively to this requesting socket
+      this.send(ws, proposalMsg);
+      this.send(ws, signatureMsg);
+
+      const room = this.rooms.get(roomId);
+      if (room) {
+        room.lastResultProposal = proposalMsg;
+        room.lastResultMessage = resultMessage;
+      }
+    } catch (err: any) {
+      this.sendError(ws, `Failed to re-sign result for room ${roomId}: ${err.message}`);
     }
   }
 
