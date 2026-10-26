@@ -382,7 +382,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
         uint256 nonce,
         uint256 deadline,
         bytes calldata sig
-    ) external {
+    ) external payable nonReentrant {
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
         if (room.singleSignedAt != 0) revert SingleSignedAlreadySubmitted();
@@ -390,6 +390,9 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
         _validateOutcomeAndWinner(room, winner, outcome);
         if (usedNonces[roomId][msg.sender][nonce]) revert NonceAlreadyUsed();
         if (block.timestamp > deadline) revert DeadlineExpired();
+
+        uint256 requiredBond = _computeChallengeBond(room.stake);
+        if (msg.value != requiredBond) revert InsufficientBond();
 
         // Verify the caller's signature
         address signer = ECDSA.recover(
@@ -404,6 +407,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
         room.singleSignedMovesHash = movesHash;
         room.singleSignedNonce = nonce;
         room.singleSignedAt = block.timestamp;
+        room.singleSignedBond = msg.value;
 
         emit SingleSignedSubmitted(roomId, winner);
     }
