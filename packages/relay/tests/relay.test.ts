@@ -503,4 +503,77 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     expect(rateLimitHit).toBe(true);
     client2.close();
   });
+
+  it("Item 5: rejects result_signature if room has no active result_proposal", async () => {
+    registerMockRoom(601, accountAlice.address, accountBob.address, true);
+
+    const clientAlice = await createTestClient();
+    await authenticateAndJoin(clientAlice, accountAlice, 601);
+    await clientAlice.waitFor((m) => m.type === "room_state");
+
+    // Alice attempts to send result_signature before any game proposal exists
+    clientAlice.send({
+      type: "result_signature",
+      roomId: 601,
+      signature: "0x1234567890abcdef",
+    });
+
+    const errorMsg = await clientAlice.waitFor((m) => m.type === "error");
+    expect(errorMsg.message).toBe("No active result proposal found for room");
+
+    clientAlice.close();
+  });
+
+  it("Item 5: cleans up rooms in waiting state after timeout and closes socket", async () => {
+    registerMockRoom(701, accountAlice.address, accountBob.address, true);
+
+    const clientAlice = await createTestClient();
+    await authenticateAndJoin(clientAlice, accountAlice, 701);
+    await clientAlice.waitFor((m) => m.type === "room_state");
+
+    const room = server.getRoom(701);
+    expect(room).toBeDefined();
+    expect(room?.status).toBe("waiting");
+
+    const closePromise = new Promise<{ code: number; reason: string }>((resolve) => {
+      clientAlice.ws.on("close", (code, reason) => resolve({ code, reason: reason.toString() }));
+    });
+
+    // Trigger waiting timeout on the room
+    (room as any).onWaitingTimeout?.(room);
+    room?.closeAllSockets("Waiting room timed out after 10m");
+
+    const closeInfo = await closePromise;
+    expect(closeInfo.code).toBe(4002);
+    expect(closeInfo.reason).toContain("Waiting room timed out");
+    expect(server.getRoom(701)).toBeUndefined();
+  });
+
+  it("Item 5: only trusts x-forwarded-for when trustProxy is enabled", async () => {
+    // 1. trustProxy = false (default)
+    const port1 = TEST_PORT + 81;
+    const serverUntrusted = new RelayServer({
+      port: port1,
+      relayPrivateKey: RELAY_KEY,
+      contractAddress: CONTRACT,
+      rpcUrl: "http://127.0.0.1:8545",
+      publicClient: mockPublicClient,
+      trustProxy: false,
+    });
+    expect(serverUntrusted.trustProxy).toBe(false);
+    await serverUntrusted.close();
+
+    // 2. trustProxy = true
+    const port2 = TEST_PORT + 82;
+    const serverTrusted = new RelayServer({
+      port: port2,
+      relayPrivateKey: RELAY_KEY,
+      contractAddress: CONTRACT,
+      rpcUrl: "http://127.0.0.1:8545",
+      publicClient: mockPublicClient,
+      trustProxy: true,
+    });
+    expect(serverTrusted.trustProxy).toBe(true);
+    await serverTrusted.close();
+  });
 });

@@ -24,6 +24,8 @@ export interface RelayRoomConfig {
   whiteAddress: `0x${string}`;
   blackAddress: `0x${string}`;
   initialTimeMs?: number; // Default 5 mins (300,000 ms)
+  waitingTimeoutMs?: number; // Default 10 mins (600,000 ms)
+  onWaitingTimeout?: (room: RelayRoom) => void;
   onGameStarted?: (room: RelayRoom) => void;
   onGameOver?: (
     room: RelayRoom,
@@ -54,6 +56,8 @@ export class RelayRoom {
   public drawOfferFrom?: "w" | "b";
 
   private clockInterval?: NodeJS.Timeout;
+  private waitingTimeoutTimer?: NodeJS.Timeout;
+  private onWaitingTimeout?: (room: RelayRoom) => void;
   private onGameStarted?: (room: RelayRoom) => void;
   private onGameOver?: (
     room: RelayRoom,
@@ -79,6 +83,17 @@ export class RelayRoom {
     this.chess = new ChessGame();
     this.onGameStarted = config.onGameStarted;
     this.onGameOver = config.onGameOver;
+    this.onWaitingTimeout = config.onWaitingTimeout;
+
+    // Timeout waiting room after 10 minutes if opponent never joins
+    const waitingMs = config.waitingTimeoutMs ?? 10 * 60 * 1000;
+    this.waitingTimeoutTimer = setTimeout(() => {
+      if (this.status === "waiting") {
+        this.closeAllSockets("Waiting room timed out after 10m");
+        this.destroy();
+        this.onWaitingTimeout?.(this);
+      }
+    }, waitingMs);
   }
 
   public addPlayer(address: `0x${string}`, ws: WebSocket): "w" | "b" | "spectator" {
@@ -135,6 +150,11 @@ export class RelayRoom {
 
   public startGame(): void {
     if (this.status !== "waiting" || !this.whitePlayer || !this.blackPlayer) return;
+
+    if (this.waitingTimeoutTimer) {
+      clearTimeout(this.waitingTimeoutTimer);
+      this.waitingTimeoutTimer = undefined;
+    }
 
     this.status = "active";
     this.lastClockUpdate = Date.now();
@@ -403,10 +423,39 @@ export class RelayRoom {
     }
   }
 
+  public closeAllSockets(reason: string = "Room closed"): void {
+    if (this.whitePlayer?.ws) {
+      try {
+        this.whitePlayer.ws.close(4002, reason);
+      } catch {
+        // ignore
+      }
+    }
+    if (this.blackPlayer?.ws) {
+      try {
+        this.blackPlayer.ws.close(4002, reason);
+      } catch {
+        // ignore
+      }
+    }
+    for (const spec of this.spectators) {
+      try {
+        spec.close(4002, reason);
+      } catch {
+        // ignore
+      }
+    }
+    this.spectators.clear();
+  }
+
   public destroy(): void {
     if (this.clockInterval) {
       clearInterval(this.clockInterval);
       this.clockInterval = undefined;
+    }
+    if (this.waitingTimeoutTimer) {
+      clearTimeout(this.waitingTimeoutTimer);
+      this.waitingTimeoutTimer = undefined;
     }
     this.spectators.clear();
   }
