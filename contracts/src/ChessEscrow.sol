@@ -5,6 +5,7 @@ import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { Ownable2Step, Ownable } from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 interface IAvaClashMeta {
     function registerMatch(uint256 matchId, address pA, address pB) external;
@@ -22,7 +23,7 @@ interface IAvaClashMeta {
  *         Supports single-signed submissions with challenge+bond, abort, timeout,
  *         and a 5% protocol fee on settlements.
  */
-contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
+contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     // ──────────────────────── Constants ────────────────────────
 
     /// @notice Minimum stake per player (0.01 AVAX).
@@ -126,6 +127,14 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
     /// @notice AvaClashMeta contract for ELO and spectator pool integration.
     address public metaContract;
 
+    /// @notice Pending meta contract change (timelock).
+    address public pendingMetaContract;
+    uint256 public metaContractChangeAt;
+    uint256 public constant META_TIMELOCK = 2 days;
+
+    /// @notice Flag indicating whether single-signed submissions are enabled (default: false).
+    bool public singleSignedEnabled;
+
     /// @notice Tracks whether prediction resolution failed during settle for a room.
     mapping(uint256 => bool) public metaResolutionFailed;
 
@@ -134,9 +143,6 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
 
     /// @notice Accumulated protocol fees not yet withdrawn.
     uint256 public protocolFees;
-
-    /// @notice Contract owner.
-    address public owner;
 
     // ──────────────────────── Events ────────────────────────
 
@@ -157,7 +163,9 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
     event ArbiterChanged(address indexed oldArbiter, address indexed newArbiter);
     event ChallengeResolved(uint256 indexed roomId, address winner);
     event MetaContractSet(address indexed metaContract);
+    event MetaContractChangeProposed(address indexed newMeta, uint256 effectiveAt);
     event MetaCallFailed(uint256 indexed roomId, bytes4 selector);
+    event SingleSignedToggled(bool enabled);
 
     // ──────────────────────── Errors ────────────────────────
 
@@ -183,7 +191,6 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
     error NotTheWinner();
     error DeadlineExpired();
     error InsufficientBond();
-    error NotOwner();
     error TimelockNotReady();
     error NoPendingChange();
     error RoomNotChallenged();
@@ -192,21 +199,17 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
     error MetaNotConfigured();
     error NotArbiter();
     error SingleSignedAlreadySubmitted();
+    error SingleSignedDisabled();
     error InvalidAddress();
-
-    // ──────────────────────── Modifiers ────────────────────────
-
-    modifier onlyOwner() {
-        if (msg.sender != owner) revert NotOwner();
-        _;
-    }
 
     // ──────────────────────── Constructor ────────────────────────
 
-    constructor(address _relaySigner, address _arbiter, address _treasury) EIP712("AvaClashChess", "2") {
+    constructor(address _relaySigner, address _arbiter, address _treasury)
+        EIP712("AvaClashChess", "2")
+        Ownable(msg.sender)
+    {
         if (_relaySigner == address(0) || _arbiter == address(0) || _treasury == address(0)) revert InvalidAddress();
         if (_arbiter == _relaySigner) revert InvalidAddress();
-        owner = msg.sender;
         relaySigner = _relaySigner;
         arbiter = _arbiter;
         treasury = _treasury;
@@ -354,6 +357,18 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
 
         room.status = RoomStatus.Settled;
 
+        // If a single-signed submission was previously made for this room, handle bond
+        if (room.singleSignedAt != 0 && room.singleSignedBond > 0) {
+            uint256 bond = room.singleSignedBond;
+            room.singleSignedBond = 0;
+            if (winner == room.singleSignedWinner) {
+                pendingWithdrawals[room.singleSignedWinner] += bond;
+            } else {
+                address opponent = (room.singleSignedWinner == room.playerA) ? room.playerB : room.playerA;
+                pendingWithdrawals[opponent] += bond;
+            }
+        }
+
         uint256 fee = _distribute(roomId, room, winner);
 
         emit ResultSubmitted(roomId, winner, movesHash);
@@ -384,6 +399,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
         uint256 deadline,
         bytes calldata sig
     ) external payable nonReentrant {
+        if (!singleSignedEnabled) revert SingleSignedDisabled();
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
         if (room.singleSignedAt != 0) revert SingleSignedAlreadySubmitted();
@@ -485,16 +501,21 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
 
         room.status = RoomStatus.Settled;
 
+        uint256 sBond = room.singleSignedBond;
+        uint256 cBond = room.challengeBond;
+        room.singleSignedBond = 0;
+        room.challengeBond = 0;
+
         // Determine who was right
         bool challengerWasRight = (validWinner != room.singleSignedWinner)
             || (validWinner == address(0) && room.singleSignedWinner != address(0));
 
         if (challengerWasRight) {
             // Challenger was right: challenger receives their bond + submitter's bond
-            pendingWithdrawals[room.challenger] += room.challengeBond + room.singleSignedBond;
+            pendingWithdrawals[room.challenger] += cBond + sBond;
         } else {
             // Challenger was wrong: submitter receives their bond + challenger's bond
-            pendingWithdrawals[room.singleSignedWinner] += room.singleSignedBond + room.challengeBond;
+            pendingWithdrawals[room.singleSignedWinner] += sBond + cBond;
         }
 
         uint256 fee = _distribute(roomId, room, validWinner);
@@ -514,14 +535,19 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
 
         room.status = RoomStatus.Refunded;
 
+        uint256 sBond = room.singleSignedBond;
+        uint256 cBond = room.challengeBond;
+        room.singleSignedBond = 0;
+        room.challengeBond = 0;
+
         // Refund stakes
         pendingWithdrawals[room.playerA] += room.stake;
         pendingWithdrawals[room.playerB] += room.stake;
         // Refund submitter bond (Q11)
-        pendingWithdrawals[room.singleSignedWinner] += room.singleSignedBond;
+        pendingWithdrawals[room.singleSignedWinner] += sBond;
         // Default challenge resolution (Q8): 50% challenger bond to submitter as compensation, 50% refunded to challenger
-        uint256 submitterCompensation = room.challengeBond / 2;
-        uint256 challengerRefund = room.challengeBond - submitterCompensation;
+        uint256 submitterCompensation = cBond / 2;
+        uint256 challengerRefund = cBond - submitterCompensation;
         pendingWithdrawals[room.singleSignedWinner] += submitterCompensation;
         pendingWithdrawals[room.challenger] += challengerRefund;
 
@@ -552,7 +578,9 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
         address winner = room.singleSignedWinner;
 
         // Refund submitter bond (Q11)
-        pendingWithdrawals[winner] += room.singleSignedBond;
+        uint256 sBond = room.singleSignedBond;
+        room.singleSignedBond = 0;
+        pendingWithdrawals[winner] += sBond;
 
         uint256 fee = _distribute(roomId, room, winner);
 
@@ -678,12 +706,44 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable {
     }
 
     /**
+     * @notice Enable or disable single-signed result submissions.
+     * @param enabled True to enable, false to disable.
+     */
+    function setSingleSignedEnabled(bool enabled) external onlyOwner {
+        singleSignedEnabled = enabled;
+        emit SingleSignedToggled(enabled);
+    }
+
+    /**
      * @notice Set the AvaClashMeta contract address.
+     *         Can only be set directly once when metaContract is address(0).
+     *         Subsequent changes must go through a 2-day timelock.
      * @param _meta The address of AvaClashMeta.
      */
     function setMetaContract(address _meta) external onlyOwner {
-        metaContract = _meta;
-        emit MetaContractSet(_meta);
+        if (_meta == address(0)) revert InvalidAddress();
+        if (metaContract == address(0)) {
+            metaContract = _meta;
+            emit MetaContractSet(_meta);
+        } else {
+            pendingMetaContract = _meta;
+            metaContractChangeAt = block.timestamp + META_TIMELOCK;
+            emit MetaContractChangeProposed(_meta, metaContractChangeAt);
+        }
+    }
+
+    /**
+     * @notice Execute a pending meta contract change after timelock.
+     */
+    function executeMetaContractChange() external onlyOwner {
+        if (pendingMetaContract == address(0)) revert NoPendingChange();
+        if (block.timestamp < metaContractChangeAt) revert TimelockNotReady();
+
+        metaContract = pendingMetaContract;
+        pendingMetaContract = address(0);
+        metaContractChangeAt = 0;
+
+        emit MetaContractSet(metaContract);
     }
 
     /**

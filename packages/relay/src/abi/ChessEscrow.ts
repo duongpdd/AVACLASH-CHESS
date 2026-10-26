@@ -102,6 +102,19 @@ export const CHESS_ESCROW_ABI = [
   },
   {
     "type": "function",
+    "name": "META_TIMELOCK",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MIN_CHALLENGE_BOND",
     "inputs": [],
     "outputs": [
@@ -188,6 +201,13 @@ export const CHESS_ESCROW_ABI = [
         "internalType": "uint256"
       }
     ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "acceptOwnership",
+    "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -348,6 +368,13 @@ export const CHESS_ESCROW_ABI = [
   {
     "type": "function",
     "name": "executeArbiterChange",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "executeMetaContractChange",
     "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
@@ -579,6 +606,19 @@ export const CHESS_ESCROW_ABI = [
   },
   {
     "type": "function",
+    "name": "metaContractChangeAt",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "metaResolutionFailed",
     "inputs": [
       {
@@ -664,6 +704,32 @@ export const CHESS_ESCROW_ABI = [
   {
     "type": "function",
     "name": "pendingArbiter",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingMetaContract",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingOwner",
     "inputs": [],
     "outputs": [
       {
@@ -783,6 +849,13 @@ export const CHESS_ESCROW_ABI = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -932,6 +1005,19 @@ export const CHESS_ESCROW_ABI = [
   },
   {
     "type": "function",
+    "name": "setSingleSignedEnabled",
+    "inputs": [
+      {
+        "name": "enabled",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "signalGameStarted",
     "inputs": [
       {
@@ -942,6 +1028,19 @@ export const CHESS_ESCROW_ABI = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "singleSignedEnabled",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -1053,6 +1152,19 @@ export const CHESS_ESCROW_ABI = [
     ],
     "outputs": [],
     "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -1214,10 +1326,67 @@ export const CHESS_ESCROW_ABI = [
   },
   {
     "type": "event",
+    "name": "MetaContractChangeProposed",
+    "inputs": [
+      {
+        "name": "newMeta",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "effectiveAt",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "MetaContractSet",
     "inputs": [
       {
         "name": "metaContract",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferStarted",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -1461,6 +1630,19 @@ export const CHESS_ESCROW_ABI = [
   },
   {
     "type": "event",
+    "name": "SingleSignedToggled",
+    "inputs": [
+      {
+        "name": "enabled",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Unpaused",
     "inputs": [
       {
@@ -1635,11 +1817,6 @@ export const CHESS_ESCROW_ABI = [
   },
   {
     "type": "error",
-    "name": "NotOwner",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "NotTheWinner",
     "inputs": []
   },
@@ -1647,6 +1824,28 @@ export const CHESS_ESCROW_ABI = [
     "type": "error",
     "name": "NothingToWithdraw",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OwnableInvalidOwner",
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnableUnauthorizedAccount",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
   },
   {
     "type": "error",
@@ -1676,6 +1875,11 @@ export const CHESS_ESCROW_ABI = [
   {
     "type": "error",
     "name": "SingleSignedAlreadySubmitted",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SingleSignedDisabled",
     "inputs": []
   },
   {

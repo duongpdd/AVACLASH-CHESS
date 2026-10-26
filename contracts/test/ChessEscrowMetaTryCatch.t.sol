@@ -275,6 +275,8 @@ contract ChessEscrowMetaTryCatchTest is Test {
         AvaClashMeta realMeta = new AvaClashMeta();
         realMeta.setEscrowContract(address(escrow));
         escrow.setMetaContract(address(realMeta));
+        vm.warp(block.timestamp + 2 days);
+        escrow.executeMetaContractChange();
 
         address spec1 = address(0xC1);
         address spec2 = address(0xC2);
@@ -302,6 +304,8 @@ contract ChessEscrowMetaTryCatchTest is Test {
 
         // Simulate resolution failure by pointing to reverting mock temporarily during settle
         escrow.setMetaContract(address(revertingMeta));
+        vm.warp(block.timestamp + 2 days);
+        escrow.executeMetaContractChange();
 
         bytes32 movesHash = keccak256("e2e4");
         uint256 nonce = 11;
@@ -316,6 +320,8 @@ contract ChessEscrowMetaTryCatchTest is Test {
 
         // Reconnect real Meta and trigger fallback cancellation
         escrow.setMetaContract(address(realMeta));
+        vm.warp(block.timestamp + 2 days);
+        escrow.executeMetaContractChange();
         escrow.fallbackCancelPrediction(roomId);
 
         // Verify flags cleared

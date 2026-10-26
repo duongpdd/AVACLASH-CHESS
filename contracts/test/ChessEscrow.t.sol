@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Test, console } from "forge-std/Test.sol";
 import { ChessEscrow } from "../src/ChessEscrow.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract ChessEscrowTest is Test {
     ChessEscrow public escrow;
@@ -30,6 +31,7 @@ contract ChessEscrowTest is Test {
         treasury = makeAddr("treasury");
 
         escrow = new ChessEscrow(relay, arbiter, treasury);
+        escrow.setSingleSignedEnabled(true);
 
         // Fund test accounts
         vm.deal(alice, 10 ether);
@@ -1106,7 +1108,7 @@ contract ChessEscrowTest is Test {
 
     function test_proposeRelaySigner_revert_notOwner() public {
         vm.prank(alice);
-        vm.expectRevert(ChessEscrow.NotOwner.selector);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
         escrow.proposeRelaySigner(makeAddr("newRelay"));
     }
 
@@ -1525,6 +1527,234 @@ contract ChessEscrowTest is Test {
         vm.prank(bob);
         escrow.withdraw();
         assertEq(bob.balance, bobBalBefore + STAKE);
+    }
+
+    // ──────── Turn 3a: 2a — singleSignedEnabled Tests ────────
+
+    function test_submitSingleSigned_revert_whenDisabledByDefault() public {
+        // Fresh deployment: singleSignedEnabled is false by default
+        ChessEscrow fresh = new ChessEscrow(relay, arbiter, treasury);
+        assertFalse(fresh.singleSignedEnabled());
+
+        vm.deal(alice, 1 ether);
+        vm.deal(bob, 1 ether);
+        vm.prank(alice);
+        uint256 roomId = fresh.createRoom{ value: STAKE }(true);
+        vm.prank(bob);
+        fresh.joinRoom{ value: STAKE }(roomId);
+
+        bytes32 movesHash = keccak256("test");
+        uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory sig = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
+        uint256 bond = fresh.getChallengeBond(STAKE);
+
+        vm.prank(alice);
+        vm.expectRevert(ChessEscrow.SingleSignedDisabled.selector);
+        fresh.submitSingleSigned{ value: bond }(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sig);
+    }
+
+    function test_setSingleSignedEnabled_onlyOwner() public {
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
+        escrow.setSingleSignedEnabled(false);
+
+        // Owner can toggle
+        escrow.setSingleSignedEnabled(false);
+        assertFalse(escrow.singleSignedEnabled());
+
+        escrow.setSingleSignedEnabled(true);
+        assertTrue(escrow.singleSignedEnabled());
+    }
+
+    // ──────── Turn 3a: 2b — Stuck Bond Fix in submitResult ────────
+
+    function test_submitResult_clearsPendingSingleSignedBond_refundsSubmitterIfWinnerMatches() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 bond = escrow.getChallengeBond(STAKE);
+
+        // Alice submits single-signed with bond
+        bytes memory sigAliceSingle = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned{ value: bond }(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sigAliceSingle);
+
+        // Verify singleSignedBond is held
+        ChessEscrow.Room memory rBefore = escrow.getRoom(roomId);
+        assertEq(rBefore.singleSignedBond, bond);
+
+        // Dual signature arrives: Alice wins
+        bytes memory sigAliceDual = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, 2, deadline);
+        bytes memory sigRelay = _signResult(relayPk, roomId, alice, 0, 0, 42, movesHash, 2, deadline);
+
+        escrow.submitResult(roomId, alice, 0, 0, 42, movesHash, 2, deadline, sigAliceDual, sigRelay);
+
+        // Alice receives pot minus fee (0.19 AVAX) + bond refunded (0.02 AVAX) = 0.21 AVAX
+        assertEq(escrow.pendingWithdrawals(alice), 0.19 ether + bond);
+        assertEq(escrow.pendingWithdrawals(bob), 0);
+
+        // singleSignedBond must be zeroed out
+        ChessEscrow.Room memory rAfter = escrow.getRoom(roomId);
+        assertEq(rAfter.singleSignedBond, 0);
+    }
+
+    function test_submitResult_clearsPendingSingleSignedBond_awardsBondToOpponentIfWinnerMismatch() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 bond = escrow.getChallengeBond(STAKE);
+
+        // Alice submits single-signed claiming Alice won
+        bytes memory sigAliceSingle = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned{ value: bond }(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sigAliceSingle);
+
+        // Result arrives: Bob won (1=BlackWin)
+        bytes memory sigBobDual = _signResult(bobPk, roomId, bob, 1, 0, 42, movesHash, 2, deadline);
+        bytes memory sigRelay = _signResult(relayPk, roomId, bob, 1, 0, 42, movesHash, 2, deadline);
+
+        escrow.submitResult(roomId, bob, 1, 0, 42, movesHash, 2, deadline, sigBobDual, sigRelay);
+
+        // Bob receives pot minus fee (0.19 AVAX) + Alice's confiscated bond (0.02 AVAX) = 0.21 AVAX
+        assertEq(escrow.pendingWithdrawals(bob), 0.19 ether + bond);
+        assertEq(escrow.pendingWithdrawals(alice), 0);
+
+        // singleSignedBond must be zeroed out
+        ChessEscrow.Room memory rAfter = escrow.getRoom(roomId);
+        assertEq(rAfter.singleSignedBond, 0);
+    }
+
+    function test_submitResult_clearsPendingSingleSignedBond_awardsBondToOpponentOnDraw() public {
+        uint256 roomId = _createAndJoin();
+        bytes32 movesHash = keccak256("test");
+        uint256 nonce = 1;
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 bond = escrow.getChallengeBond(STAKE);
+
+        // Alice submits single-signed claiming Alice won
+        bytes memory sigAliceSingle = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, nonce, deadline);
+        vm.prank(alice);
+        escrow.submitSingleSigned{ value: bond }(roomId, alice, 0, 0, 42, movesHash, nonce, deadline, sigAliceSingle);
+
+        // Result arrives: Draw
+        bytes memory sigAliceDual = _signResult(alicePk, roomId, address(0), 2, 7, 42, movesHash, 2, deadline);
+        bytes memory sigBobDual = _signResult(bobPk, roomId, address(0), 2, 7, 42, movesHash, 2, deadline);
+
+        escrow.submitResult(roomId, address(0), 2, 7, 42, movesHash, 2, deadline, sigAliceDual, sigBobDual);
+
+        // Draw: Alice gets stake (0.1 AVAX), Bob gets stake (0.1 AVAX) + Alice's confiscated bond (0.02 AVAX) = 0.12 AVAX
+        assertEq(escrow.pendingWithdrawals(alice), STAKE);
+        assertEq(escrow.pendingWithdrawals(bob), STAKE + bond);
+
+        // singleSignedBond must be zeroed out
+        ChessEscrow.Room memory rAfter = escrow.getRoom(roomId);
+        assertEq(rAfter.singleSignedBond, 0);
+    }
+
+    // ──────── Turn 3a: 2d — Symmetric G1 Payoff Test ────────
+
+    function test_G1_payoffComparison_symmetric_loserSubmitsSingleSigned() public {
+        // Alice won on the board. Bob is the actual LOSER.
+        // Bob maliciously submits single-signed claiming Bob won.
+        // True winner Alice challenges and posts bond.
+        // Arbiter is silent for 24h.
+        uint256 bond = escrow.getChallengeBond(STAKE); // 0.02 ether
+
+        uint256 aliceBalBefore = alice.balance;
+        uint256 bobBalBefore = bob.balance;
+
+        uint256 roomId = _createAndJoin(); // Alice and Bob each stake 0.1 AVAX
+        bytes32 movesHash = keccak256("symmetricG1");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Bob (loser) submits single-signed claiming BlackWin (outcome=1)
+        bytes memory sigBob = _signResult(bobPk, roomId, bob, 1, 0, 40, movesHash, 1, deadline);
+        vm.prank(bob);
+        escrow.submitSingleSigned{ value: bond }(roomId, bob, 1, 0, 40, movesHash, 1, deadline, sigBob);
+
+        // Alice (true winner) challenges
+        bytes memory sigAlice = _signResult(alicePk, roomId, alice, 0, 0, 42, movesHash, 2, deadline);
+        vm.prank(alice);
+        escrow.challenge{ value: bond }(roomId, alice, 0, 0, 42, movesHash, 2, deadline, sigAlice);
+
+        // Arbiter remains silent for 24h
+        vm.warp(block.timestamp + escrow.ARBITER_DEADLINE() + 1);
+        escrow.resolveDefaultChallenge(roomId);
+
+        vm.prank(alice);
+        escrow.withdraw();
+        vm.prank(bob);
+        escrow.withdraw();
+
+        // Exact metrics:
+        // Alice (true winner who had to challenge):
+        // Staked 0.1 AVAX + Challenge bond 0.02 AVAX.
+        // Refunded: 0.1 AVAX stake + 0.01 AVAX (50% bond refund).
+        // Net result: Alice loses 0.01 AVAX (-50% of challenge bond).
+        assertEq(aliceBalBefore - alice.balance, bond / 2); // exactly -0.01 ether
+
+        // Bob (actual loser who maliciously claimed victory):
+        // Staked 0.1 AVAX + Submitter bond 0.02 AVAX.
+        // Refunded: 0.1 AVAX stake + 0.02 AVAX bond refund + 0.01 AVAX compensation from Alice's bond.
+        // Net result: Bob GAINS +0.01 AVAX (+50% of Alice's challenge bond).
+        assertEq(bob.balance - bobBalBefore, bond / 2); // exactly +0.01 ether profit!
+
+        // Bob turned a certain loss (-0.10 AVAX) into a net profit (+0.01 AVAX), delta = +0.11 AVAX!
+        // This symmetric griefing exploit is the fundamental economic reason why singleSignedEnabled must be false by default.
+    }
+
+    // ──────── Turn 3a: 2e — Ownable2Step & setMetaContract Timelock ────────
+
+    function test_ownable2step_transferOwnership() public {
+        address newOwner = makeAddr("newOwner");
+
+        escrow.transferOwnership(newOwner);
+        assertEq(escrow.owner(), address(this));
+        assertEq(escrow.pendingOwner(), newOwner);
+
+        // Non-pending owner cannot accept
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
+        escrow.acceptOwnership();
+
+        // Pending owner accepts
+        vm.prank(newOwner);
+        escrow.acceptOwnership();
+        assertEq(escrow.owner(), newOwner);
+        assertEq(escrow.pendingOwner(), address(0));
+
+        // Old owner cannot call onlyOwner functions
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        escrow.setSingleSignedEnabled(false);
+    }
+
+    function test_setMetaContract_immediateFirstTime_andTimelockSubsequent() public {
+        ChessEscrow fresh = new ChessEscrow(relay, arbiter, treasury);
+        address meta1 = makeAddr("meta1");
+        address meta2 = makeAddr("meta2");
+
+        // 1. First time: immediate setting
+        fresh.setMetaContract(meta1);
+        assertEq(fresh.metaContract(), meta1);
+
+        // 2. Second time: proposes change with 2-day timelock
+        fresh.setMetaContract(meta2);
+        assertEq(fresh.metaContract(), meta1); // Not changed yet
+        assertEq(fresh.pendingMetaContract(), meta2);
+        assertEq(fresh.metaContractChangeAt(), block.timestamp + 2 days);
+
+        // Cannot execute before timelock
+        vm.expectRevert(ChessEscrow.TimelockNotReady.selector);
+        fresh.executeMetaContractChange();
+
+        // Warp past 2 days
+        vm.warp(block.timestamp + 2 days);
+        fresh.executeMetaContractChange();
+        assertEq(fresh.metaContract(), meta2);
+        assertEq(fresh.pendingMetaContract(), address(0));
     }
 }
 
