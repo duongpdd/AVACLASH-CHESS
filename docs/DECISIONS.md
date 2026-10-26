@@ -1,7 +1,7 @@
 # Quyết định thiết kế — AvaClash Chess
 
-> **Cập nhật:** 25/10/2026
-> **Quy ước mã:** `D1-D14` và `Q1-Q10` là mã quyết định trong file này. Mã hạng mục `A1-G12` thuộc `IMPROVEMENT_PLAN.md` và là hệ mã khác (ví dụ `D4` ở đây là tooling monorepo, còn `D4` trong kế hoạch cũ là phí giao thức; phí giao thức nay là **Q6**).
+> **Cập nhật:** 26/10/2026 (Lượt 3a)
+> **Quy ước mã:** `D1-D14` và `Q1-Q16` là mã quyết định trong file này. Mã hạng mục `A1-G12` thuộc `IMPROVEMENT_PLAN.md` và là hệ mã khác (ví dụ `D4` ở đây là tooling monorepo, còn `D4` trong kế hoạch cũ là phí giao thức; phí giao thức nay là **Q6**).
 > **Trạng thái:** `Accepted` = đang áp dụng | `Superseded` = đã bị thay thế | `Proposed` = đề xuất, chờ chốt | `Open` = còn mâu thuẫn cần xử lý.
 > **Lưu ý:** trạng thái `Accepted` dựa trên `PROGRESS.md`/`ARCHITECTURE.md`, chưa đối chiếu với code.
 
@@ -81,28 +81,22 @@
 - **Lý do:** Đủ cao để ngăn challenge bừa, đủ thấp để không cản trở khiếu nại hợp lệ.
 - **Ghi chú:** bên nộp đơn `submitSingleSigned` cũng phải đặt bond đối ứng bằng đúng bond của challenge (xem Q11).
 
-### Q8: Bond ở nhánh mặc định 24h — `Accepted with residual risk`
+### Q8: Bond ở nhánh mặc định 24h — `Accepted with residual risk` (Lý do tắt mặc định single-signed tại Q15)
 - **Quyết định:** Cơ chế bond chỉ làm giảm lợi ích của việc challenge-rồi-chờ-arbiter-im, không loại bỏ hoàn toàn; xử lý triệt để ở mainnet bằng chuỗi nước đi có chữ ký (E1) và arbiter có cam kết hoạt động.
-- **Số liệu thực nghiệm so sánh Payoff (Test `test_G1_payoffComparison_loserSignsVsChallengeWithSilentArbiter`):**
-  - Giả định ván đấu với Stake = 0.1 AVAX, Challenge Bond (20%) = 0.02 AVAX. Submitter Bond (Q11) = 0.02 AVAX.
-  - **Kịch bản A (Bên thua ký ngay hoặc chấp nhận thua):**
-    - Bên thua mất 100% tiền cược: Payoff = **-0.10 AVAX**.
-    - Bên thắng nhận pot trừ 5% protocol fee (0.2 - 0.01): Payoff = **+0.09 AVAX**.
-  - **Kịch bản B (Bên thua challenge rồi chờ Arbiter im lặng sau 24h):**
-    - Bên thua bỏ ra 0.1 AVAX stake + 0.02 AVAX bond = 0.12 AVAX.
-    - Bên nộp (bên thắng) bỏ ra 0.1 AVAX stake + 0.02 AVAX submitter bond = 0.12 AVAX.
-    - Sau 24h mặc định (`resolveDefaultChallenge`):
-      - Bên nộp được hoàn 0.1 AVAX stake + 0.02 AVAX submitter bond + 0.01 AVAX (50% challenger bond) = 0.13 AVAX. Payoff = **+0.01 AVAX**.
-      - Bên thua được hoàn 0.1 AVAX stake + 0.01 AVAX (50% challenger bond) = 0.11 AVAX. Payoff = **-0.01 AVAX** (chỉ mất 50% bond = 10% stake).
-- **Đánh giá rủi ro tồn đọng (Residual Risk):**
-  - Bên thua phục hồi được **0.09 AVAX** (+90% tiền cược lẽ ra đã mất) nếu Arbiter offline hoặc im lặng, tạo ra động lực khiếu nại càn quấy trong trường hợp nghi ngờ Arbiter không giám sát.
-  - Ngược lại, bên thắng bị giảm lợi nhuận từ +0.09 AVAX xuống +0.01 AVAX.
-- **Kết luận:** Quyết định **Accepted with residual risk** trong giai đoạn hiện tại (KHÔNG đổi cơ chế smart contract), chấp nhận rủi ro này vì cơ chế đảm bảo người khiếu nại vẫn chịu phạt tài chính âm (-0.01 AVAX), ngăn ngừa hòa vốn, bảo toàn 100% tổng tiền trên hợp đồng và cung cấp lối thoát thanh khoản tất định nếu hệ thống Arbiter gặp sự cố kéo dài.
+- **Bảng so sánh Payoff cả hai hướng thực nghiệm (Stake = 0.1 AVAX, Bond = 0.02 AVAX = 20%):**
 
-### Q9: Tín hiệu bắt đầu ván (`confirmStart`) — `Proposed`
-- **Vấn đề:** `abortRoom` chỉ dựa thời gian có thể bị dùng để thoát ván đang thua.
-- **Đề xuất:** Relay ký tín hiệu EIP-712 "ván đã bắt đầu" khi có nước đi đầu tiên; sau khi được xác nhận trên chain, `abortRoom` bị cấm. Chưa xác nhận thì vẫn dùng `refundOnTimeout` 60 phút làm lưới an toàn.
-- **Đánh đổi:** thêm một lời gọi on-chain và thêm phụ thuộc Relay; nếu Relay offline thì ván không xác nhận được, người chơi dùng đường refund dài.
+| Chiều kịch bản | Hành vi của Submitter | Hành vi của Challenger | Kết quả nếu Arbiter im lặng 24h (`resolveDefaultChallenge`) | Payoff Bên Thắng | Payoff Bên Thua |
+|---|---|---|---|---|---|
+| **Hướng 1** (Test `test_G1_payoffComparison_loserSignsVsChallengeWithSilentArbiter`) | Bên THẮNG nộp claim (`submitSingleSigned`) | Bên THUA khiếu nại (`challenge`) rồi chờ | - Bên thắng được hoàn 0.1 AVAX stake + 0.02 AVAX bond + 0.01 AVAX (50% challenger bond).<br>- Bên thua được hoàn 0.1 AVAX stake + 0.01 AVAX (50% challenger bond). | **+0.01 AVAX** (lãi giảm từ +0.09) | **-0.01 AVAX** (thu hồi 0.09 AVAX lẽ ra mất trắng) |
+| **Hướng 2 (Đối xứng G1)** (Test `test_G1_payoffComparison_symmetric_loserSubmitsSingleSigned`) | Bên THUA gian lận nộp claim trước (`submitSingleSigned`) | Bên THẮNG chân chính buộc phải `challenge` | - Bên thua (submitter) được hoàn 0.1 AVAX stake + 0.02 AVAX bond + 0.01 AVAX (50% challenger bond) = 0.13 AVAX.<br>- Bên thắng (challenger) nhận 0.1 AVAX stake + 0.01 AVAX = 0.11 AVAX. | **-0.01 AVAX (LỖ ròng 10% stake)** | **+0.01 AVAX (LÃI ròng 10% stake!)** |
+
+- **Đánh giá rủi ro đối xứng nghiêm trọng:**
+  - Ở Hướng 2, kẻ thua cuộc chủ động nộp claim sai lệch trước. Nếu bên thắng challenge và Arbiter gặp sự cố không phân xử trong 24h, kẻ thua cuộc không những không mất tiền cược mà còn **kiếm lời ròng +0.01 AVAX**, trong khi người chiến thắng thực sự lại bị **lỗ -0.01 AVAX**.
+  - Đây là lỗ hổng động cơ kinh tế chết người của cơ chế giải quyết mặc định khi thiếu E1. **Đây chính là lý do trực tiếp khiến `singleSignedEnabled` mặc định bị TẮT ở Q15.**
+
+### Q9: Tín hiệu bắt đầu ván (`confirmStart`) — `Superseded` bởi Q16
+- ~~**Đề xuất:** Relay ký tín hiệu EIP-712 "ván đã bắt đầu" khi có nước đi đầu tiên; sau khi được xác nhận trên chain, `abortRoom` bị cấm.~~
+- **Thay thế bởi Q16:** Relay trực tiếp gửi giao dịch `signalGameStarted(roomId)` ngay khi phòng cờ chuyển sang trạng thái "active" trên Relay (cả hai kỳ thủ vào ghế), khóa ngay hàm `abortRoom` on-chain.
 
 ### Q10: Telemetry chỉ cảnh báo ở Fuji — `Accepted` (chi tiết D10)
 - **Quyết định:** Client hook `useFairPlayGuard` phát hiện rời màn hình quá 2 giây và gửi cảnh báo; Relay broadcast cảnh báo và đếm vi phạm cho đối thủ thấy, **tuyệt đối không trừ giờ đồng hồ và không xử thua kỹ thuật**.
@@ -134,6 +128,17 @@
 ### Q14: Tiền cược tối thiểu `MIN_STAKE = 0.01 ether` — `Accepted`
 - **Quyết định:** Áp đặt `MIN_STAKE = 0.01 ether` trong `createRoom` (revert `StakeTooLow` nếu `msg.value < MIN_STAKE`).
 - **Ghi chú:** Ở bậc cược thấp nhất (0.01 AVAX), bond tối thiểu (0.01 AVAX) bằng 100% tiền cược; đây là mức chấp nhận được cho mạng thử nghiệm Fuji Testnet để chống spam và cày điểm ELO, sẽ xem lại trước khi triển khai mainnet.
+
+### Q15: Tắt mặc định cơ chế Single-Signed (`singleSignedEnabled = false`) trên Fuji — `Accepted`
+- **Quyết định:** Thêm biến công khai `singleSignedEnabled` (mặc định `false`) và hàm `setSingleSignedEnabled(bool)` chỉ `owner` có quyền gọi. Khi tắt, hàm `submitSingleSigned` lập tức revert lỗi custom `SingleSignedDisabled()`.
+- **Lý do:** Khai thác rủi ro đối xứng của G1 (phân tích chi tiết tại Q8): Nếu kẻ thua cuộc chủ động nộp claim trước và Arbiter im lặng sau 24h, kẻ thua cuộc sẽ thu lời ròng (+0.01 AVAX) từ 50% bond của người thắng chân chính.
+- **Điều kiện bật lại trên Mainnet:** Bắt buộc phải triển khai giải pháp E1 (chuỗi nước đi có chữ ký từng nước hoặc fraud-proof/zk-proof cho nước đi hợp lệ) và cơ chế staking/slashing ràng buộc trách nhiệm của Arbiter trước khi kích hoạt lại tính năng này.
+
+### Q16: Relay tự động gửi `signalGameStarted(roomId)` on-chain — `Accepted` (Thay thế Q9)
+- **Quyết định:** `RelayServer` được trang bị `walletClient` (từ relay account). Ngay khi `RelayRoom` chuyển sang trạng thái "active" (cả hai kỳ thủ đã hiện diện và nhận ghế trên WebSocket relay), Relay sẽ tự động gửi giao dịch gọi `signalGameStarted(roomId)` trên `ChessEscrow`.
+- **Cơ chế retry & logging:** Chờ receipt giao dịch, retry với exponential backoff tối đa trong 150 giây (hoàn tất trước mốc `ABORT_TIMEOUT = 180s`). Việc gửi giao dịch diễn ra hoàn toàn bất đồng bộ trong background, tuyệt đối không làm nghẽn hoặc chặn luồng nước đi của ván cờ.
+- **Kiểm tra số dư khi khởi động:** Relay kiểm tra số dư ví AVAX của relay account khi khởi động, ghi cảnh báo rõ ràng nếu số dư thấp hơn ngưỡng cấu hình `RELAY_MIN_BALANCE` (mặc định 0.1 AVAX).
+- **Tác dụng:** Trên hợp đồng, cờ `room.gameStarted` chuyển thành `true`. Kỳ thủ không thể lợi dụng hàm `abortRoom` sau 3 phút để thoát ván cờ đang thua. Nếu Relay tắt tính năng này (`SIGNAL_GAME_STARTED_ENABLED=false`), `abortRoom` vẫn hoạt động sau 3 phút như cũ.
 
 ---
 
