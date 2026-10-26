@@ -73,3 +73,51 @@ export function buildResultTypedData(
  * Zero address constant for draw results.
  */
 export const ZERO_ADDRESS: `0x${string}` = "0x0000000000000000000000000000000000000000";
+
+/**
+ * EIP-712 domain definition for Relay Join authentication.
+ * Distinct from Result domain (does not use verifyingContract).
+ */
+export function getRelayEip712Domain(chainId: number = FUJI_CHAIN_ID) {
+  return {
+    name: "AvaClashRelay",
+    version: "1",
+    chainId: BigInt(chainId),
+  } as const;
+}
+
+/**
+ * EIP-712 types definition for Relay Join message.
+ * Join(uint256 roomId, address player, bytes32 nonce, uint256 expiresAt)
+ */
+export const RELAY_EIP712_TYPES = {
+  Join: [
+    { name: "roomId", type: "uint256" },
+    { name: "player", type: "address" },
+    { name: "nonce", type: "bytes32" },
+    { name: "expiresAt", type: "uint256" },
+  ],
+} as const;
+
+/**
+ * Build typed data for Relay Join authentication.
+ */
+export function buildJoinTypedData(
+  roomId: bigint | number,
+  player: `0x${string}`,
+  nonce: `0x${string}`,
+  expiresAt: bigint | number,
+  chainId: number = FUJI_CHAIN_ID,
+) {
+  return {
+    domain: getRelayEip712Domain(chainId),
+    types: RELAY_EIP712_TYPES,
+    primaryType: "Join" as const,
+    message: {
+      roomId: BigInt(roomId),
+      player,
+      nonce,
+      expiresAt: BigInt(expiresAt),
+    },
+  };
+}

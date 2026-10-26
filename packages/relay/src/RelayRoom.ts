@@ -8,6 +8,8 @@ import {
   type ClientMessage,
   type GameOutcome,
   type EndReason,
+  type ResultMessage,
+  type ResultProposalMessage,
 } from "@avaclash/shared";
 
 export interface PlayerConnection {
@@ -19,6 +21,8 @@ export interface PlayerConnection {
 
 export interface RelayRoomConfig {
   roomId: number;
+  whiteAddress: `0x${string}`;
+  blackAddress: `0x${string}`;
   initialTimeMs?: number; // Default 5 mins (300,000 ms)
   onGameOver?: (
     room: RelayRoom,
@@ -30,6 +34,8 @@ export interface RelayRoomConfig {
 
 export class RelayRoom {
   public readonly roomId: number;
+  public readonly whiteAddress: `0x${string}`;
+  public readonly blackAddress: `0x${string}`;
   public status: "waiting" | "active" | "finished" = "waiting";
   public chess: ChessGame;
   public moves: string[] = [];
@@ -54,11 +60,17 @@ export class RelayRoom {
     winnerAddress: `0x${string}`,
   ) => void;
 
+  // Stored proposal for verifying client result_signatures
+  public lastResultProposal?: ResultProposalMessage;
+  public lastResultMessage?: ResultMessage;
+
   // Signatures collected for 2-of-3 settlement
   public signatures: Map<`0x${string}`, `0x${string}`> = new Map();
 
   constructor(config: RelayRoomConfig) {
     this.roomId = config.roomId;
+    this.whiteAddress = config.whiteAddress.toLowerCase() as `0x${string}`;
+    this.blackAddress = config.blackAddress.toLowerCase() as `0x${string}`;
     const initialTime = config.initialTimeMs ?? 5 * 60 * 1000;
     this.whiteMs = initialTime;
     this.blackMs = initialTime;
@@ -67,33 +79,54 @@ export class RelayRoom {
   }
 
   public addPlayer(address: `0x${string}`, ws: WebSocket): "w" | "b" | "spectator" {
-    // If player already connected in this room, rebind socket
-    if (this.whitePlayer?.address.toLowerCase() === address.toLowerCase()) {
-      this.whitePlayer.ws = ws;
+    const addr = address.toLowerCase() as `0x${string}`;
+
+    if (addr === this.whiteAddress) {
+      if (this.whitePlayer && this.whitePlayer.ws !== ws) {
+        try {
+          this.whitePlayer.ws.close(4000, "Replaced by new connection");
+        } catch {
+          // ignore
+        }
+      }
+      this.whitePlayer = { address, ws, color: "w", warnings: this.whitePlayer?.warnings ?? 0 };
+      if (this.blackPlayer && this.status === "waiting") {
+        this.startGame();
+      }
       return "w";
     }
-    if (this.blackPlayer?.address.toLowerCase() === address.toLowerCase()) {
-      this.blackPlayer.ws = ws;
+
+    if (addr === this.blackAddress) {
+      if (this.blackPlayer && this.blackPlayer.ws !== ws) {
+        try {
+          this.blackPlayer.ws.close(4000, "Replaced by new connection");
+        } catch {
+          // ignore
+        }
+      }
+      this.blackPlayer = { address, ws, color: "b", warnings: this.blackPlayer?.warnings ?? 0 };
+      if (this.whitePlayer && this.status === "waiting") {
+        this.startGame();
+      }
       return "b";
     }
 
-    if (!this.whitePlayer) {
-      this.whitePlayer = { address, ws, color: "w", warnings: 0 };
-      return "w";
-    }
-
-    if (!this.blackPlayer) {
-      this.blackPlayer = { address, ws, color: "b", warnings: 0 };
-      this.startGame();
-      return "b";
-    }
-
-    // Room is full for players -> join as spectator
+    // Not assigned to this room as player -> add as spectator
     this.spectators.add(ws);
     return "spectator";
   }
 
+  public addSpectator(ws: WebSocket): void {
+    this.spectators.add(ws);
+  }
+
   public removeSocket(ws: WebSocket): void {
+    if (this.whitePlayer?.ws === ws) {
+      this.whitePlayer = undefined;
+    }
+    if (this.blackPlayer?.ws === ws) {
+      this.blackPlayer = undefined;
+    }
     this.spectators.delete(ws);
   }
 
@@ -141,7 +174,7 @@ export class RelayRoom {
     if (this.clockInterval) clearInterval(this.clockInterval);
 
     const outcome: GameOutcome = loserColor === "w" ? "black" : "white";
-    const winner = outcome === "white" ? this.whitePlayer!.address : this.blackPlayer!.address;
+    const winner = outcome === "white" ? this.whiteAddress : this.blackAddress;
 
     this.broadcast({
       type: "timeout",
@@ -208,10 +241,10 @@ export class RelayRoom {
       const reason = this.chess.getEndReason() ?? "checkmate";
 
       let winner: `0x${string}` = "0x0000000000000000000000000000000000000000";
-      if (outcome === "white" && this.whitePlayer) {
-        winner = this.whitePlayer.address;
-      } else if (outcome === "black" && this.blackPlayer) {
-        winner = this.blackPlayer.address;
+      if (outcome === "white") {
+        winner = this.whiteAddress;
+      } else if (outcome === "black") {
+        winner = this.blackAddress;
       }
 
       this.onGameOver?.(this, outcome, reason, winner);
@@ -236,7 +269,7 @@ export class RelayRoom {
     if (this.clockInterval) clearInterval(this.clockInterval);
 
     const outcome: GameOutcome = loser === "w" ? "black" : "white";
-    const winner = outcome === "white" ? this.whitePlayer!.address : this.blackPlayer!.address;
+    const winner = outcome === "white" ? this.whiteAddress : this.blackAddress;
 
     this.broadcast({
       type: "resign",
@@ -331,13 +364,11 @@ export class RelayRoom {
   }
 
   public broadcastRoomState(): void {
-    if (!this.whitePlayer) return;
-
     const stateMsg: ServerMessage = {
       type: "room_state",
       roomId: this.roomId,
-      white: this.whitePlayer.address,
-      black: this.blackPlayer?.address,
+      white: this.whiteAddress,
+      black: this.blackAddress,
       moves: this.moves,
       whiteMs: this.whiteMs,
       blackMs: this.blackMs,

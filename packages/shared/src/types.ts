@@ -172,6 +172,7 @@ export interface ResultMessage {
  * WebSocket message types.
  */
 export type WsMessageType =
+  | "auth_challenge"
   | "join_room"
   | "room_state"
   | "move"
@@ -188,3 +189,14 @@ export type WsMessageType =
   | "timeout"
   | "focus_warning"
   | "spectator_pool";
+
+/**
+ * EIP-712 Join struct fields for Relay join authentication.
+ * Matches: Join(uint256 roomId, address player, bytes32 nonce, uint256 expiresAt)
+ */
+export interface JoinMessage {
+  roomId: bigint;
+  player: `0x${string}`;
+  nonce: `0x${string}`;
+  expiresAt: bigint;
+}

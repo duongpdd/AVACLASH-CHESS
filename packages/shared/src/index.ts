@@ -14,10 +14,14 @@ export {
   buildResultTypedData,
   FUJI_CHAIN_ID,
   ZERO_ADDRESS,
+  getRelayEip712Domain,
+  RELAY_EIP712_TYPES,
+  buildJoinTypedData,
 } from "./eip712.js";
 
 // Zod schemas
 export {
+  authChallengeSchema,
   joinRoomSchema,
   roomStateSchema,
   moveSchema,
@@ -59,9 +63,11 @@ export type {
   PlayerColor,
   ResultMessage,
   WsMessageType,
+  JoinMessage,
 } from "./types.js";
 
 export type {
+  AuthChallengeMessage,
   JoinRoomMessage,
   RoomStateMessage,
   MoveMessage,

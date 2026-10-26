@@ -20,10 +20,19 @@ const seqSchema = z.number().int().nonnegative();
 
 // --- WebSocket message schemas ---
 
+export const authChallengeSchema = z.object({
+  type: z.literal("auth_challenge"),
+  nonce: bytes32Schema,
+  expiresAt: z.number().int().nonnegative(),
+});
+
 export const joinRoomSchema = z.object({
   type: z.literal("join_room"),
   roomId: roomIdSchema,
-  address: addressSchema,
+  role: z.enum(["player", "spectator"]).optional(),
+  address: addressSchema.optional(),
+  signature: z.string().regex(/^0x[a-fA-F0-9]+$/, "Invalid signature hex").optional(),
+  nonce: bytes32Schema.optional(),
 });
 
 export const roomStateSchema = z.object({
@@ -151,6 +160,7 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
  * Discriminated union of all relay → client messages.
  */
 export const serverMessageSchema = z.discriminatedUnion("type", [
+  authChallengeSchema,
   roomStateSchema,
   moveSchema,
   resignSchema,
@@ -168,6 +178,7 @@ export const serverMessageSchema = z.discriminatedUnion("type", [
 ]);
 
 // Inferred types
+export type AuthChallengeMessage = z.infer<typeof authChallengeSchema>;
 export type JoinRoomMessage = z.infer<typeof joinRoomSchema>;
 export type RoomStateMessage = z.infer<typeof roomStateSchema>;
 export type MoveMessage = z.infer<typeof moveSchema>;
