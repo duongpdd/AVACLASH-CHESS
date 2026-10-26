@@ -30,9 +30,10 @@
 - Vitest cho test TypeScript (nhanh, ESM native).
 - Prettier cho format (không dùng ESLint trong Phase 1 để giữ đơn giản).
 
-### D5: Màu quân — `Superseded` bởi Q3
+### D5: Màu quân — `Superseded` bởi Q13
 - ~~Người tạo phòng luôn là Trắng (đơn giản cho MVP).~~
-- Màu hiện do seed Relay ký (xem Q3). Sơ đồ vòng đời trong `ARCHITECTURE.md` mục 4.1 cần sửa theo.
+- ~~Màu hiện do seed Relay ký (xem Q3).~~
+- Thay thế bởi **Q13**: Người tạo phòng chọn màu quân trực tiếp qua tham số `creatorIsWhite` của `createRoom` và được lưu on-chain.
 
 ### D6: Đồng hồ — `Accepted` (kèm ràng buộc từ D10)
 - Mặc định 5 phút + 0 giây increment.
@@ -48,20 +49,18 @@
 - **Quyết định:** Hoàn tiền 100% cho cả hai bên khi ván hòa.
 - **Lý do:** Đơn giản, ít tranh cãi, không tạo thêm biến phức tạp cho escrow.
 
-### Q2: Phân xử challenge — `Accepted` (chi tiết bond xem Q8)
+### Q2: Phân xử challenge — `Accepted` (chi tiết bond xem Q8, Q11)
 - **Quyết định:** Arbiter/Relay có timelock, kèm kết cục mặc định (hoàn tiền cả hai) khi quá hạn phân xử.
 - **Lý do:** Giải quyết vấn đề "ai quyết định" trong challenge, đảm bảo luôn có kết cục dù arbiter bất hợp tác.
 - **Chi tiết:**
   - `relaySigner` / `arbiter` là địa chỉ được đăng ký trong contract, có timelock khi đổi khóa.
   - Nếu arbiter không ra phán quyết trong thời hạn (ví dụ 24h), mặc định hoàn tiền cả hai.
-  - Bond bên sai: **chưa thống nhất** bên nhận (bên đúng hay quỹ mùa giải). Xem Q8.
+  - Cơ chế bond của cả hai bên submitter và challenger được chuẩn hóa tại **Q11**.
 - **Đánh đổi cần thừa nhận:** nhánh mặc định hoàn cả bond cho phép bên thua "hòa vốn" bằng cách challenge rồi chờ arbiter im lặng. Xem Q8.
 
-### Q3: Chọn màu công bằng — `Accepted`
-- **Quyết định:** Seed do Relay ký, ít vòng tương tác hơn.
-- **Lý do:** Commit-reveal cần 2 vòng tương tác thêm, tốn gas. Seed Relay đơn giản hơn cho testnet.
-- **Đánh đổi:** Relay trở thành bên tin cậy cho việc chọn màu (chấp nhận được vì ít ảnh hưởng tài chính).
-- **Hệ quả:** màu quân chỉ biết sau khi seed được ký, nên ảnh hưởng đến thời điểm khóa cược (xem D13).
+### Q3: Chọn màu công bằng — `Superseded` bởi Q13
+- ~~**Quyết định:** Seed do Relay ký, ít vòng tương tác hơn.~~
+- **Thay thế bởi Q13:** Người tạo phòng chọn màu qua `creatorIsWhite` trong `createRoom`, lưu on-chain. Relay không quyết định màu mà đọc trực tiếp từ chain.
 
 ### Q4: Thời điểm khóa cược Spectator — `Accepted`, đề xuất sửa bởi D13
 - **Quyết định hiện tại:** Khóa khi `joinRoom`.
@@ -80,24 +79,25 @@
 ### Q7: Bond challenge — `Accepted`
 - **Quyết định:** 20% tiền cược (tối thiểu 0.01 AVAX).
 - **Lý do:** Đủ cao để ngăn challenge bừa, đủ thấp để không cản trở khiếu nại hợp lệ.
-- **Ghi chú:** chỉ bên challenge đặt bond; bên nộp `submitSingleSigned` chưa đặt bond (xem Q8).
+- **Ghi chú:** bên nộp đơn `submitSingleSigned` cũng phải đặt bond đối ứng bằng đúng bond của challenge (xem Q11).
 
 ### Q8: Bond ở nhánh mặc định 24h — `Accepted with residual risk`
-- **Vấn đề phân tích:** Khi arbiter quá hạn 24 giờ, `resolveDefaultChallenge` hoàn trả 100% tiền cược gốc cho cả hai bên và phạt 50% bond của bên khiếu nại chuyển sang bên nộp đơn (50% bond còn lại hoàn cho bên khiếu nại).
+- **Quyết định:** Cơ chế bond chỉ làm giảm lợi ích của việc challenge-rồi-chờ-arbiter-im, không loại bỏ hoàn toàn; xử lý triệt để ở mainnet bằng chuỗi nước đi có chữ ký (E1) và arbiter có cam kết hoạt động.
 - **Số liệu thực nghiệm so sánh Payoff (Test `test_G1_payoffComparison_loserSignsVsChallengeWithSilentArbiter`):**
-  - Giả định ván đấu với Stake = 0.1 AVAX, Challenge Bond (20%) = 0.02 AVAX.
+  - Giả định ván đấu với Stake = 0.1 AVAX, Challenge Bond (20%) = 0.02 AVAX. Submitter Bond (Q11) = 0.02 AVAX.
   - **Kịch bản A (Bên thua ký ngay hoặc chấp nhận thua):**
     - Bên thua mất 100% tiền cược: Payoff = **-0.10 AVAX**.
     - Bên thắng nhận pot trừ 5% protocol fee (0.2 - 0.01): Payoff = **+0.09 AVAX**.
   - **Kịch bản B (Bên thua challenge rồi chờ Arbiter im lặng sau 24h):**
     - Bên thua bỏ ra 0.1 AVAX stake + 0.02 AVAX bond = 0.12 AVAX.
-    - Sau 24h mặc định: được hoàn 0.1 AVAX stake + 0.01 AVAX (50% bond) = 0.11 AVAX.
-    - Tổn thất ròng của bên thua: Payoff = **-0.01 AVAX** (chỉ mất 50% bond = 10% stake).
-    - Bên thắng nhận 0.1 AVAX stake + 0.01 AVAX đền bù = 0.11 AVAX: Payoff = **+0.01 AVAX**.
+    - Bên nộp (bên thắng) bỏ ra 0.1 AVAX stake + 0.02 AVAX submitter bond = 0.12 AVAX.
+    - Sau 24h mặc định (`resolveDefaultChallenge`):
+      - Bên nộp được hoàn 0.1 AVAX stake + 0.02 AVAX submitter bond + 0.01 AVAX (50% challenger bond) = 0.13 AVAX. Payoff = **+0.01 AVAX**.
+      - Bên thua được hoàn 0.1 AVAX stake + 0.01 AVAX (50% challenger bond) = 0.11 AVAX. Payoff = **-0.01 AVAX** (chỉ mất 50% bond = 10% stake).
 - **Đánh giá rủi ro tồn đọng (Residual Risk):**
   - Bên thua phục hồi được **0.09 AVAX** (+90% tiền cược lẽ ra đã mất) nếu Arbiter offline hoặc im lặng, tạo ra động lực khiếu nại càn quấy trong trường hợp nghi ngờ Arbiter không giám sát.
   - Ngược lại, bên thắng bị giảm lợi nhuận từ +0.09 AVAX xuống +0.01 AVAX.
-- **Kết luận:** Quyết định **Accepted with residual risk** trong giai đoạn hiện tại (KHÔNG đổi cơ chế smart contract), chấp nhận rủi ro này vì cơ chế đảm bảo người khiếu nại vẫn chịu phạt tài chính âm (-0.01 AVAX), ngăn ngừa hòa vốn, bảo toàn 100% tổng tiền trên hợp đồng và cung cấp lối thoát thanh khoản tất định nếu hệ thống Arbiter gặp sự cố kéo dài. Đã kiểm chứng toàn diện qua test suite.
+- **Kết luận:** Quyết định **Accepted with residual risk** trong giai đoạn hiện tại (KHÔNG đổi cơ chế smart contract), chấp nhận rủi ro này vì cơ chế đảm bảo người khiếu nại vẫn chịu phạt tài chính âm (-0.01 AVAX), ngăn ngừa hòa vốn, bảo toàn 100% tổng tiền trên hợp đồng và cung cấp lối thoát thanh khoản tất định nếu hệ thống Arbiter gặp sự cố kéo dài.
 
 ### Q9: Tín hiệu bắt đầu ván (`confirmStart`) — `Proposed`
 - **Vấn đề:** `abortRoom` chỉ dựa thời gian có thể bị dùng để thoát ván đang thua.
@@ -107,6 +107,33 @@
 ### Q10: Telemetry chỉ cảnh báo ở Fuji — `Accepted` (chi tiết D10)
 - **Quyết định:** Client hook `useFairPlayGuard` phát hiện rời màn hình quá 2 giây và gửi cảnh báo; Relay broadcast cảnh báo và đếm vi phạm cho đối thủ thấy, **tuyệt đối không trừ giờ đồng hồ và không xử thua kỹ thuật**.
 - **Lý do:** Tuân thủ triệt để nguyên lý "Pure FIDE Core", tránh xử phạt oan do dữ liệu telemetry client không thể kiểm chứng mật mã học off-chain.
+
+### Q11: Submitter Bond cho Single-Signed Submission — `Accepted`
+- **Quyết định:** Người nộp đơn `submitSingleSigned` phải đặt bond bằng đúng bond của challenge (`_computeChallengeBond(stake)`).
+- **Quy tắc hoàn trả và phạt:**
+  - Hoàn 100% bond người nộp khi `finalizeSingleSigned` kết thúc mà không bị challenge.
+  - Khi bị challenge:
+    - Nếu Arbiter xác nhận người nộp đúng (`resolveChallenge`): người nộp được hoàn lại bond của mình và nhận thêm toàn bộ bond của bên challenge.
+    - Nếu Arbiter xác nhận người nộp sai: bond của người nộp bị tịch thu và chuyển toàn bộ cho bên challenge (bên challenge nhận lại bond của mình + bond người nộp).
+    - Nhánh mặc định 24h (`resolveDefaultChallenge`): hoàn 100% bond người nộp; bond của bên challenge chia 50/50 (50% bồi thường người nộp, 50% hoàn trả challenger).
+- **Bảo toàn tiền:** Tổng số tiền giải ngân bằng chính xác tổng số tiền nạp vào hợp đồng ở mọi nhánh rẽ.
+
+### Q12: Cơ chế chi trả Quỹ Giải Thưởng Mùa Giải (`seasonPrizePool`) — `Open`
+- **Tình trạng:** Cách thức phân phối và chi trả `seasonPrizePool` (tích lũy từ 5% phí cược khán giả trong `AvaClashMeta.sol`) chưa có thiết kế đặc tả chi tiết.
+- **Quyết định:** Tạm hoãn, KHÔNG triển khai ở lượt này; bảo toàn quỹ trên hợp đồng cho đến khi có ADR phê duyệt cơ chế phân phối cuối mùa giải.
+
+### Q13: Người tạo phòng chọn màu quân — `Accepted`
+- **Quyết định:** Người tạo phòng chọn màu quân thông qua tham số `creatorIsWhite` trong hàm `createRoom(bool creatorIsWhite)`, lưu trữ trực tiếp on-chain; người vào phòng quan sát thấy màu trước khi stake cược.
+- **Thay thế:** Q3 (seed Relay ký) và D5 chính thức chuyển sang trạng thái `Superseded` bởi Q13.
+- **Vai trò Relay:** Relay đọc cấu hình màu trực tiếp từ chain, không quyết định màu.
+- **Cửa cược khán giả:** Suy ra trực tiếp từ `outcome` của trận đấu:
+  - Outcome 0 (Trắng thắng) $\to$ Cửa 1 (Trắng).
+  - Outcome 1 (Đen thắng) $\to$ Cửa 2 (Đen).
+  - Outcome 2 (Hòa) $\to$ Cửa 3 (Hòa).
+
+### Q14: Tiền cược tối thiểu `MIN_STAKE = 0.01 ether` — `Accepted`
+- **Quyết định:** Áp đặt `MIN_STAKE = 0.01 ether` trong `createRoom` (revert `StakeTooLow` nếu `msg.value < MIN_STAKE`).
+- **Ghi chú:** Ở bậc cược thấp nhất (0.01 AVAX), bond tối thiểu (0.01 AVAX) bằng 100% tiền cược; đây là mức chấp nhận được cho mạng thử nghiệm Fuji Testnet để chống spam và cày điểm ELO, sẽ xem lại trước khi triển khai mainnet.
 
 ---
 
@@ -154,7 +181,7 @@
 - Cân nhắc trần tổng cược khán giả theo tiền cược của hai người chơi.
 - **Đánh đổi:** cửa sổ ngắn vẫn có khe hở rất nhỏ; đổi lại thị trường có ý nghĩa hơn và chặn được tự cược.
 
-### D14: Thanh toán Escrow và Meta — Đề xuất đã triển khai (`Accepted & Implemented`)
+### D14: Thanh toán Escrow và Meta — Đề xuất, đã triển khai
 - **Mục tiêu:** Phân định rõ ràng trách nhiệm giữa việc xác lập điều kiện thi đấu và quá trình thanh toán sau trận.
 - **Giải pháp triển khai thực tế (Lượt 2B):**
   - **Fail-Fast tại `joinRoom`:** `registerMatch` và `lockBetting` KHÔNG được nuốt lỗi; nếu Meta lỗi hoặc revert thì `joinRoom` phải revert ngay lập tức (khi `metaContract != address(0)`), bảo đảm tuyệt đối rằng trận đấu không bao giờ kích hoạt khi chưa đăng ký kỳ thủ hoặc chưa khóa thị trường cược khán giả.
