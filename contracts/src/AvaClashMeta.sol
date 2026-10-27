@@ -36,11 +36,12 @@ contract AvaClashMeta is ReentrancyGuard {
     // ──────────────────────── 3. SPECTATOR PREDICTION ───────────────
 
     struct MatchPrediction {
-        bool bettingLocked;     // locked when match starts (joinRoom)
+        bool bettingLocked;     // locked when match starts (signalGameStarted)
         bool resolved;
         bool cancelled;         // true if match was aborted/refunded or winning pool was 0
         uint8 winningOption;    // 1: White, 2: Black, 3: Draw
         uint256 createdAt;      // timestamp when prediction pool was initialized
+        uint256 joinedAt;       // timestamp when room was joined (registerMatch, Q18)
         uint256 totalWhiteBet;  // Gross pool amounts
         uint256 totalBlackBet;
         uint256 totalDrawBet;
@@ -55,6 +56,9 @@ contract AvaClashMeta is ReentrancyGuard {
 
     mapping(uint256 => MatchPrediction) internal _predictions;
 
+    /// @notice Tracks whether an address has placed a bet on a match (matchId => user => bool, Q18)
+    mapping(uint256 => mapping(address => bool)) public hasBet;
+
     /// @notice Fee on spectator bets in basis points (500 = 5%), deducted upon resolution into seasonPrizePool.
     uint256 public constant SPECTATOR_FEE_BPS = 500;
 
@@ -63,6 +67,9 @@ contract AvaClashMeta is ReentrancyGuard {
 
     /// @notice Minimum moves required for valid prediction settlement (20). Matches with fewer moves cancel prediction (Q20).
     uint16 public constant MIN_MOVES_FOR_PREDICTION = 20;
+
+    /// @notice Betting window duration after opponent joins the room (120 seconds, Q18).
+    uint256 public constant BET_WINDOW = 120;
 
     // ──────────────────────── Events ────────────────────────
 
@@ -94,6 +101,7 @@ contract AvaClashMeta is ReentrancyGuard {
     error SelfBetNotAllowed();
     error MatchCancelled();
     error NoRefundAvailable();
+    error PlayerHasBets();
 
     // ──────────────────────── Modifiers ────────────────────────
 
@@ -187,16 +195,20 @@ contract AvaClashMeta is ReentrancyGuard {
         emit NoLossWithdrawn(msg.sender, amount);
     }
 
-    // ──────────────────────── Spectator Prediction ────────────────────────
-
     /**
-     * @notice Register match players for self-bet prevention.
-     *         Called by Escrow when room becomes Active.
+     * @notice Register match players for self-bet prevention and mark join timestamp.
+     *         Called by Escrow when room becomes Active (joinRoom).
+     *         Reverts PlayerHasBets if playerA or playerB already placed a bet on this match (Q18).
      */
     function registerMatch(uint256 matchId, address pA, address pB) external onlyEscrow {
+        if (hasBet[matchId][pA] || hasBet[matchId][pB]) revert PlayerHasBets();
+
         MatchPrediction storage p = _predictions[matchId];
         if (p.createdAt == 0) {
             p.createdAt = block.timestamp;
+        }
+        if (p.joinedAt == 0) {
+            p.joinedAt = block.timestamp;
         }
         p.playerA = pA;
         p.playerB = pB;
@@ -204,7 +216,7 @@ contract AvaClashMeta is ReentrancyGuard {
 
     /**
      * @notice Spectators bet AVAX on White (1), Black (2), or Draw (3).
-     *         Must bet BEFORE match starts (before joinRoom — auto-locked).
+     *         Must bet BEFORE betting is locked by signalGameStarted or before BET_WINDOW (120s) expires after join (Q18).
      *         Players cannot bet on their own match.
      *         Stored gross (5% fee deducted upon resolution, not during betting).
      */
@@ -214,6 +226,7 @@ contract AvaClashMeta is ReentrancyGuard {
 
         MatchPrediction storage p = _predictions[matchId];
         if (p.bettingLocked || p.resolved || p.cancelled) revert BettingClosed();
+        if (p.joinedAt != 0 && block.timestamp > p.joinedAt + BET_WINDOW) revert BettingClosed();
 
         // Prevent players from betting on their own match
         if (msg.sender == p.playerA || msg.sender == p.playerB) revert SelfBetNotAllowed();
@@ -221,6 +234,8 @@ contract AvaClashMeta is ReentrancyGuard {
         if (p.createdAt == 0) {
             p.createdAt = block.timestamp;
         }
+
+        hasBet[matchId][msg.sender] = true;
 
         // Store gross bets without upfront fee deduction
         if (option == 1) {
@@ -359,7 +374,8 @@ contract AvaClashMeta is ReentrancyGuard {
         MatchPrediction storage p = _predictions[matchId];
         if (p.resolved) revert AlreadyResolved();
 
-        bool isTimedOut = (p.createdAt != 0 && block.timestamp > p.createdAt + MAX_UNRESOLVED);
+        uint256 baseTime = p.joinedAt != 0 ? p.joinedAt : p.createdAt;
+        bool isTimedOut = (baseTime != 0 && block.timestamp > baseTime + MAX_UNRESOLVED);
 
         if (!p.cancelled) {
             if (!isTimedOut) revert MatchCancelled();

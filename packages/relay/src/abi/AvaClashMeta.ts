@@ -8,6 +8,19 @@ export const AVA_CLASH_META_ABI = [
   },
   {
     "type": "function",
+    "name": "BET_WINDOW",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "INITIAL_ELO",
     "inputs": [],
     "outputs": [
@@ -281,6 +294,30 @@ export const AVA_CLASH_META_ABI = [
       },
       {
         "name": "hasClaimed",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hasBet",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
         "type": "bool",
         "internalType": "bool"
       }
@@ -720,6 +757,11 @@ export const AVA_CLASH_META_ABI = [
   {
     "type": "error",
     "name": "NothingStaked",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "PlayerHasBets",
     "inputs": []
   },
   {

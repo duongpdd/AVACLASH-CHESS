@@ -323,4 +323,88 @@ contract AvaClashMetaTest is Test {
         meta.claimSpectatorRefund(matchId);
         assertEq(spectator1.balance, balBefore + 1.0 ether);
     }
+
+    function test_RegisterMatch_RevertsIfPlayerHasBets() public {
+        uint256 matchId = 201;
+
+        // Player A bets before registering match
+        vm.prank(playerA);
+        meta.betOnMatch{value: 0.1 ether}(matchId, 1);
+
+        // registerMatch must revert with PlayerHasBets
+        vm.expectRevert(AvaClashMeta.PlayerHasBets.selector);
+        meta.registerMatch(matchId, playerA, playerB);
+    }
+
+    function test_BetOnMatch_RevertsAfterBetWindowExpired() public {
+        uint256 matchId = 202;
+
+        meta.registerMatch(matchId, playerA, playerB);
+
+        // Advance 121 seconds (> 120 BET_WINDOW)
+        vm.warp(block.timestamp + 121);
+
+        // Spectator trying to bet after 120s must revert BettingClosed
+        vm.prank(spectator1);
+        vm.expectRevert(AvaClashMeta.BettingClosed.selector);
+        meta.betOnMatch{value: 0.5 ether}(matchId, 1);
+    }
+
+    function test_ClaimSpectatorRefund_UsesJoinedAtAnchor_CannotRefundEarly() public {
+        uint256 matchId = 203;
+
+        // Spectator bets at t0 (fixed baseline)
+        uint256 t0 = 100_000;
+        vm.warp(t0);
+        vm.prank(spectator1);
+        meta.betOnMatch{value: 0.5 ether}(matchId, 1);
+
+        // Match joined 5 days later
+        vm.warp(t0 + 5 days);
+        meta.registerMatch(matchId, playerA, playerB);
+
+        // Warp to t0 + 7 days + 1 second.
+        // It is > createdAt + 7 days, BUT only 2 days since joinedAt!
+        // Should NOT be refundable yet because the match is active within 7 days of joinedAt.
+        vm.warp(t0 + 7 days + 1);
+
+        vm.prank(spectator1);
+        vm.expectRevert(AvaClashMeta.MatchCancelled.selector);
+        meta.claimSpectatorRefund(matchId);
+
+        // Advance past joinedAt + 7 days (t0 + 5 days + 7 days + 2 seconds = t0 + 12 days + 2)
+        vm.warp(t0 + 12 days + 2);
+        uint256 balBefore = spectator1.balance;
+        vm.prank(spectator1);
+        meta.claimSpectatorRefund(matchId);
+        assertEq(spectator1.balance, balBefore + 0.5 ether);
+    }
+
+    function test_RegisterMatch_RevertsIfPlayerBHasBets() public {
+        uint256 matchId = 204;
+
+        // Player B bets before registering match
+        vm.prank(playerB);
+        meta.betOnMatch{value: 0.1 ether}(matchId, 2);
+
+        // registerMatch must revert with PlayerHasBets
+        vm.expectRevert(AvaClashMeta.PlayerHasBets.selector);
+        meta.registerMatch(matchId, playerA, playerB);
+    }
+
+    function test_BetOnMatch_WithinWindow_Succeeds() public {
+        uint256 matchId = 205;
+
+        meta.registerMatch(matchId, playerA, playerB);
+
+        // 60 seconds into the match (within 120s BET_WINDOW)
+        vm.warp(block.timestamp + 60);
+
+        // Spectator betting must succeed
+        vm.prank(spectator1);
+        meta.betOnMatch{value: 0.5 ether}(matchId, 1);
+
+        (,,,, uint256 wBet,,) = meta.getPredictionPool(matchId);
+        assertEq(wBet, 0.5 ether);
+    }
 }
