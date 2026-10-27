@@ -12,6 +12,11 @@ fs_permissions = [{ access = "read", path = "./test/fixtures" }]
 runs = 256
 max_test_rejects = 65536
 
+[profile.default.invariant]
+runs = 256
+depth = 500
+fail_on_revert = false
+
 [rpc_endpoints]
 fuji = "${FUJI_RPC_URL}"
 
