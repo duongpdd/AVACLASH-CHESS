@@ -1,6 +1,6 @@
 # Tiến độ Phát triển Dự án — AvaClash Chess
 
-> **Cập nhật lần cuối:** 26/10/2026 (Lượt 3a) | **Trạng thái tổng thể:** Phase 5 Đang hoàn thiện (~80%) — ABI sinh tự động, Test Anvil Thật, Lưu trữ & Ký lại Kết quả, signalGameStarted Q16, Stuck Bond Fix, Invariant Testing & Gia cố Bảo mật Relay
+> **Cập nhật lần cuối:** 27/10/2026 (Lượt 3b) | **Trạng thái tổng thể:** Phase 5 Đang hoàn thiện (~85%) — Chống hồi sinh ván cờ, Lưu ván đang chơi (Q19), gameStartedAt & refund timeout anchor, Q20 moveCount, Q18 joinedAt betting window, Invariant testing toàn diện với Ghost counters & Independent Solvency, Cache getRoom & Rate Limiting
 
 AvaClash Chess là nền tảng cờ vua Web3 1v1 PvP trên mạng Avalanche Fuji Testnet, kết hợp giữa luật cờ vua chuẩn quốc tế FIDE (5+0 Blitz) và hạ tầng kinh tế phi tập trung (Escrow cá cược AVAX, On-chain ELO, No-Loss Vault, Parimutuel Spectator Betting).
 
@@ -10,20 +10,20 @@ AvaClash Chess là nền tảng cờ vua Web3 1v1 PvP trên mạng Avalanche Fuj
 
 ```
 [Phase 1: Core Engine & Shared] ──────► 100% Hoàn thành (95/95 tests pass)
-[Phase 2: Smart Contract Escrow] ─────► 100% Hoàn thành (121/121 tests pass, gồm Invariant test 128,000 calls)
+[Phase 2: Smart Contract Escrow] ─────► 100% Hoàn thành (107/107 tests pass: 94 unit/fuzz + 10 meta-integ + 3 try-catch)
 [Phase 3: Phaser 3 Game Arena] ───────► 100% Hoàn thành (17/17 tests pass)
-[Phase 4: Web3 Meta Layer & Anti-Cheat] ► 100% Hoàn thành (18/18 tests pass)
-[Phase 5: Relay, Security & Integration] ► ~80% Thực tế (Relay đã tích hợp Anvil thật, signalGameStarted Q16, ABI sinh từ artifact, Lưu/Ký lại kết quả; CHƯA Deploy Fuji, CHƯA Nối Ví Wagmi)
+[Phase 4: Web3 Meta Layer & Anti-Cheat] ► 100% Hoàn thành (24/24 tests pass)
+[Phase 5: Relay, Security & Invariants] ► ~85% Thực tế (133 contract tests gồm 128,000 calls invariant, 31 relay tests gồm 12 Anvil tests; CHƯA Deploy Fuji, CHƯA Nối Ví Wagmi)
 [Phase 6: Audit, Mainnet & Season 1] ──► 0% Lập kế hoạch
 ```
 
 | Giai đoạn   | Mô tả                           | Trọng tâm kỹ thuật                                                                     |    Trạng thái     |   Test Coverage    |
 | :---------- | :------------------------------ | :------------------------------------------------------------------------------------- | :---------------: | :----------------: |
 | **Phase 1** | Monorepo Setup & Shared Package | UCI move format, keccak256 hash, EIP-712 v2, Zod validation, Replay, Cross-spec fixture|   ✅ Hoàn thành   | 95/95 tests (100%) |
-| **Phase 2** | Smart Contract Escrow           | `ChessEscrow.sol`, Ownable2Step, setMetaContract timelock, Stuck bond fix, Invariant test, singleSignedEnabled (Q15)|   ✅ Hoàn thành   | 121/121 tests (100%) |
+| **Phase 2** | Smart Contract Escrow           | `ChessEscrow.sol`, Ownable2Step, gameStartedAt, Q20 moveCount, Disable renounceOwnership|   ✅ Hoàn thành   | 107/107 tests (100%) |
 | **Phase 3** | Local Chess Game Arena          | Phaser 3 canvas, `GameState.ts`, FIDE 5+0 clocks, UI 100dvh, Victory Modal, Room Lobby |   ✅ Hoàn thành   | 17/17 tests (100%) |
-| **Phase 4** | Web3 Meta Layer & Fair Play     | `AvaClashMeta.sol` (Gross fee on resolve, zero pool cancel, 7-day timeout refund)      |   ✅ Hoàn thành   | 18/18 tests (100%) |
-| **Phase 5** | Relay, Security & Integration   | Relay tích hợp Anvil thật, signalGameStarted Q16, ABI sinh từ forge artifact, request_result, Lưu file 48h, Gia cố IP proxy & waiting timeout |  ⚠️ Đang hoàn thiện (~80%) | 24/24 tests (100%) |
+| **Phase 4** | Web3 Meta Layer & Fair Play     | `AvaClashMeta.sol` (Q18 joinedAt window, hasBet anti-self-bet, 20-move void refund)    |   ✅ Hoàn thành   | 24/24 tests (100%) |
+| **Phase 5** | Relay, Security & Integration   | Relay chống hồi sinh, active game persistence (Q19), getRoom cache, IP rate limit, Invariant ghost counters | ⚠️ Đang hoàn thiện (~85%) | 33/33 tests (100%: 31 Vitest + 2 Invariants) |
 | **Phase 6** | Audit & Avalanche Mainnet       | Security Audit, Subnet/C-Chain mainnet, Season leaderboard                             |    ⚪ Dự kiến     |    Chưa bắt đầu    |
 
 ---
@@ -41,7 +41,7 @@ AvaClash Chess là nền tảng cờ vua Web3 1v1 PvP trên mạng Avalanche Fuj
     - `Result(uint256 matchId, address winner, uint8 outcome, uint8 reason, uint16 moveCount, bytes32 movesHash, uint256 nonce, uint256 deadline)`
     - Định nghĩa enum số `OutcomeCode` (0: WhiteWin, 1: BlackWin, 2: Draw) và `ReasonCode` khớp hoàn toàn với Solidity.
     - Bổ sung `deadline` chống tấn công replay.
-  - [x] Bộ schema **Zod** xác thực toàn bộ gói tin WebSocket hai chiều (move, resign, draw offer, clock sync, focus telemetry, spectator betting, resultProposal).
+  - [x] Bộ schema **Zod** xác thực toàn bộ gói tin WebSocket hai chiều (move, resign, draw offer, clock sync, focus telemetry, spectator betting, resultProposal, game_finished).
   - [x] Bộ diễn lại ván đấu deterministic (`replayMoves`) hỗ trợ đầy đủ luật: phong cấp, bắt tốt qua đường, nhập thành, hòa do lặp cờ 3 lần, quy tắc 50 nước đi, thiếu quân chiếu hết, và trả về chính xác `moveCount`, `outcome`, `reason`.
   - [x] **Kiểm tra chéo chữ ký EIP-712 (Cross-Spec Test):** Tự sinh khóa ngẫu nhiên trong TypeScript bằng `viem`, ký Result struct v2, ghi fixture JSON và nạp vào Foundry test để xác thực `submitResult`.
 - **Kết quả kiểm thử:** `95/95 tests pass` (`vitest`).
@@ -51,23 +51,21 @@ AvaClash Chess là nền tảng cờ vua Web3 1v1 PvP trên mạng Avalanche Fuj
 ### Phase 2: Hợp đồng thông minh Ký quỹ Cược (`ChessEscrow.sol`)
 
 - **Mục tiêu:** Cung cấp hạ tầng ký quỹ cá cược 1v1 phi tập trung bằng đồng AVAX, bảo vệ tiền cược của người chơi mà không cần bên thứ ba trung gian.
-- **Các hạng mục đã hoàn thành:**
-  - [x] Phát triển `ChessEscrow.sol` kế thừa OpenZeppelin `EIP712`, `ReentrancyGuard` và `Pausable`.
-  - [x] **Mức cược tối thiểu & tối đa (MIN_STAKE / MAX_STAKE):** Bắt buộc `MIN_STAKE = 0.01 ether` và `MAX_STAKE = 1 ether` tại `createRoom` (revert `StakeTooLow` / `StakeTooHigh`). Đảm bảo ELO và Season Points chỉ tính cho ván cược $\ge 0.01$ AVAX (D12).
-  - [x] **Cô lập claim đơn lẻ (`submitSingleSigned`):** Chỉ cho phép claim đầu tiên (`singleSignedAt == 0`); nỗ lực claim đè sau đó revert (phản hồi duy nhất là `challenge()`). Chặn gọi khi hết hạn challenge window.
-  - [x] **Bỏ nonce toàn phòng:** `submitResult` không dùng usedNonces; `submitSingleSigned` dùng `usedNonces[roomId][msg.sender][nonce]` chống đốt nonce của người khác.
-  - [x] **Chữ ký 2-trong-3 (A2):** Cho phép thanh toán ngay lập tức khi có:
-    - 2 người chơi cùng ký (Player A + Player B), HOẶC
-    - Người thắng + Relay cùng ký (Player Winner + Relay).
-  - [x] **Challenge có Bond & Timelock Arbiter (A3 - Q2 & Q8):**
-    - Người khiếu nại phải nộp Bond = 20% tiền cược (tối thiểu 0.01 AVAX).
-    - Constructor nhận riêng biệt `_arbiter != _relaySigner != address(0)`. Đổi arbiter qua timelock 2 ngày.
-    - Bên sai mất bond cho bên đúng; nếu Arbiter quá hạn 24h không phán quyết, `resolveDefaultChallenge` hoàn cược 100%, phạt 50% bond bên khiếu nại chuyển cho bên nộp đơn, hoàn 50% còn lại (Accepted with residual risk, Q8).
-  - [x] **Fail-Fast tại `joinRoom` (D14):** `registerMatch` và `lockBetting` sang Meta không nuốt lỗi; nếu Meta revert thì `joinRoom` revert để bảo đảm an toàn. Các lời gọi post-game (`updateEloOnSettle`, `resolvePrediction`, `cancelPrediction`) giữ `try/catch`.
-  - [x] **Hủy phòng sớm (`abortRoom` - A4):** Cho phép hủy phòng và hoàn tiền nếu quá thời gian chờ (sau 3 phút) mà ván cờ chưa bắt đầu.
-  - [x] **Phí giao thức 5% (D4 - Q6):** Thu 5% trên tổng pot khi có người thắng nộp vào `treasury` qua `withdrawProtocolFees()`; miễn phí 100% khi Hòa hoặc Refund.
-  - [x] Mẫu thiết kế rút tiền an toàn Pull-over-push (`withdraw`).
-- **Kết quả kiểm thử:** `76/76 tests pass` (`foundry forge test`), bao gồm Fuzz Testing biến số cược, thời gian, và các kịch bản kết quả hợp lệ.
+- **Các hạng mục hoàn thành và nâng cấp ở Lượt 3b:**
+  - [x] **Cột mốc `gameStartedAt` và try/catch `lockBetting` (Mục 3a):**
+    - Bổ sung `uint256 gameStartedAt` vào cuối struct `Room`.
+    - `signalGameStarted` gán `gameStartedAt = block.timestamp` nếu chưa gán (idempotent, không revert nếu gọi lại).
+    - Gọi `Meta.lockBetting` trong khối `try/catch` (bắn `MetaCallFailed` nếu lỗi), tách hoàn toàn khỏi luồng `joinRoom`.
+  - [x] **Mốc tính `refundOnTimeout` chính xác (Mục 3b):**
+    - Hạn hoàn tiền timeout tính theo `max(startedAt, gameStartedAt) + REFUND_TIMEOUT`. Nếu ván đấu bắt đầu muộn, đối thủ không thể rút trộm tiền cược khi đồng hồ cờ đang chạy.
+  - [x] **Timelock Cứu hộ Dự đoán 3 ngày `fallbackCancelPrediction` (Mục 3c):**
+    - Ghi nhận `metaFailedAt` khi `metaResolutionFailed` được bật.
+    - Cho phép gọi `fallbackCancelPrediction` sau `FALLBACK_DELAY = 3 days`; `retryResolvePrediction` có thể gọi ngay không cần chờ.
+  - [x] **Truyền `moveCount` sang Meta Layer (Mục 3d - Q20):**
+    - Truyền `moveCount` từ kết quả ký kép (hoặc `singleSignedMoveCount` từ claim đơn) sang `IAvaClashMeta.resolvePrediction`.
+  - [x] **Chặn vĩnh viễn `renounceOwnership` (Mục 3e):**
+    - Ghi đè hàm với revert `CannotRenounceOwnership()`.
+- **Kết quả kiểm thử:** `107/107 tests pass` (`foundry forge test`).
 
 ---
 
@@ -87,94 +85,68 @@ AvaClash Chess là nền tảng cờ vua Web3 1v1 PvP trên mạng Avalanche Fuj
 ### Phase 4: Web3 Meta Layer & Giám sát Chống gian lận (`AvaClashMeta.sol`)
 
 - **Mục tiêu:** Mở rộng trải nghiệm thi đấu Web3 mà không can thiệp vào luật cờ nguyên bản FIDE.
-- **Các hạng mục đã hoàn thành:**
-  - [x] Hợp đồng `AvaClashMeta.sol`:
-    - **On-Chain ELO:** Khởi đầu 1200 ELO, cập nhật tự động sau mỗi ván cược qua `updateEloOnSettle`. Tích hợp Anti-Win-Trading giảm 50% delta ELO sau mỗi trận lặp lại giữa cùng cặp đấu trong ngày.
-    - **No-Loss Tournament Vault:** Ký quỹ AVAX nhận Season Points thi đấu giải, bảo toàn 100% gốc.
-    - **Spectator Parimutuel Prediction Pool độc lập (B1, B4, B5):**
-      - 3 cửa cược rõ ràng: 1: Trắng thắng, 2: Đen thắng, 3: Hòa. Đã loại bỏ cửa "Under 40 moves" trên Fuji Testnet (Q5).
-      - **Cược Gross & Gộp phí khi Resolve:** Tiền cược lưu nguyên vẹn (gross). Khi resolve, phí 5% trên tổng pool được trích nộp vào `seasonPrizePool`, người thắng nhận `userBet * (totalPool - fee) / winningPool`. Khi pool bị hủy, hoàn trả 100% gross.
-      - **Hủy pool khi cửa thắng không có người cược:** Nếu pool của cửa thắng bằng 0 khi resolve, tự động coi là hủy (`cancelled = true`) để mọi người rút lại 100% tiền cược gốc.
-      - **Đường hoàn tiền độc lập sau 7 ngày (`MAX_UNRESOLVED`):** Nếu pool đã tạo quá 7 ngày mà chưa được resolve hoặc cancel, khán giả gọi `claimSpectatorRefund` độc lập mà không cần Escrow can thiệp.
-      - **Khóa cược trước ván đấu (B3 - Q4):** Tự động khóa khi phòng chuyển sang Active (`joinRoom`).
-      - **Chống tự cược (B2):** `registerMatch` ghi nhận địa chỉ 2 kỳ thủ và chặn họ đặt cược vào trận của chính mình.
-  - [x] Hook giám sát client `useFairPlayGuard.ts`: phát hiện rời màn hình quá 2 giây và gửi cảnh báo về hệ thống (chỉ cảnh báo theo Q10/D10, không trừ giờ, không forfeit).
-  - [x] Giao diện dự đoán khán giả trực tiếp `SpectatorPoolWidget.tsx`.
-- **Kết quả kiểm thử:** `18/18 tests pass` (`foundry forge test`).
+- **Các hạng mục hoàn thành và nâng cấp ở Lượt 3b:**
+  - [x] **Cửa sổ đặt cược linh hoạt `BET_WINDOW` (Q18 - D13):**
+    - `registerMatch` ghi nhận `joinedAt` (chỉ một lần) và revert `PlayerHasBets` nếu một trong hai kỳ thủ đã từng đặt cược ở bất kỳ cửa nào (thông qua mapping `hasBet[matchId][player]`).
+    - `betOnMatch` chặn cược khi `joinedAt != 0` và `block.timestamp > joinedAt + BET_WINDOW` (120 giây), hoặc khi trận đã khóa/đã settle/đã hủy.
+  - [x] **Chống dàn xếp tỉ số vi mô qua `moveCount` (Q20):**
+    - `resolvePrediction` nhận `uint16 moveCount`. Nếu `moveCount < MIN_MOVES_FOR_PREDICTION (20)` thì tự động hủy pool (`cancelled = true`), hoàn trả 100% gross cho khán giả, không thu phí giao thức.
+  - [x] **Hạn hoàn tiền độc lập neo theo `joinedAt`:**
+    - Cột mốc hoàn tiền độc lập sau 7 ngày: `anchor = joinedAt != 0 ? joinedAt : createdAt`; `timeout = anchor + MAX_UNRESOLVED`. Bảo vệ ván cờ đang diễn ra không bị khán giả hủy pool sớm.
+- **Kết quả kiểm thử:** `24/24 tests pass` (`foundry forge test`).
 
 ---
 
-### Phase 5: P2P Matchmaking Relay & Tích hợp Ví Web3 (Thực tế: ~80% Hoàn tất)
+### Phase 5: P2P Matchmaking Relay & Tích hợp Bảo mật (Thực tế: ~85% Hoàn tất)
 
-- **Tiến độ thực tế:** ~80% (Đã xây dựng kiến trúc, hoàn thành Anvil integration test, signalGameStarted Q16, ABI sinh từ artifact, Lưu/Ký lại kết quả, Invariant test; CHƯA Deploy Fuji, CHƯA Nối Ví Wagmi)
-- **Đặc biệt lưu ý:** **Trước lượt 3a, Relay không đọc được phòng thật trên chain** (chỉ dùng ABI viết tay thiếu sót và mock unit tests); **từ lượt 3a, Relay đã sinh ABI tự động từ forge artifact và sở hữu bộ test tích hợp toàn diện trên Anvil thật** với PublicClient và WalletClient thực thi transaction on-chain.
-- **Công việc đã hoàn thành ở Lượt 3a:**
-  - [x] **ABI tự động sinh & Kiểm thử Anvil thật (Mục 1):**
-    - Xóa bỏ hoàn toàn ABI viết tay trong RelayServer.
-    - Script `scripts/generate-abi.ts` trích xuất ABI từ `contracts/out/*/` thành TypeScript (`ChessEscrow.ts`, `AvaClashMeta.ts`), chạy tự động trước build/test relay (`pretest`, `prebuild`) và có unit test so khớp với artifact.
-    - Test tích hợp Anvil thật (`anvil-integration.test.ts`): kiểm tra gán màu đúng on-chain cả 2 chế độ `creatorIsWhite`, từ chối người chơi vào phòng Open, giới hạn ví ngoài chỉ được vào dạng spectator, từ chối ký phòng đã Settled, và thực hiện ký kép Player + Relay để settle thành công trên Anvil.
-  - [x] **Nâng cấp An ninh `ChessEscrow.sol` & Invariant Testing (Mục 2):**
-    - Thêm cờ `singleSignedEnabled` (mặc định `false`, Q15) và hàm `setSingleSignedEnabled(bool)` quản trị bởi Owner. Mặc định chặn `submitSingleSigned` với revert `SingleSignedDisabled()`.
-    - Sửa lỗi kẹt bond: Trong `submitResult`, nếu có `singleSignedBond > 0`, hoàn trả cho người nộp nếu đúng winner; nếu khác winner hoặc hòa thì chuyển cho đối thủ. Xóa sạch bond ở mọi nhánh kết thúc (`resolveChallenge`, `resolveDefaultChallenge`, `finalizeSingleSigned`).
-    - Viết Foundry Invariant Test (`ChessEscrowInvariant.t.sol`) với handler `ChessEscrowHandler.sol`, kiểm chứng bất biến bảo toàn khả năng thanh toán: `address(escrow).balance == totalPendingWithdrawals + protocolFees + totalActiveStakesAndBonds` qua 256 runs x 500 calls (128,000 calls) không vi phạm.
-    - Kiểm thử kịch bản đối xứng G1 (`test_G1_payoffComparison_symmetric_loserSubmitsSingleSigned`): chứng minh kẻ thua nộp claim trước thu lãi +0.01 AVAX khi Arbiter im lặng, làm cơ sở kinh tế vững chắc để mặc định tắt single-signed.
-    - Thay thế cơ chế Owner tự viết bằng OpenZeppelin `Ownable2Step`; bổ sung timelock 2 ngày và event `MetaContractChangeScheduled`/`MetaContractChangeExecuted` cho `setMetaContract`.
-  - [x] **Relay tự động gọi `signalGameStarted` on-chain (Mục 3 - Q16):**
-    - `RelayServer` tích hợp `walletClient` gọi `signalGameStarted(roomId)` ngay khi phòng chuyển sang "active" (cả 2 ghế đã có người), retry backoff trong 150s, chạy ngầm không chặn luồng ván cờ.
-    - Kiểm tra số dư AVAX của ví relay khi khởi động, cảnh báo nếu dưới ngưỡng cấu hình `RELAY_MIN_BALANCE`.
-    - Test Anvil: phòng đã vào ghế sẽ kích hoạt `gameStarted == true` on-chain, chặn đứng hành vi gian lận gọi `abortRoom` sau 3 phút.
-  - [x] **Lưu trữ & Cấp lại Chữ ký Kết quả (Mục 4):**
-    - Lưu mỗi ván cờ kết thúc vào thư mục `RESULTS_DIR` (`${roomId}.json`), tự động nạp lại khi khởi động, dọn dẹp sau 48 giờ.
-    - Bổ sung thông điệp client `request_result {roomId}`: chỉ người chơi đã xác thực trong phòng được yêu cầu; Relay kiểm tra phòng còn Active on-chain, lấy kết quả đã lưu, ký lại với deadline mới 30 phút và gửi proposal + signature riêng cho socket đó.
-    - Test Anvil: ván kết thúc, đóng socket, khởi động lại server mới, người thắng kết nối lại xin ký lại và settle thành công trên Anvil; từ chối ví ngoài và từ chối phòng đã Settled.
-  - [x] **Gia cố An ninh Vận hành Relay (Mục 5):**
-    - Chỉ tin header `x-forwarded-for` khi `TRUST_PROXY=true`, mặc định lấy `req.socket.remoteAddress`.
-    - Từ chối `result_signature` nếu phòng chưa có `result_proposal`.
-    - Tự động dọn dẹp phòng ở trạng thái "waiting" quá 10 phút và đóng socket liên quan.
-    - Lời gọi `routeMessage` luôn có `.catch` xử lý lỗi, bảo đảm không sập process khi xảy ra ngoại lệ.
-    - Chuẩn hóa số liệu giới hạn bảo mật khớp mã nguồn: 20 kết nối/IP, 25 tin/giây, 500 phòng đồng thời.
+- **Tiến độ thực tế:** ~85% (Relay đã tích hợp Anvil thật, ngăn chặn hồi sinh, lưu trữ ván chơi nguyên tử Q19, Invariant Ghost Counters 18 actions, Rate Limiting; CHƯA Deploy Fuji, CHƯA Nối Ví Wagmi)
+- **Công việc đã hoàn thành ở Lượt 3b:**
+  - [x] **Relay: Chống hồi sinh ván đã kết thúc (Mục 1):**
+    - Khóa cô lập kết quả: `${chainId}:${contractAddress.toLowerCase()}:${roomId}` kèm `whiteAddress` và `blackAddress`. Tự động bỏ qua tệp khác chain hoặc contract.
+    - `handleJoinRoom` từ chối tạo phòng mới nếu đã có kết quả lưu, gửi ServerMessage `game_finished` và chỉ cho phép `request_result` với người chơi trong phòng.
+    - `request_result` đối chiếu trắng/đen lưu với on-chain, từ chối ký khi phòng không còn Active.
+    - `handleGameOver` không ghi đè kết quả cũ và không ký ván thứ hai.
+    - `result_signature` chỉ chấp nhận chữ ký từ đúng trắng hoặc đen của phòng.
+  - [x] **Relay: Lưu trữ & Khôi phục ván đang chơi (Mục 2 - Q19):**
+    - Ghi trạng thái nguyên tử vào `active/<key>.json` (qua tệp tạm `.tmp` rồi rename) sau mỗi nước đi và khi bắt đầu ván.
+    - Khôi phục RelayRoom khi khởi động lại: replay moves qua `ChessGame`, thời gian relay tắt không bị trừ vào đồng hồ, và đồng hồ chỉ chạy tiếp khi cả 2 người chơi vào lại phòng.
+  - [x] **Kiểm thử Bất biến Độc lập & Ghost Counters (Mục 5):**
+    - Bổ sung 7 hành động handler mới (`challengeAction`, `resolveChallengeAction`, `resolveDefaultChallengeAction`, `signalGameStartedAction`, `submitResultRelay`, `pauseAction`, `unpauseAction`, `setSingleSignedEnabledAction`).
+    - Bảng Ghost Counters theo dõi 18 hành động thành công, khẳng định các nhánh bond đạt $\ge 110$ lần (vượt ngưỡng yêu cầu $\ge 100$).
+    - Kiểm tra bảo toàn thanh khoản độc lập: duyệt toàn bộ phòng, tự tính stake + bond dựa trên trạng thái phòng, cộng `pendingWithdrawals` và `protocolFees`, xác nhận khớp 100% với `address(escrow).balance`.
+  - [x] **Bộ đệm On-Chain Cache & Giới hạn Tần suất (Mục 6):**
+    - Cache `getRoom` 3 giây cho các luồng `join_room` và `request_result`; luồng `handleGameOver` luôn đọc trực tiếp on-chain.
+    - Giới hạn tần suất `join_room` theo IP (60 lần/phút). Đóng socket (mã 1008) nếu vi phạm rate limit liên tiếp 3 lần.
 - **Rủi ro tồn đọng & Việc chưa làm:**
-  - ⚠️ **D13:** Khóa cược khán giả theo cửa sổ ngắn (60-120s) và lưu `lockedAt` trong Meta thay vì khóa ngay tại `joinRoom`.
-  - ⚠️ **Chống thông đồng qua cửa Hòa (G6) & Tự cược:** Cần hoàn thiện cơ chế hủy thưởng nếu hai kỳ thủ thỏa thuận hòa vi mô để thao túng pool khán giả.
-  - ⚠️ **Sybil & ELO:** Hiện chỉ hạn chế theo cặp ví cố định, chưa có giải pháp chống tạo nhiều ví phụ cày điểm.
-  - ⚠️ **Q12:** Cơ chế chi trả Quỹ giải thưởng mùa giải (`seasonPrizePool`) vẫn đang mở (Open).
-  - ⚠️ **Nối ví Wagmi/RainbowKit trên Web:** Giao diện Web vẫn chạy ở chế độ cục bộ, chưa kết nối trực tiếp ví người dùng để gửi tx on-chain.
+  - ⚠️ **Nối ví Wagmi/RainbowKit trên Web Client:** Giao diện Web vẫn chạy ở chế độ mô phỏng cục bộ, chưa có module kết nối ví Web3 để người chơi thực hiện giao dịch `createRoom` và `joinRoom` trên trình duyệt.
+  - ⚠️ **Q12: Cơ chế chi trả Quỹ giải thưởng mùa giải (`seasonPrizePool`):** Chưa có hợp đồng phân phối thưởng cuối mùa (phân bổ theo Leaderboard ELO / Season Points).
+  - ⚠️ **Sybil Resistance cho ELO (G7):** Cơ chế chống cày ELO hiện tại chỉ phát hiện cùng cặp ví trong 24h, chưa có bảo vệ chống tạo nhiều ví phụ.
+  - ⚠️ **Chống Phishing chữ ký Join (Domain Binding):** Chữ ký Join Room EIP-712 hiện chưa gắn trực tiếp nguồn gốc origin/domain của client.
+  - ⚠️ **Kiểm toán Bảo mật Độc lập (Phase 6):** Cần audit bên thứ ba trước khi phát hành Mainnet.
 
 ---
 
-### Phase 6: Kiểm toán Bảo mật & Ra mắt Mainnet (Kế hoạch)
-
-- **Tiến độ hiện tại:** 0%
-- **Các cột mốc dự kiến:**
-  - [ ] Audit độc lập các Smart Contract (ChessEscrow và AvaClashMeta).
-  - [ ] Tích hợp ví Wagmi/Viem trên Web Client.
-  - [ ] Triển khai D13 (cửa sổ khóa cược khán giả và lockedAt).
-  - [ ] Deploy Avalanche Fuji Testnet bằng Keystore.
-  - [ ] Triển khai Avalanche C-Chain Mainnet & Khởi tranh Season 1.
-
----
-
-## 3. Tổng hợp Chỉ số Kiểm thử & Mã nguồn (Metrics Thật Lượt 3a)
+## 3. Tổng hợp Chỉ số Kiểm thử & Mã nguồn (Metrics Thật Lượt 3b)
 
 | Hạng mục kiểm thử                                            | Công cụ | Số lượng Test |          Kết quả          |
 | :----------------------------------------------------------- | :------ | :-----------: | :-----------------------: |
 | **Logic cờ vua, Mã hóa, EIP-712 v2, Replay, Schema, Cross-Spec**| Vitest |      95       |      ✅ 95/95 Passed      |
-| **WebSocket Relay Server (packages/relay unit + hardening)** | Vitest  |      16       |      ✅ 16/16 Passed      |
-| **Tích hợp Relay với Anvil thật (anvil-integration.test.ts)**| Vitest  |       8       |       ✅ 8/8 Passed       |
+| **WebSocket Relay Server (packages/relay unit + hardening)** | Vitest  |      19       |      ✅ 19/19 Passed      |
+| **Tích hợp Relay với Anvil thật (anvil-integration.test.ts)**| Vitest  |      12       |      ✅ 12/12 Passed      |
 | **Giao diện Client & Game State (web)**                      | Vitest  |      17       |      ✅ 17/17 Passed      |
-| **Hợp đồng ký quỹ cược (ChessEscrow unit, fuzz, cross-spec)** | Foundry |      91       |      ✅ 91/91 Passed      |
-| **Hợp đồng Meta Layer (AvaClashMeta unit tests)**            | Foundry |      18       |      ✅ 18/18 Passed      |
-| **Tích hợp Escrow ↔ Meta (ChessEscrowMetaIntegration)**       | Foundry |       3       |       ✅ 3/3 Passed       |
-| **Cô lập try/catch & Cứu hộ (ChessEscrowMetaTryCatch)**      | Foundry |       8       |       ✅ 8/8 Passed       |
-| **Bất biến bảo toàn thanh khoản (ChessEscrowInvariant)**      | Foundry |       1       | ✅ 1/1 Passed (128,000 calls)|
-| **TỔNG CỘNG TOÀN DỰ ÁN**                                    | —       |    **257**    | **257/257 Passed (100%)** |
+| **Hợp đồng ký quỹ cược (ChessEscrow unit, fuzz, cross-spec)** | Foundry |      94       |      ✅ 94/94 Passed      |
+| **Hợp đồng Meta Layer (AvaClashMeta unit tests)**            | Foundry |      24       |      ✅ 24/24 Passed      |
+| **Tích hợp Escrow ↔ Meta (ChessEscrowMetaIntegration)**       | Foundry |      10       |      ✅ 10/10 Passed      |
+| **Cô lập try/catch & Cứu hộ (ChessEscrowMetaTryCatch)**      | Foundry |       3       |       ✅ 3/3 Passed       |
+| **Bất biến bảo toàn thanh khoản & Ghost Counters**           | Foundry |       2       | ✅ 2/2 Passed (128,000 calls)|
+| **TỔNG CỘNG TOÀN DỰ ÁN**                                    | —       |    **276**    | **276/276 Passed (100%)** |
 
 ---
 
 ## 4. Kế hoạch Hành động Tiếp theo
 
-1. **Triển khai D13 (Spectator Betting Window):** Khóa cược theo cửa sổ thời gian (60-120 giây) kèm `lockedAt` trong `AvaClashMeta` để khán giả quan sát được kỳ thủ trước khi cược.
-2. **Tích hợp ví Wagmi/RainbowKit trên Web:** Kết nối luồng `createRoom(creatorIsWhite)` và `joinRoom` với ví Web3 của người dùng.
-3. **Thiết kế phân bổ Q12 (`seasonPrizePool`):** Lập đặc tả phân phối phần thưởng mùa giải cho người chơi đạt ELO và điểm Season cao.
-4. **Deploy Fuji Testnet bằng Keystore:** Khi hoàn thành giao diện Web và ví Wagmi, broadcast hợp đồng lên Fuji qua `Deploy.s.sol`.
+1. **Tích hợp ví Wagmi/RainbowKit trên Web:** Kết nối luồng `createRoom(creatorIsWhite)` và `joinRoom` với ví Web3 của người dùng.
+2. **Thiết kế phân bổ Q12 (`seasonPrizePool`):** Lập đặc tả phân phối phần thưởng mùa giải cho người chơi đạt ELO và điểm Season cao.
+3. **Sybil Resistance & Phishing Protection:** Gắn `origin` vào EIP-712 Join Signature và hoàn thiện cơ chế phân tích cặp đấu.
+4. **Kiểm toán Độc lập & Deploy Fuji Testnet bằng Keystore:** Khi hoàn thành giao diện Web và ví Wagmi, broadcast hợp đồng lên Fuji qua `Deploy.s.sol`.
 

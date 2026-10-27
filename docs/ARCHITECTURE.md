@@ -1,6 +1,6 @@
 # Tài liệu Thiết kế Kiến trúc Hệ thống — AvaClash Chess
 
-> **Phiên bản:** 1.3.0 (Phase 5 In Progress ~60%) | **Ngày cập nhật:** 25/10/2026  
+> **Phiên bản:** 1.4.0 (Phase 5 In Progress ~85%) | **Ngày cập nhật:** 27/10/2026 (Lượt 3b)  
 > **Mạng mục tiêu:** Avalanche Fuji Testnet / Avalanche C-Chain
 
 ---
@@ -140,27 +140,32 @@ sequenceDiagram
     PlayerA->>Escrow: createRoom{value: 0.1 AVAX}(creatorIsWhite) [Yêu cầu >= 0.01 AVAX MIN_STAKE, Q13, Q14]
     Escrow-->>PlayerA: Emits RoomCreated(roomId, 0.1 AVAX)
 
-    Note over Meta: Khán giả có thể cược vào Trắng / Đen / Hòa trước khi ván bắt đầu
+    Note over Meta: Khán giả cược Trắng / Đen / Hòa; Revert nếu PlayerA/PlayerB cược vào ván mình (Q18)
 
     PlayerB->>Escrow: joinRoom{value: 0.1 AVAX}(roomId) [Quan sát thấy màu đối ứng trước khi stake]
-    Escrow->>Meta: registerMatch(roomId, PlayerA, PlayerB) [Fail-Fast: Revert nếu Meta lỗi]
-    Escrow->>Meta: lockBetting(roomId) [Fail-Fast: Revert nếu Meta lỗi]
+    Escrow->>Meta: registerMatch(roomId, PlayerA, PlayerB) [Fail-Fast: Ghi joinedAt; revert PlayerHasBets nếu pA/pB đã cược]
     Escrow-->>PlayerB: Emits RoomJoined(roomId, PlayerB)
 
-    Note over PlayerA, PlayerB: Trận đấu bắt đầu (Room Status: Active)
-    Note over Relay: Phân bổ màu quân: Đọc trực tiếp từ on-chain room.creatorIsWhite (Q13 thay thế Q3)
+    Note over Meta: Cửa sổ cược mở 120s (BET_WINDOW) kể từ joinedAt hoặc tới khi có signalGameStarted (Q18)
+
+    Note over PlayerA, PlayerB: Hai kỳ thủ vào ghế qua WebSocket (RelayRoom chuyển sang Active)
+    Relay->>Escrow: signalGameStarted(roomId) [Ghi gameStartedAt = block.timestamp, khóa abortRoom]
+    Escrow->>Meta: try/catch lockBetting(roomId) [Khóa cược khán giả on-chain; emit MetaCallFailed khi lỗi]
 
     rect rgb(20, 25, 40)
         Note over PlayerA, Relay, PlayerB: Giai đoạn chơi cờ qua WebSocket (Off-Chain)
         loop Mỗi nước đi (FIDE 5+0 Blitz)
             PlayerA->>Relay: Gửi nước đi (UCI) [Xác thực ghế ký EIP-712 Join]
+            Note over Relay: Ghi tệp active/<khóa>.json nguyên tử sau mỗi nước (Q19)
             Relay->>PlayerB: Chuyển tiếp nước đi & đồng bộ đồng hồ
             PlayerB->>Relay: Gửi nước đi (UCI) [Xác thực ghế ký EIP-712 Join]
+            Note over Relay: Ghi tệp active/<khóa>.json nguyên tử sau mỗi nước (Q19)
             Relay->>PlayerA: Chuyển tiếp nước đi & đồng bộ đồng hồ
         end
     end
 
     Note over PlayerA, PlayerB: Trận đấu kết thúc (Chiếu hết / Hết giờ / Đầu hàng / Hòa)
+    Note over Relay: Xóa tệp active, lưu kết quả vĩnh viễn dạng chain:contract:roomId (Q17, Q19)
 
     alt Nhánh 1: Thắng ván với Chữ ký 2-trong-3 (Player A + Player B HOẶC Winner + Relay)
         PlayerA->>Escrow: submitResult(roomId, winner, outcome, reason, moveCount, movesHash, nonce, deadline, sig1, sig2)
@@ -168,36 +173,40 @@ sequenceDiagram
         Escrow->>Escrow: Khấu trừ 5% phí giao thức tích lũy vào protocolFees (Rút về treasury qua withdrawProtocolFees theo Q6)
         Escrow-->>PlayerA: Ghi có 95% tổng pot vào số dư rút tiền (pendingWithdrawals)
         Escrow->>Meta: try/catch updateEloOnSettle(winner, loser)
-        Escrow->>Meta: try/catch resolvePrediction(roomId, outcome + 1)
+        Escrow->>Meta: try/catch resolvePrediction(roomId, outcome + 1, moveCount)
+        Note over Meta: Nếu moveCount < 20 (MIN_MOVES_FOR_PREDICTION), hủy pool hoàn 100% gross không phí (Q20)
     else Nhánh 2: Kết quả Hòa (Outcome = Draw)
-        PlayerA->>Escrow: submitResult(..., outcome=Draw, winner=address(0), ...)
+        PlayerA->>Escrow: submitResult(..., outcome=Draw, winner=address(0), moveCount, ...)
         Escrow->>Escrow: Miễn 100% phí giao thức
         Escrow-->>PlayerA: Hoàn trả 100% tiền cược (0.1 AVAX)
         Escrow-->>PlayerB: Hoàn trả 100% tiền cược (0.1 AVAX)
-        Escrow->>Meta: try/catch resolvePrediction(roomId, 3) [Cửa Hòa thắng]
-    else Nhánh 3: Bên thua bất hợp tác & Relay offline (Optimistic Single-Signed + Bond Q11)
-        PlayerA->>Escrow: submitSingleSigned{value: 0.02 AVAX}(roomId, winner, ..., sigA) [Bond người nộp = 20% stake, tối thiểu 0.01 AVAX theo Q11]
-        Note over Escrow: Kích hoạt Challenge Window (10 phút); Chỉ chấp nhận claim đầu tiên (singleSignedAt == 0), claim sau revert; Nonce cô lập theo [roomId][msg.sender][nonce]
+        Escrow->>Meta: try/catch resolvePrediction(roomId, 3, moveCount) [Cửa Hòa thắng nếu moveCount >= 20]
+    else Nhánh 3: Bên thua bất hợp tác & Relay offline (Optimistic Single-Signed + Bond Q11, Q20)
+        PlayerA->>Escrow: submitSingleSigned{value: 0.02 AVAX}(roomId, winner, ..., moveCount, sigA) [Lưu singleSignedMoveCount trong Room]
+        Note over Escrow: Kích hoạt Challenge Window (10 phút); Chỉ chấp nhận claim đầu tiên (singleSignedAt == 0)
         alt Hết 10 phút không ai khiếu nại
             PlayerA->>Escrow: finalizeSingleSigned(roomId)
             Escrow-->>PlayerA: Giải ngân tiền thưởng (sau 5% phí) + Hoàn 100% bond người nộp (0.02 AVAX)
+            Escrow->>Meta: try/catch resolvePrediction(roomId, outcome + 1, singleSignedMoveCount)
         else Bên B nộp khiếu nại (Challenge có Bond đối ứng)
             PlayerB->>Escrow: challenge{value: 0.02 AVAX}(roomId, ...) [Bond challenger = 20% stake]
             Note over Escrow: Chuyển sang trạng thái Challenged
             alt Arbiter phán quyết trong 24h
                 Relay->>Escrow: resolveChallenge(roomId, validWinner)
-                Note over Escrow: Bên thắng nhận pot; Bên đúng nhận bond của mình + toàn bộ bond của bên sai (Q11)
+                Note over Escrow: Bên thắng nhận pot; Bên đúng nhận bond mình + toàn bộ bond bên sai (Q11)
+                Escrow->>Meta: try/catch resolvePrediction(roomId, outcome + 1, singleSignedMoveCount)
             else Arbiter quá hạn 24h không phán quyết (Q8)
                 PlayerA->>Escrow: resolveDefaultChallenge(roomId)
                 Escrow-->>PlayerA: Hoàn 100% cược + Hoàn 100% bond người nộp + 50% bond bên B (bồi thường)
                 Escrow-->>PlayerB: Hoàn 100% cược + hoàn 50% bond bên B
+                Escrow->>Meta: try/catch cancelPrediction(roomId) [Khán giả rút lại 100% cược]
             end
         end
-    else Nhánh 4: Hủy phòng sớm hoặc Bỏ dở (Chặn khi có singleSigned)
-        alt Hủy sớm sau 3 phút nếu chưa bắt đầu nước nào (revert nếu singleSignedAt != 0)
+    else Nhánh 4: Hủy phòng sớm hoặc Hết giờ (Neo startedAt / gameStartedAt theo Q20)
+        alt Hủy sớm sau 3 phút nếu chưa bắt đầu nước nào (chặn khi gameStarted hoặc singleSignedAt != 0)
             PlayerA->>Escrow: abortRoom(roomId)
             Escrow-->>PlayerA: Hoàn trả 100% tiền cược cho 2 bên
-        else Treo ván cờ quá 60 phút (revert nếu singleSignedAt != 0)
+        else Treo ván cờ quá hạn timeout: max(startedAt, gameStartedAt) + 60 phút (Q20)
             PlayerA->>Escrow: refundOnTimeout(roomId)
             Escrow-->>PlayerA: Hoàn trả 100% tiền cược cho 2 bên
         end
@@ -338,13 +347,16 @@ stateDiagram-v2
 | **Bên thua cố tình ngắt kết nối (Rage Quit)**       | Cơ chế chữ ký 2-trong-3 (Người thắng + Relay) giải ngân ngay; đường dự phòng 1 chữ ký kèm Challenge Window 10 phút.                    |
 | **Khiếu nại bừa bãi (Challenge Spam) & Submitter Bond (Q11)** | Yêu cầu nộp **Bond = 20% tiền cược** (tối thiểu 0.01 AVAX) cho CẢ bên nộp đơn (`submitSingleSigned`) và bên khiếu nại (`challenge`). Nếu không challenge, hoàn 100% bond cho người nộp. Khi bị challenge: bên đúng nhận bond mình + bond bên sai; nhánh mặc định 24h: hoàn 100% bond người nộp, chia 50/50 bond challenger. |
 | **Trọng tài Arbiter lười hoặc offline (Q8)**        | Cơ chế phán quyết mặc định (`resolveDefaultChallenge` sau 24h) hoàn trả 100% tiền cược cho 2 bên; phạt 50% bond của bên khiếu nại chuyển cho bên nộp đơn đền bù thời gian chờ, 50% bond còn lại hoàn cho bên khiếu nại (Accepted with residual risk, Q8). |
-| **Phân quyền và bảo vệ khóa vận hành (G5/D11)**    | Constructor `ChessEscrow` tách riêng `arbiter != relaySigner != address(0)`. Script `Deploy.s.sol` bắt buộc 3 biến môi trường địa chỉ phân biệt (`RELAY_SIGNER_ADDRESS`, `ARBITER_ADDRESS`, `TREASURY_ADDRESS`), không mặc định về deployer; hỗ trợ triển khai bằng Foundry Keystore (`--account`) tránh lộ private key trần. Cả relaySigner và arbiter đều đổi qua timelock 2 ngày; tích hợp OpenZeppelin `Pausable` chỉ chặn tạo/vào phòng mới, không kẹt tiền rút/hoàn. |
-| **Lỗi từ Meta Layer làm nghẽn hoặc kẹt tiền Escrow (D14)** | **Fail-Fast tại `joinRoom`:** `registerMatch` và `lockBetting` không được nuốt lỗi; nếu Meta revert thì `joinRoom` revert (khi `metaContract != address(0)`), ngăn chặn phòng mở khi chưa sẵn sàng. **Cô lập tại các hàm hậu kỳ:** Settle, abort, refund bọc `try/catch`, phát event `MetaCallFailed`. Escrow hỗ trợ `retryResolvePrediction` và `fallbackCancelPrediction` để khán giả luôn bảo toàn 100% vốn. |
-| **Rủi ro kẹt quỹ và thao túng Spectator Pool**      | Lưu tiền cược gross (100%). Phí 5% chỉ trích từ tổng pool nộp `seasonPrizePool` khi resolve. Nếu pool của cửa thắng bằng 0 khi resolve, tự động coi là hủy (`cancelled = true`) để hoàn trả 100% gross cho người tham gia. Nếu pool bị treo quá 7 ngày (`MAX_UNRESOLVED`), khán giả có quyền gọi trực tiếp `claimSpectatorRefund` rút tiền mà không phụ thuộc vào Escrow. |
+| **Phân quyền và bảo vệ khóa vận hành (G5/D11)**    | Constructor `ChessEscrow` tách riêng `arbiter != relaySigner != address(0)`. Script `Deploy.s.sol` bắt buộc 3 biến môi trường địa chỉ phân biệt (`RELAY_SIGNER_ADDRESS`, `ARBITER_ADDRESS`, `TREASURY_ADDRESS`), không mặc định về deployer; hỗ trợ triển khai bằng Foundry Keystore (`--account`) tránh lộ private key trần. Cả relaySigner và arbiter đều đổi qua timelock 2 ngày; tích hợp OpenZeppelin `Pausable` chỉ chặn tạo/vào phòng mới, không kẹt tiền rút/hoàn. Chặn hoàn toàn `renounceOwnership` (override revert). |
+| **Lỗi từ Meta Layer làm nghẽn hoặc kẹt tiền Escrow (D14, Q20)** | **Fail-Fast tại `joinRoom`:** `registerMatch` không được nuốt lỗi; nếu Meta revert thì `joinRoom` revert (khi `metaContract != address(0)`). **Cô lập tại các hàm hậu kỳ:** Settle, abort, refund bọc `try/catch`, phát event `MetaCallFailed`. Escrow hỗ trợ `retryResolvePrediction` ngay lập tức và `fallbackCancelPrediction` sau timelock 3 ngày (`FALLBACK_DELAY`) tính từ `metaFailedAt` để khán giả luôn bảo toàn 100% vốn. |
+| **Rủi ro kẹt quỹ và thao túng Spectator Pool (Q18, Q20)** | Lưu tiền cược gross (100%). Cửa sổ cược 120s (`BET_WINDOW`) kể từ `joinedAt` hoặc tới khi `signalGameStarted`. Phí 5% chỉ trích từ tổng pool nộp `seasonPrizePool` khi resolve. Nếu ván < 20 nước (`MIN_MOVES_FOR_PREDICTION`) hoặc pool cửa thắng bằng 0, tự động coi là hủy (`cancelled = true`) để hoàn trả 100% gross không phí. Nếu pool bị treo quá 7 ngày kể từ `joinedAt`/`createdAt` (`MAX_UNRESOLVED`), khán giả có quyền gọi trực tiếp `claimSpectatorRefund` rút tiền mà không phụ thuộc vào Escrow. |
 | **Spam tạo phòng cược vi mô & cày điểm ELO ảo (Q14, D12)** | Bắt buộc `MIN_STAKE = 0.01 ether` tại `createRoom` (revert `StakeTooLow`). ELO và Season Points chỉ tính cho các ván đấu đạt chuẩn cược $\ge 0.01$ AVAX, triệt tiêu động cơ tạo hàng loạt phòng 0 đồng để spam cày xếp hạng. |
-| **Khán giả cược muộn bằng engine AI**               | Tự động khóa cược trước khi ván cờ bắt đầu ngay tại thời điểm gọi `joinRoom`.                                                         |
-| **Hai kỳ thủ bắt tay gian lận cược khán giả**       | Chặn 2 kỳ thủ cược vào ván của mình (`registerMatch`); loại bỏ cửa cược "Under 40 moves" trên Fuji Testnet.                             |
-| **Treo ván cờ hoặc hủy phòng khi đang thua**       | `abortRoom` và `refundOnTimeout` bị chặn hoàn toàn nếu phòng đã có claim (`singleSignedAt != 0`). Lưu ý: `abortRoom` vẫn bị khai thác được khi chưa có lệnh gọi `signalGameStarted` on-chain; cần thiết kế cơ chế GameStart trước khi deploy. |
+| **Khán giả cược muộn bằng engine AI (Q18)**          | Khóa cược tự động khi Relay gọi `signalGameStarted` lúc hai bên vào ghế, hoặc tự động hết hạn sau 120 giây (`BET_WINDOW`) tính từ lúc đối thủ `joinRoom` (`joinedAt != 0`). |
+| **Kỳ thủ cược trước khi vào phòng (Q18)**           | `AvaClashMeta.registerMatch` kiểm tra mapping `hasBet[matchId][player]`, lập tức revert `PlayerHasBets` nếu một trong hai kỳ thủ đã tham gia cược ở bất kỳ cửa nào của phòng đó. |
+| **Dàn xếp kết thúc ván cực nhanh để ăn cược (Q20)** | Yêu cầu `moveCount >= 20` mới cho phép chia thưởng cược khán giả; ván kết thúc dưới 20 nước tự động hủy pool hoàn gross 100% không thu phí. |
+| **Treo ván cờ hoặc hủy phòng khi đang thua (Q16, Q20)** | `signalGameStarted` ghi nhận `gameStartedAt`, khóa ngay `abortRoom`. Hạn `refundOnTimeout` được neo vào mốc `max(startedAt, gameStartedAt) + 60 phút`, ngăn chặn hoàn tiền non nếu ván cờ bắt đầu muộn. |
+| **Tấn công hồi sinh ván cờ đã kết thúc (Q17)**      | Khóa lưu kết quả vĩnh viễn theo `${chainId}:${contract}:${roomId}` kèm địa chỉ trắng/đen. Từ chối tạo phòng mới khi đã có kết quả; chỉ cho phép người chơi trong phòng gửi `request_result`. Chỉ nhận `result_signature` từ người chơi trong phòng. |
+| **Mất thế cờ khi Relay daemon khởi động lại (Q19)** | Ghi trạng thái `active/<khóa>.json` nguyên tử sau mỗi nước đi. Khởi động lại: phát lại moves qua ChessGame, khôi phục đồng hồ không phạt thời gian relay tắt, đồng hồ chỉ chạy tiếp khi cả 2 kỳ thủ có mặt. |
 | **Thất thoát hoặc nhầm lẫn phí giao thức (Q6)**    | Phí 5% được tích lũy độc lập on-chain tại `protocolFees` (chỉ thu khi ván có người thắng; Hòa và Refund miễn phí). Rút về ví quản trị `treasury` thông qua `withdrawProtocolFees()` bởi Owner. |
 | **Nghẽn mạng do đẩy tiền trực tiếp (Push pattern)** | Áp dụng mẫu **Pull-over-Push**: tiền thưởng được ghi có vào số dư chờ rút (`pendingWithdrawals`), người chơi tự thực hiện lệnh rút (`withdraw`). |
 | **Gian lận chuyển tab tra cứu AI (Q10, D10)**       | Client hook `useFairPlayGuard` phát hiện rời màn hình quá 2s và gửi cảnh báo; Relay broadcast cảnh báo cho đối thủ và khán giả thấy. Tuyệt đối chỉ cảnh báo trực quan, không can thiệp đồng hồ FIDE và không xử thua kỹ thuật (Q10/D10). |

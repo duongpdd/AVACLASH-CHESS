@@ -1,7 +1,7 @@
 # Quyết định thiết kế — AvaClash Chess
 
-> **Cập nhật:** 26/10/2026 (Lượt 3a)
-> **Quy ước mã:** `D1-D14` và `Q1-Q16` là mã quyết định trong file này. Mã hạng mục `A1-G12` thuộc `IMPROVEMENT_PLAN.md` và là hệ mã khác (ví dụ `D4` ở đây là tooling monorepo, còn `D4` trong kế hoạch cũ là phí giao thức; phí giao thức nay là **Q6**).
+> **Cập nhật:** 27/10/2026 (Lượt 3b)
+> **Quy ước mã:** `D1-D14` và `Q1-Q20` là mã quyết định trong file này. Mã hạng mục `A1-G12` thuộc `IMPROVEMENT_PLAN.md` và là hệ mã khác (ví dụ `D4` ở đây là tooling monorepo, còn `D4` trong kế hoạch cũ là phí giao thức; phí giao thức nay là **Q6**).
 > **Trạng thái:** `Accepted` = đang áp dụng | `Superseded` = đã bị thay thế | `Proposed` = đề xuất, chờ chốt | `Open` = còn mâu thuẫn cần xử lý.
 > **Lưu ý:** trạng thái `Accepted` dựa trên `PROGRESS.md`/`ARCHITECTURE.md`, chưa đối chiếu với code.
 
@@ -62,10 +62,9 @@
 - ~~**Quyết định:** Seed do Relay ký, ít vòng tương tác hơn.~~
 - **Thay thế bởi Q13:** Người tạo phòng chọn màu qua `creatorIsWhite` trong `createRoom`, lưu on-chain. Relay không quyết định màu mà đọc trực tiếp từ chain.
 
-### Q4: Thời điểm khóa cược Spectator — `Accepted`, đề xuất sửa bởi D13
-- **Quyết định hiện tại:** Khóa khi `joinRoom`.
-- **Lý do:** An toàn nhất chống gian lận bằng engine phân tích thế cờ.
-- **Vấn đề đã biết:** khán giả cược khi chưa biết đối thủ và màu; `registerMatch` chạy cùng lúc nên không chặn được cược của người chơi trước `joinRoom`. Xem D13.
+### Q4: Thời điểm khóa cược Spectator — `Superseded` bởi Q18
+- ~~**Quyết định ban đầu:** Khóa khi `joinRoom`.~~
+- **Thay thế bởi Q18:** Khóa khi `signalGameStarted` hoặc sau cửa sổ cược 120 giây (`BET_WINDOW`) tính từ khi `joinRoom` (`joinedAt != 0`), cho phép khán giả cược khi đã biết danh tính, màu quân và ELO của 2 kỳ thủ.
 
 ### Q5: Cửa "Under 40 moves" — `Accepted`
 - **Quyết định:** Bỏ hẳn ở bản Fuji Testnet, xem lại sau mainnet.
@@ -140,6 +139,41 @@
 - **Kiểm tra số dư khi khởi động:** Relay kiểm tra số dư ví AVAX của relay account khi khởi động, ghi cảnh báo rõ ràng nếu số dư thấp hơn ngưỡng cấu hình `RELAY_MIN_BALANCE` (mặc định 0.1 AVAX).
 - **Tác dụng:** Trên hợp đồng, cờ `room.gameStarted` chuyển thành `true`. Kỳ thủ không thể lợi dụng hàm `abortRoom` sau 3 phút để thoát ván cờ đang thua. Nếu Relay tắt tính năng này (`SIGNAL_GAME_STARTED_ENABLED=false`), `abortRoom` vẫn hoạt động sau 3 phút như cũ.
 
+### Q17: Chống hồi sinh ván đã kết thúc và cách ly kết quả (Turn 3b Item 1) — `Accepted`
+- **Quyết định:**
+  - Khóa lưu kết quả ván đấu được định danh tuyệt đối theo bộ 3: `${chainId}:${contractAddress.toLowerCase()}:${roomId}` (áp dụng cho cả bộ nhớ RAM và tên file lưu trữ trên đĩa).
+  - Bản ghi kết quả lưu thêm `whiteAddress` và `blackAddress`. Khi nạp file kết quả từ đĩa, Relay bỏ qua toàn bộ file không trùng `chainId` hoặc `contractAddress`.
+  - Trong `handleJoinRoom`: Sau khi xác thực chữ ký EIP-712 Join và kiểm tra phòng on-chain, nếu phòng đã có kết quả lưu trữ trong `savedResults` và trong RAM chưa có `RelayRoom` đang active thì KHÔNG tạo phòng mới; Relay gửi `ServerMessage` dạng `game_finished` và chỉ cho phép người chơi trong phòng gửi `request_result`. Chỉ chấp nhận yêu cầu khi địa chỉ ví khớp với Trắng hoặc Đen của phòng.
+  - Trong `request_result`: Đối chiếu địa chỉ Trắng/Đen đã lưu với `getRoom` và `creatorIsWhite` on-chain hiện tại; nếu không khớp thì từ chối và ghi log cảnh báo. Tuyệt đối không bao giờ ký lại kết quả khi phòng không còn ở trạng thái Active (status == 1).
+  - Trong `handleGameOver`: Nếu phòng đã có kết quả lưu trữ thì không ghi đè và từ chối ký ván thứ hai.
+  - Trong `result_signature`: Chỉ chấp nhận khi địa chỉ signer (ecrecover) trùng với người chơi Trắng hoặc Đen của phòng.
+- **Tác dụng:** Triệt tiêu hoàn toàn kịch bản tấn công hồi sinh ván đấu (kẻ thua chờ sẵn, người thắng join sau 10 phút hoặc sau khi Relay khởi động lại), bảo vệ kết quả của người thắng luôn settle được trên blockchain.
+
+### Q18: Cửa sổ cược Spectator 120s, chống tự cược bằng mapping `hasBet`, và neo hạn hoàn tiền vào `joinedAt` (Turn 3b Item 4) — `Accepted` (Thay thế Q4, chuẩn hóa D13)
+- **Quyết định:**
+  - `registerMatch(matchId, pA, pB)` trong `AvaClashMeta.sol` ghi nhận mốc `joinedAt = block.timestamp` (chỉ ghi một lần đầu tiên) và lập tức revert `PlayerHasBets` nếu một trong hai kỳ thủ `pA` hoặc `pB` đã tham gia cược ở bất kỳ cửa nào (thông qua mapping `hasBet[matchId][player]`).
+  - Trong `ChessEscrow.sol`, `joinRoom` KHÔNG còn gọi `lockBetting`, giữ nguyên gọi `registerMatch` fail-fast.
+  - `betOnMatch` chặn cược khi `joinedAt != 0` và `block.timestamp > joinedAt + BET_WINDOW` (`BET_WINDOW = 120 seconds`), hoặc khi trận đấu đã bị khóa / đã resolve / đã hủy. Vẫn giữ quy tắc chặn kỳ thủ cược vào ván của chính mình.
+  - `lockBetting` được gọi từ `signalGameStarted(roomId)` khi trận đấu thực sự bắt đầu trên bàn cờ.
+  - Hạn hoàn tiền cược độc lập sau 7 ngày: Mốc tính hạn được neo vào `joinedAt` nếu phòng đã có người vào (`joinedAt != 0`), ngược lại neo vào `createdAt`. Mốc quá hạn = `mốc + MAX_UNRESOLVED` (7 ngày). Ván cờ đang chơi không thể bị hủy bởi hạn hoàn tiền này trong 7 ngày đầu kể từ lúc vào phòng; phòng Open có cược quá 7 ngày vẫn hoàn được.
+- **Tác dụng:** Cửa sổ cược 120 giây giúp thị trường cược khán giả sôi động và có ý nghĩa khi đã biết đối thủ và màu quân nhưng chưa có nước đi để chạy engine cờ vua; chặn đứng hoàn toàn việc kỳ thủ cược trước khi vào phòng.
+
+### Q19: Lưu trạng thái ván cờ đang chơi nguyên tử và phục hồi đồng hồ (Turn 3b Item 2) — `Accepted`
+- **Quyết định:**
+  - Sau mỗi nước đi hợp lệ được chấp nhận và khi bắt đầu ván đấu: Relay ghi tệp trạng thái `active/<chainId>_<contract>_<roomId>.json` gồm các trường `moves`, `whiteMs`, `blackMs`, `activeTurn`, `whiteAddress`, `blackAddress`, `status`, `savedAt`.
+  - Ghi nguyên tử bằng cách ghi vào tệp tạm `.tmp` rồi rename sang tệp chính thức. Tệp active bị xóa khi ván kết thúc (kết quả chuyển sang lưu trữ vĩnh viễn ở thư mục kết quả).
+  - Khi có kỳ thủ join phòng chưa có trong bộ nhớ nhưng tồn tại tệp active trên đĩa: Relay dựng lại `RelayRoom` bằng cách phát lại toàn bộ `moves` qua engine `ChessGame`, khôi phục đồng hồ với thời gian Relay tắt KHÔNG bị trừ (không phạt người chơi do sự cố server), và đồng hồ chỉ chạy tiếp khi cả hai kỳ thủ đều có mặt trên ghế.
+  - Relay không gọi lại `signalGameStarted` nếu on-chain đã ghi nhận `gameStarted == true`.
+
+### Q20: MoveCount cho giải quyết cược khán giả, neo hạn timeout, timelock fallback, và chặn `renounceOwnership` (Turn 3b Item 3) — `Accepted`
+- **Quyết định:**
+  - Bổ sung tham số `moveCount` (`uint16`) cho hàm `IAvaClashMeta.resolvePrediction`. Trong `ChessEscrow.submitResult`, truyền `moveCount` đã ký trong chứng chỉ EIP-712. Với các đường phân xử khác (`finalizeSingleSigned`, `resolveChallenge`), sử dụng `moveCount` của claim đơn lẻ (được lưu tại `singleSignedMoveCount` trong struct `Room`).
+  - Trong `AvaClashMeta.resolvePrediction`: Nếu `moveCount < MIN_MOVES_FOR_PREDICTION` (20 nước/half-moves), ván đấu bị coi là kết thúc quá ngắn/dàn xếp; toàn bộ pool dự đoán tự động chuyển sang trạng thái hủy (`cancelled = true`), hoàn trả 100% gross cho khán giả và không thu 5% phí.
+  - Trong `ChessEscrow.sol`: Bổ sung `gameStartedAt` (`uint256`) vào cuối struct `Room`. Khi `signalGameStarted` được gọi, ghi `gameStartedAt = block.timestamp` nếu chưa đặt (lời gọi lặp lại là no-op không revert) và gọi `Meta.lockBetting` trong `try/catch` (phát event `MetaCallFailed` khi lỗi).
+  - Neo hạn `refundOnTimeout`: Mốc tính timeout = `max(startedAt, gameStartedAt) + REFUND_TIMEOUT`. Ván cờ bắt đầu muộn (ví dụ `gameStartedAt = startedAt + 55 phút`) không thể bị rút cược ở phút 60 sau join, chỉ được refund sau `gameStartedAt + 60 phút`.
+  - `fallbackCancelPrediction`: Ghi nhận mốc `metaFailedAt` khi `metaResolutionFailed` được kích hoạt; chỉ cho phép gọi sau thời gian chờ `FALLBACK_DELAY = 3 days`, trong khi `retryResolvePrediction` vẫn được quyền gọi ngay lập tức.
+  - Chặn hoàn toàn hàm `renounceOwnership` bằng cách override revert lỗi `CannotRenounceOwnership()`.
+
 ---
 
 ### D7: Struct Result mở rộng — `Accepted` (thay thế D3)
@@ -180,11 +214,8 @@
 - **Ràng buộc cược tối thiểu (MIN_STAKE):** Chỉ tính ELO và Season Points cho các ván đấu có mức cược $\ge 0.01$ AVAX (`MIN_STAKE = 0.01 ether`). Điều kiện này được bảo đảm trực tiếp và triệt để bởi `ChessEscrow.createRoom` (revert `StakeTooLow` nếu stake < MIN_STAKE), triệt tiêu hành vi tạo phòng cược 0 đồng hoặc cược vi mô để cày điểm.
 - Hạn chế: chỉ chặn được cặp ví cố định, chưa chống Sybil nhiều ví; mức thay đổi cố định, chưa phụ thuộc chênh lệch ELO; Season Points chưa có giảm dần. Xem kế hoạch G7.
 
-### D13: Khóa cược Spectator theo cửa sổ ngắn — `Proposed` (đề xuất sửa Q4)
-- Gọi `registerMatch` ngay tại `joinRoom`; khóa cược sau một cửa sổ ngắn (đề xuất 60-120 giây hoặc khi `confirmStart`), khi khán giả đã biết đối thủ, màu quân và ELO nhưng chưa có thế cờ để chạy engine.
-- Khi `claim`, cược của địa chỉ trùng với hai người chơi bị vô hiệu và hoàn tiền.
-- Cân nhắc trần tổng cược khán giả theo tiền cược của hai người chơi.
-- **Đánh đổi:** cửa sổ ngắn vẫn có khe hở rất nhỏ; đổi lại thị trường có ý nghĩa hơn và chặn được tự cược.
+### D13: Khóa cược Spectator theo cửa sổ ngắn — `Accepted` (theo Q18)
+- Đã được chuẩn hóa và thực thi hoàn chỉnh trong mã nguồn theo quyết định **Q18** (cửa sổ 120 giây `BET_WINDOW`, `joinedAt`, kiểm tra `hasBet`, và khóa khi `signalGameStarted`).
 
 ### D14: Thanh toán Escrow và Meta — Đề xuất, đã triển khai
 - **Mục tiêu:** Phân định rõ ràng trách nhiệm giữa việc xác lập điều kiện thi đấu và quá trình thanh toán sau trận.
