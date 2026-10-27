@@ -585,4 +585,215 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     expect(serverTrusted.trustProxy).toBe(true);
     await serverTrusted.close();
   });
+
+  it("Item 6: caches getRoom for 3s on join and request_result, but handleGameOver reads fresh", async () => {
+    let getRoomCallCount = 0;
+    const trackingPublicClient = {
+      readContract: async ({ functionName, args }: any) => {
+        if (functionName === "getRoom") {
+          getRoomCallCount++;
+          const roomId = args[0] as bigint;
+          const room = mockRooms.get(roomId);
+          if (!room) throw new Error("Room not found on-chain");
+          return room;
+        }
+        return mockPublicClient.readContract({ functionName, args });
+      },
+    };
+
+    const portCached = TEST_PORT + 83;
+    const cachedServer = new RelayServer({
+      port: portCached,
+      relayPrivateKey: RELAY_KEY,
+      contractAddress: CONTRACT,
+      rpcUrl: "http://127.0.0.1:8545",
+      publicClient: trackingPublicClient,
+    });
+
+    try {
+      registerMockRoom(801, accountAlice.address, accountBob.address, true);
+
+      const clientAlice = await new Promise<TestClient>((res) => {
+        const ws = new WebSocket(`ws://localhost:${portCached}`);
+        const messages: any[] = [];
+        const waiters: Array<{ predicate: (msg: any) => boolean; resolve: (val: any) => void }> = [];
+        ws.on("message", (raw) => {
+          try {
+            const parsed = JSON.parse(raw.toString());
+            messages.push(parsed);
+            for (let i = 0; i < waiters.length; i++) {
+              if (waiters[i].predicate(parsed)) {
+                const [w] = waiters.splice(i, 1);
+                w.resolve(parsed);
+                break;
+              }
+            }
+          } catch {}
+        });
+        ws.on("open", () =>
+          res({
+            ws,
+            send: (m) => ws.send(JSON.stringify(m)),
+            close: () => ws.close(),
+            waitFor: (p) => {
+              const idx = messages.findIndex(p);
+              if (idx !== -1) return Promise.resolve(messages.splice(idx, 1)[0]);
+              return new Promise((r) => waiters.push({ predicate: p, resolve: r }));
+            },
+          })
+        );
+      });
+
+      const clientBob = await new Promise<TestClient>((res) => {
+        const ws = new WebSocket(`ws://localhost:${portCached}`);
+        const messages: any[] = [];
+        const waiters: Array<{ predicate: (msg: any) => boolean; resolve: (val: any) => void }> = [];
+        ws.on("message", (raw) => {
+          try {
+            const parsed = JSON.parse(raw.toString());
+            messages.push(parsed);
+            for (let i = 0; i < waiters.length; i++) {
+              if (waiters[i].predicate(parsed)) {
+                const [w] = waiters.splice(i, 1);
+                w.resolve(parsed);
+                break;
+              }
+            }
+          } catch {}
+        });
+        ws.on("open", () =>
+          res({
+            ws,
+            send: (m) => ws.send(JSON.stringify(m)),
+            close: () => ws.close(),
+            waitFor: (p) => {
+              const idx = messages.findIndex(p);
+              if (idx !== -1) return Promise.resolve(messages.splice(idx, 1)[0]);
+              return new Promise((r) => waiters.push({ predicate: p, resolve: r }));
+            },
+          })
+        );
+      });
+
+      // Alice joins -> calls readContract (count = 1)
+      await authenticateAndJoin(clientAlice, accountAlice, 801);
+      await clientAlice.waitFor((m) => m.type === "room_state");
+      expect(getRoomCallCount).toBe(1);
+
+      // Bob joins within 3 seconds -> hits cache! (count remains 1)
+      await authenticateAndJoin(clientBob, accountBob, 801);
+      await clientBob.waitFor((m) => m.type === "room_state");
+      expect(getRoomCallCount).toBe(1);
+
+      // handleGameOver is called -> MUST bypass cache and read fresh on-chain (count becomes 2)
+      const room = cachedServer.getRoom(801);
+      expect(room).toBeDefined();
+      await (cachedServer as any).handleGameOver(room, "checkmate", "w");
+      expect(getRoomCallCount).toBe(2);
+
+      clientAlice.close();
+      clientBob.close();
+    } finally {
+      await cachedServer.close();
+    }
+  });
+
+  it("Item 6: limits join_room requests per IP per minute", async () => {
+    const portLimiter = TEST_PORT + 84;
+    const limiterServer = new RelayServer({
+      port: portLimiter,
+      relayPrivateKey: RELAY_KEY,
+      contractAddress: CONTRACT,
+      rpcUrl: "http://127.0.0.1:8545",
+      publicClient: mockPublicClient,
+      maxJoinsPerIpPerMinute: 2,
+    });
+
+    try {
+      registerMockRoom(810, accountAlice.address, accountBob.address, true);
+      registerMockRoom(811, accountAlice.address, accountBob.address, true);
+      registerMockRoom(812, accountAlice.address, accountBob.address, true);
+
+      const client = await new Promise<TestClient>((res) => {
+        const ws = new WebSocket(`ws://localhost:${portLimiter}`);
+        const messages: any[] = [];
+        const waiters: Array<{ predicate: (msg: any) => boolean; resolve: (val: any) => void }> = [];
+        ws.on("message", (raw) => {
+          try {
+            const parsed = JSON.parse(raw.toString());
+            messages.push(parsed);
+            for (let i = 0; i < waiters.length; i++) {
+              if (waiters[i].predicate(parsed)) {
+                const [w] = waiters.splice(i, 1);
+                w.resolve(parsed);
+                break;
+              }
+            }
+          } catch {}
+        });
+        ws.on("open", () =>
+          res({
+            ws,
+            send: (m) => ws.send(JSON.stringify(m)),
+            close: () => ws.close(),
+            waitFor: (p) => {
+              const idx = messages.findIndex(p);
+              if (idx !== -1) return Promise.resolve(messages.splice(idx, 1)[0]);
+              return new Promise((r) => waiters.push({ predicate: p, resolve: r }));
+            },
+          })
+        );
+      });
+
+      // Join 1: OK
+      await authenticateAndJoin(client, accountAlice, 810);
+      await client.waitFor((m) => m.type === "room_state");
+
+      // Join 2: OK
+      client.send({ type: "join_room", roomId: 811, role: "spectator" });
+      await client.waitFor((m) => m.type === "room_state");
+
+      // Join 3: Exceeds 2 per min -> rate limit error!
+      client.send({ type: "join_room", roomId: 812, role: "spectator" });
+      const errMsg = await client.waitFor((m) => m.type === "error");
+      expect(errMsg.message).toMatch(/join.*rate limit/i);
+
+      client.close();
+    } finally {
+      await limiterServer.close();
+    }
+  });
+
+  it("Item 6: closes socket after repeated consecutive rate limit violations", async () => {
+    const portDisconnect = TEST_PORT + 85;
+    const disconnectServer = new RelayServer({
+      port: portDisconnect,
+      relayPrivateKey: RELAY_KEY,
+      contractAddress: CONTRACT,
+      rpcUrl: "http://127.0.0.1:8545",
+      publicClient: mockPublicClient,
+      rateLimitPerSecond: 2,
+      maxRateLimitViolations: 3,
+    });
+
+    try {
+      const ws = new WebSocket(`ws://localhost:${portDisconnect}`);
+      await new Promise((r) => ws.on("open", r));
+
+      const closePromise = new Promise<{ code: number; reason: string }>((resolve) => {
+        ws.on("close", (code, reason) => resolve({ code, reason: reason.toString() }));
+      });
+
+      // Send 10 rapid messages to trigger rate limit violations consecutively >= 3 times
+      for (let i = 0; i < 10; i++) {
+        ws.send(JSON.stringify({ type: "ping" }));
+      }
+
+      const closeInfo = await closePromise;
+      expect(closeInfo.code).toBe(1008);
+      expect(closeInfo.reason).toContain("Rate limit exceeded");
+    } finally {
+      await disconnectServer.close();
+    }
+  });
 });

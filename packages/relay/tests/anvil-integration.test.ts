@@ -754,6 +754,9 @@ describe("RelayServer Anvil End-to-End Integration", () => {
     });
     expect(Number(onChainRoom.status)).toBe(2);
 
+    // Wait for the 3-second getRoom cache to expire so the relay sees the settled status
+    await new Promise((r) => setTimeout(r, 3100));
+
     // 3. Requesting result on a Settled room is rejected
     const settledErrorPromise = new Promise<string>((resolve) => {
       aliceConn2.ws.on("message", (data) => {

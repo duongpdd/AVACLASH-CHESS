@@ -79,6 +79,9 @@ export interface RelayServerOptions {
   maxConnectionsPerIp?: number;
   maxRooms?: number;
   rateLimitPerSecond?: number;
+  maxJoinsPerIpPerMinute?: number;
+  maxRateLimitViolations?: number;
+  roomCacheTtlMs?: number;
 }
 
 interface SocketSession {
@@ -93,6 +96,7 @@ interface SocketSession {
   authTimeoutTimer?: NodeJS.Timeout;
   messageCountInWindow: number;
   windowStart: number;
+  rateLimitViolations: number;
 }
 
 export class RelayServer {
@@ -109,6 +113,39 @@ export class RelayServer {
   public resultsDir: string;
   public trustProxy: boolean;
   public savedResults: Map<string, SavedGameResult> = new Map();
+  public maxJoinsPerIpPerMinute: number;
+  public maxRateLimitViolations: number;
+  public roomCacheTtlMs: number;
+  public roomCache: Map<number, { room: any; fetchedAt: number }> = new Map();
+  private ipJoinTimestamps: Map<string, number[]> = new Map();
+
+  public async fetchOnChainRoom(roomId: number, bypassCache: boolean = false): Promise<any> {
+    if (!bypassCache) {
+      const cached = this.roomCache.get(roomId);
+      if (cached && Date.now() - cached.fetchedAt < this.roomCacheTtlMs) {
+        return cached.room;
+      }
+    }
+    const room = await this.publicClient.readContract({
+      address: this.contractAddress,
+      abi: ESCROW_ABI,
+      functionName: "getRoom",
+      args: [BigInt(roomId)],
+    });
+    this.roomCache.set(roomId, { room, fetchedAt: Date.now() });
+    return room;
+  }
+
+  public recordRateLimitViolation(ws: WebSocket, session: SocketSession): void {
+    session.rateLimitViolations = (session.rateLimitViolations ?? 0) + 1;
+    if (session.rateLimitViolations >= this.maxRateLimitViolations) {
+      try {
+        ws.close(1008, "Rate limit exceeded repeatedly");
+      } catch {
+        // ignore
+      }
+    }
+  }
 
   public getResultKey(roomId: number): string {
     return `${this.chainId}:${this.contractAddress.toLowerCase()}:${roomId}`;
@@ -204,6 +241,9 @@ export class RelayServer {
     this.maxConnectionsPerIp = options.maxConnectionsPerIp ?? 20;
     this.maxRooms = options.maxRooms ?? 500;
     this.rateLimitPerSecond = options.rateLimitPerSecond ?? 25;
+    this.maxJoinsPerIpPerMinute = options.maxJoinsPerIpPerMinute ?? 60;
+    this.maxRateLimitViolations = options.maxRateLimitViolations ?? 3;
+    this.roomCacheTtlMs = options.roomCacheTtlMs ?? 3000;
     this.trustProxy = options.trustProxy ?? (process.env.TRUST_PROXY === "true");
 
     this.signalGameStartedEnabled =
@@ -292,6 +332,7 @@ export class RelayServer {
         authChallenge: { nonce, expiresAt, used: false },
         messageCountInWindow: 0,
         windowStart: Date.now(),
+        rateLimitViolations: 0,
         authTimeoutTimer: setTimeout(() => {
           if (!session.authenticatedAddress && session.role !== "spectator") {
             try {
@@ -351,9 +392,11 @@ export class RelayServer {
     }
     session.messageCountInWindow++;
     if (session.messageCountInWindow > this.rateLimitPerSecond) {
+      this.recordRateLimitViolation(ws, session);
       this.sendError(ws, "Rate limit exceeded");
       return;
     }
+    session.rateLimitViolations = 0;
 
     let parsedJson: unknown;
     try {
@@ -610,15 +653,23 @@ export class RelayServer {
       session.role = "spectator";
     }
 
-    // On-Chain Room Validation (Fail-closed)
+    // Rate limiting join_room per IP per minute
+    const now = Date.now();
+    const timestamps = (this.ipJoinTimestamps.get(session.ip) ?? []).filter(
+      (t) => now - t < 60000
+    );
+    if (timestamps.length >= this.maxJoinsPerIpPerMinute) {
+      this.recordRateLimitViolation(ws, session);
+      this.sendError(ws, "Join room rate limit exceeded. Try again later.");
+      return;
+    }
+    timestamps.push(now);
+    this.ipJoinTimestamps.set(session.ip, timestamps);
+
+    // On-Chain Room Validation (Fail-closed with 3s cache)
     let roomData: any;
     try {
-      roomData = await this.publicClient.readContract({
-        address: this.contractAddress,
-        abi: ESCROW_ABI,
-        functionName: "getRoom",
-        args: [BigInt(msg.roomId)],
-      });
+      roomData = await this.fetchOnChainRoom(msg.roomId, false);
     } catch (err: any) {
       this.sendError(ws, `On-chain query failed: ${err.message}`);
       return;
@@ -782,15 +833,10 @@ export class RelayServer {
         return;
       }
 
-      // Check on-chain room status before signing
+      // Check on-chain room status before signing (MUST bypass cache to read fresh)
       let roomData: any;
       try {
-        roomData = await this.publicClient.readContract({
-          address: this.contractAddress,
-          abi: ESCROW_ABI,
-          functionName: "getRoom",
-          args: [BigInt(room.roomId)],
-        });
+        roomData = await this.fetchOnChainRoom(room.roomId, true);
       } catch (err) {
         console.error(`[Relay] Failed to query on-chain room before signing room ${room.roomId}:`, err);
         return;
@@ -1043,12 +1089,7 @@ export class RelayServer {
 
     let roomData: any;
     try {
-      roomData = await this.publicClient.readContract({
-        address: this.contractAddress,
-        abi: CHESS_ESCROW_ABI,
-        functionName: "getRoom",
-        args: [BigInt(roomId)],
-      });
+      roomData = await this.fetchOnChainRoom(roomId, false);
     } catch (err: any) {
       this.sendError(ws, `Failed to fetch on-chain room ${roomId}: ${err.message}`);
       return;
