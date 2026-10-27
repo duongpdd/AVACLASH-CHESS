@@ -44,7 +44,7 @@ contract RevertingMetaMock is IAvaClashMeta {
         if (failUpdateElo) revert("RevertingMetaMock: updateEloOnSettle failed");
     }
 
-    function resolvePrediction(uint256, uint8) external view override {
+    function resolvePrediction(uint256, uint8, uint16) external view override {
         if (failResolvePrediction) revert("RevertingMetaMock: resolvePrediction failed");
     }
 
@@ -113,15 +113,23 @@ contract ChessEscrowMetaTryCatchTest is Test {
         escrow.joinRoom{ value: 0.1 ether }(roomId);
     }
 
-    function test_JoinRoom_RevertsWhenMetaLockBettingFails() public {
+    function test_SignalGameStarted_EmitsMetaCallFailedWhenMetaLockBettingFails() public {
         vm.prank(playerA);
         uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
 
+        vm.prank(playerB);
+        escrow.joinRoom{ value: 0.1 ether }(roomId);
+
         revertingMeta.setFailLockBetting(true);
 
-        vm.prank(playerB);
-        vm.expectRevert("RevertingMetaMock: lockBetting failed");
-        escrow.joinRoom{ value: 0.1 ether }(roomId);
+        vm.expectEmit(true, false, false, true);
+        emit ChessEscrow.MetaCallFailed(roomId, IAvaClashMeta.lockBetting.selector);
+
+        vm.prank(relaySigner);
+        escrow.signalGameStarted(roomId);
+
+        assertTrue(escrow.getRoom(roomId).gameStarted);
+        assertEq(escrow.getRoom(roomId).gameStartedAt, block.timestamp);
     }
 
     function test_AbortRoom_SuccessWhenMetaReverts() public {
@@ -270,6 +278,35 @@ contract ChessEscrowMetaTryCatchTest is Test {
         escrow.retryResolvePrediction(roomId);
     }
 
+    function test_FallbackCancelPrediction_Timelock() public {
+        vm.prank(playerA);
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
+        vm.prank(playerB);
+        escrow.joinRoom{ value: 0.1 ether }(roomId);
+
+        bytes32 movesHash = keccak256("e2e4");
+        uint256 nonce = 12;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sigA = _signResult(creatorPrivateKey, roomId, playerA, 0, 0, 1, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(joinerPrivateKey, roomId, playerA, 0, 0, 1, movesHash, nonce, deadline);
+
+        // Submit result while resolvePrediction reverts
+        vm.prank(playerA);
+        escrow.submitResult(roomId, playerA, 0, 0, 1, movesHash, nonce, deadline, sigA, sigB);
+
+        assertTrue(escrow.metaResolutionFailed(roomId));
+
+        // Before 3 days, fallbackCancelPrediction must revert TimelockNotReady
+        vm.expectRevert(ChessEscrow.TimelockNotReady.selector);
+        escrow.fallbackCancelPrediction(roomId);
+
+        // retryResolvePrediction can be called immediately (does not wait for 3 days)
+        revertingMeta.setFailResolvePrediction(false);
+        escrow.retryResolvePrediction(roomId);
+        assertFalse(escrow.metaResolutionFailed(roomId));
+    }
+
     function test_FallbackCancelPrediction_ConservesAllFundsAndSpectatorsRefunded() public {
         // Deploy real AvaClashMeta
         AvaClashMeta realMeta = new AvaClashMeta();
@@ -318,9 +355,9 @@ contract ChessEscrowMetaTryCatchTest is Test {
 
         assertTrue(escrow.metaResolutionFailed(roomId));
 
-        // Reconnect real Meta and trigger fallback cancellation
+        // Reconnect real Meta and trigger fallback cancellation after 3 days timelock
         escrow.setMetaContract(address(realMeta));
-        vm.warp(block.timestamp + 2 days);
+        vm.warp(block.timestamp + 3 days);
         escrow.executeMetaContractChange();
         escrow.fallbackCancelPrediction(roomId);
 

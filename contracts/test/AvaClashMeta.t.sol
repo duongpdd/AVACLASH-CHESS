@@ -120,7 +120,7 @@ contract AvaClashMetaTest is Test {
         assertEq(dBet, 0);
 
         // When resolved, 5% fee is deducted from totalPool into seasonPrizePool
-        meta.resolvePrediction(matchId, 1);
+        meta.resolvePrediction(matchId, 1, 20);
         assertEq(meta.seasonPrizePool(), 0.05 ether);
     }
 
@@ -155,7 +155,7 @@ contract AvaClashMetaTest is Test {
 
         // White wins (Option 1). Total pool = 2 ether. Fee = 5% * 2 ether = 0.1 ether.
         // Net reward = 1 * (2 - 0.1) / 1 = 1.9 ether.
-        meta.resolvePrediction(matchId, 1);
+        meta.resolvePrediction(matchId, 1, 20);
         assertEq(meta.seasonPrizePool(), 0.1 ether);
 
         uint256 balBefore = spectator1.balance;
@@ -181,7 +181,7 @@ contract AvaClashMetaTest is Test {
         meta.betOnMatch{value: 1 ether}(matchId, 3); // Option 3 = Draw
 
         // Resolved as Draw (Option 3). Total = 2 ether, fee = 0.1 ether, payout = 1.9 ether.
-        meta.resolvePrediction(matchId, 3);
+        meta.resolvePrediction(matchId, 3, 20);
         assertEq(meta.seasonPrizePool(), 0.1 ether);
 
         uint256 balBefore = spectator2.balance;
@@ -216,7 +216,7 @@ contract AvaClashMetaTest is Test {
         meta.betOnMatch{value: 1 ether}(matchId, 1);
 
         // Match ends in Draw (Option 3), but Draw pool has 0 bets!
-        meta.resolvePrediction(matchId, 3);
+        meta.resolvePrediction(matchId, 3, 20);
 
         // Pool must be cancelled, not resolved
         (, bool resolved, bool cancelled,,,,) = meta.getPredictionPool(matchId);
@@ -267,7 +267,7 @@ contract AvaClashMetaTest is Test {
 
         // Attempting to resolve after cancel must revert
         vm.expectRevert(AvaClashMeta.AlreadyResolved.selector);
-        meta.resolvePrediction(matchId, 1);
+        meta.resolvePrediction(matchId, 1, 20);
     }
 
     function test_SpectatorReward_GrossFeeConservationMultipleBettors() public {
@@ -287,7 +287,7 @@ contract AvaClashMetaTest is Test {
         // Spectator 2 share: 3/4 * 3.8 = 2.85 ether.
         // Total payouts = 0.95 + 2.85 = 3.8 ether.
         // With fee 0.2 ether, sum = 4.0 ether (100% exact conservation).
-        meta.resolvePrediction(matchId, 1);
+        meta.resolvePrediction(matchId, 1, 20);
         assertEq(meta.seasonPrizePool(), 0.2 ether);
 
         uint256 s1Before = spectator1.balance;
@@ -299,5 +299,28 @@ contract AvaClashMetaTest is Test {
         vm.prank(spectator2);
         meta.claimSpectatorReward(matchId);
         assertEq(spectator2.balance, s2Before + 2.85 ether);
+    }
+
+    function test_ResolvePrediction_MovesUnder20_TreatedAsCancelled_RefundsAll() public {
+        uint256 matchId = 111;
+
+        // Spectator 1 bets 1 ether on White (Option 1)
+        vm.prank(spectator1);
+        meta.betOnMatch{value: 1 ether}(matchId, 1);
+
+        // Match resolves with only 19 moves (< 20 MIN_MOVES_FOR_PREDICTION)
+        meta.resolvePrediction(matchId, 1, 19);
+
+        // Pool must be cancelled, not resolved
+        (, bool resolved, bool cancelled,,,,) = meta.getPredictionPool(matchId);
+        assertFalse(resolved);
+        assertTrue(cancelled);
+        assertEq(meta.seasonPrizePool(), 0);
+
+        // Spectator 1 claims 100% gross refund
+        uint256 balBefore = spectator1.balance;
+        vm.prank(spectator1);
+        meta.claimSpectatorRefund(matchId);
+        assertEq(spectator1.balance, balBefore + 1.0 ether);
     }
 }

@@ -1756,6 +1756,53 @@ contract ChessEscrowTest is Test {
         assertEq(fresh.metaContract(), meta2);
         assertEq(fresh.pendingMetaContract(), address(0));
     }
+
+    function test_lateStart_refundOnTimeout_revertsAtMinute60_succeedsAtGameStartedPlus60() public {
+        uint256 roomId = _createAndJoin();
+        uint256 startedAt = escrow.getRoom(roomId).startedAt;
+        // Room started at startedAt.
+        // At startedAt + 55 minutes, relay signals game started:
+        vm.warp(startedAt + 55 minutes);
+        vm.prank(relay);
+        escrow.signalGameStarted(roomId);
+
+        // At startedAt + 60 minutes (only 5 minutes into the game):
+        // Should revert because gameStartedAt (startedAt + 55m) + 60m = startedAt + 115m
+        vm.warp(startedAt + 60 minutes);
+        vm.expectRevert(ChessEscrow.RefundTooEarly.selector);
+        escrow.refundOnTimeout(roomId);
+
+        // At gameStartedAt + 60 minutes + 1 second (startedAt + 115m + 1s):
+        vm.warp(startedAt + 115 minutes + 1);
+        escrow.refundOnTimeout(roomId);
+        assertEq(uint256(escrow.getRoom(roomId).status), 4); // Refunded
+    }
+
+    function test_renounceOwnership_reverts() public {
+        vm.expectRevert(ChessEscrow.RenounceOwnershipDisabled.selector);
+        escrow.renounceOwnership();
+    }
+
+    function test_signalGameStarted_setsGameStartedAt_and_idempotent() public {
+        uint256 roomId = _createAndJoin();
+        uint256 startedAt = escrow.getRoom(roomId).startedAt;
+
+        vm.prank(relay);
+        escrow.signalGameStarted(roomId);
+
+        ChessEscrow.Room memory room = escrow.getRoom(roomId);
+        assertTrue(room.gameStarted);
+        assertEq(room.gameStartedAt, startedAt);
+
+        // Calling signalGameStarted a second time is a no-op (does not revert, preserves gameStartedAt)
+        vm.warp(startedAt + 10 minutes);
+        vm.prank(relay);
+        escrow.signalGameStarted(roomId);
+
+        ChessEscrow.Room memory room2 = escrow.getRoom(roomId);
+        assertTrue(room2.gameStarted);
+        assertEq(room2.gameStartedAt, room.gameStartedAt);
+    }
 }
 
 // ──────── Reentrancy Attacker Helper ────────

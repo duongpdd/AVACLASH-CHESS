@@ -76,26 +76,30 @@ contract ChessEscrowMetaIntegrationTest is Test {
         vm.prank(spectator2);
         meta.betOnMatch{ value: 0.3 ether }(roomId, 2); // Bet on Black
 
-        // 3. Player B joins room -> registers players in Meta and locks betting
+        // 3. Player B joins room -> registers players in Meta
         vm.prank(playerB);
         escrow.joinRoom{ value: 0.1 ether }(roomId);
+
+        // Signal game started -> locks betting in Meta
+        vm.prank(relaySigner);
+        escrow.signalGameStarted(roomId);
 
         // Verify betting is locked
         vm.prank(spectator1);
         vm.expectRevert(AvaClashMeta.BettingClosed.selector);
         meta.betOnMatch{ value: 0.1 ether }(roomId, 1);
 
-        // 4. Game is played and Player A wins (White win: outcome = 0)
+        // 4. Game is played and Player A wins (White win: outcome = 0), moveCount = 24 (>= 20)
         bytes32 movesHash = keccak256("e2e4 e7e5");
         uint256 nonce = 1;
         uint256 deadline = block.timestamp + 1 hours;
 
-        bytes memory sigA = _signResult(creatorPrivateKey, roomId, playerA, 0, 0, 2, movesHash, nonce, deadline);
-        bytes memory sigRelay = _signResult(relayPrivateKey, roomId, playerA, 0, 0, 2, movesHash, nonce, deadline);
+        bytes memory sigA = _signResult(creatorPrivateKey, roomId, playerA, 0, 0, 24, movesHash, nonce, deadline);
+        bytes memory sigRelay = _signResult(relayPrivateKey, roomId, playerA, 0, 0, 24, movesHash, nonce, deadline);
 
         // Submit result
         vm.prank(playerA);
-        escrow.submitResult(roomId, playerA, 0, 0, 2, movesHash, nonce, deadline, sigA, sigRelay);
+        escrow.submitResult(roomId, playerA, 0, 0, 24, movesHash, nonce, deadline, sigA, sigRelay);
 
         // 5. Verify on-chain ELO updated automatically
         assertEq(meta.getElo(playerA), 1224);
@@ -114,6 +118,37 @@ contract ChessEscrowMetaIntegrationTest is Test {
         meta.claimSpectatorReward(roomId);
     }
 
+    function test_FullMatchFlow_MovesUnder20_CancelsSpectatorPool() public {
+        vm.prank(playerA);
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
+
+        vm.prank(spectator1);
+        meta.betOnMatch{ value: 0.5 ether }(roomId, 1);
+
+        vm.prank(playerB);
+        escrow.joinRoom{ value: 0.1 ether }(roomId);
+
+        vm.prank(relaySigner);
+        escrow.signalGameStarted(roomId);
+
+        // Game ends with only 10 moves (< 20 MIN_MOVES_FOR_PREDICTION)
+        bytes32 movesHash = keccak256("e2e4");
+        uint256 nonce = 2;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sigA = _signResult(creatorPrivateKey, roomId, playerA, 0, 0, 10, movesHash, nonce, deadline);
+        bytes memory sigRelay = _signResult(relayPrivateKey, roomId, playerA, 0, 0, 10, movesHash, nonce, deadline);
+
+        vm.prank(playerA);
+        escrow.submitResult(roomId, playerA, 0, 0, 10, movesHash, nonce, deadline, sigA, sigRelay);
+
+        // Prediction pool was cancelled due to Q20 moveCount < 20
+        uint256 balBefore = spectator1.balance;
+        vm.prank(spectator1);
+        meta.claimSpectatorRefund(roomId);
+        assertEq(spectator1.balance, balBefore + 0.5 ether);
+    }
+
     function test_DrawMatchFlow_EloAndSpectatorDrawOption() public {
         vm.prank(playerA);
         uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
@@ -129,16 +164,16 @@ contract ChessEscrowMetaIntegrationTest is Test {
         vm.prank(playerB);
         escrow.joinRoom{ value: 0.1 ether }(roomId);
 
-        // Settle as Draw (winner = address(0), outcome = 2)
+        // Settle as Draw (winner = address(0), outcome = 2), moveCount = 22 (>= 20)
         bytes32 movesHash = keccak256("e2e4 e7e5");
         uint256 nonce = 1;
         uint256 deadline = block.timestamp + 1 hours;
 
-        bytes memory sigA = _signResult(creatorPrivateKey, roomId, address(0), 2, 3, 2, movesHash, nonce, deadline);
-        bytes memory sigB = _signResult(joinerPrivateKey, roomId, address(0), 2, 3, 2, movesHash, nonce, deadline);
+        bytes memory sigA = _signResult(creatorPrivateKey, roomId, address(0), 2, 3, 22, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(joinerPrivateKey, roomId, address(0), 2, 3, 22, movesHash, nonce, deadline);
 
         vm.prank(playerA);
-        escrow.submitResult(roomId, address(0), 2, 3, 2, movesHash, nonce, deadline, sigA, sigB);
+        escrow.submitResult(roomId, address(0), 2, 3, 22, movesHash, nonce, deadline, sigA, sigB);
 
         // Verify Draw spectator can claim
         uint256 balBefore = spectator1.balance;

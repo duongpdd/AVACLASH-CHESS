@@ -61,6 +61,9 @@ contract AvaClashMeta is ReentrancyGuard {
     /// @notice Maximum time a prediction pool can remain unresolved before spectators can trigger refund independently (7 days).
     uint256 public constant MAX_UNRESOLVED = 7 days;
 
+    /// @notice Minimum moves required for valid prediction settlement (20). Matches with fewer moves cancel prediction (Q20).
+    uint16 public constant MIN_MOVES_FOR_PREDICTION = 20;
+
     // ──────────────────────── Events ────────────────────────
 
     event EloUpdated(address indexed winner, uint256 winnerElo, address indexed loser, uint256 loserElo);
@@ -248,15 +251,24 @@ contract AvaClashMeta is ReentrancyGuard {
     /**
      * @notice Resolve prediction pool after match.
      *         winningOption: 1=White, 2=Black, 3=Draw.
+     *         moveCount: number of moves played in the match.
+     *         If moveCount < MIN_MOVES_FOR_PREDICTION (20), treats match prediction as cancelled (Q20: gross refund, no fee).
      *         If winning pool is 0, treats match prediction as cancelled so all bettors get full refund.
      *         Fee of 5% on totalPool is deducted and credited to seasonPrizePool upon resolution.
      */
-    function resolvePrediction(uint256 matchId, uint8 winningOption) external onlyEscrow {
+    function resolvePrediction(uint256 matchId, uint8 winningOption, uint16 moveCount) external onlyEscrow {
         if (winningOption != 1 && winningOption != 2 && winningOption != 3) revert InvalidOption();
         MatchPrediction storage p = _predictions[matchId];
         if (p.resolved || p.cancelled) revert AlreadyResolved();
 
         p.bettingLocked = true;
+
+        // If moveCount < MIN_MOVES_FOR_PREDICTION (20), cancel prediction pool (gross refund, no fee)
+        if (moveCount < MIN_MOVES_FOR_PREDICTION) {
+            p.cancelled = true;
+            emit PredictionCancelled(matchId);
+            return;
+        }
 
         uint256 winningPool = 0;
         if (winningOption == 1) {

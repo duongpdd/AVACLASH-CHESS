@@ -34,6 +34,19 @@ export const AVA_CLASH_META_ABI = [
   },
   {
     "type": "function",
+    "name": "MIN_MOVES_FOR_PREDICTION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "SPECTATOR_FEE_BPS",
     "inputs": [],
     "outputs": [
@@ -355,6 +368,11 @@ export const AVA_CLASH_META_ABI = [
         "name": "winningOption",
         "type": "uint8",
         "internalType": "uint8"
+      },
+      {
+        "name": "moveCount",
+        "type": "uint16",
+        "internalType": "uint16"
       }
     ],
     "outputs": [],

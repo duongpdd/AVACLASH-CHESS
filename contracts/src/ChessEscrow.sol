@@ -11,7 +11,7 @@ interface IAvaClashMeta {
     function registerMatch(uint256 matchId, address pA, address pB) external;
     function lockBetting(uint256 matchId) external;
     function updateEloOnSettle(address winner, address loser) external;
-    function resolvePrediction(uint256 matchId, uint8 winningOption) external;
+    function resolvePrediction(uint256 matchId, uint8 winningOption, uint16 moveCount) external;
     function cancelPrediction(uint256 matchId) external;
 }
 
@@ -83,6 +83,9 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
         address challenger;
         uint256 challengeBond;
         uint256 challengedAt;
+        // Single-signed move count & game start timestamp
+        uint16 singleSignedMoveCount;
+        uint256 gameStartedAt;
     }
 
     // EIP-712 typehash for expanded Result struct
@@ -140,6 +143,15 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
 
     /// @notice Tracks intended winning option (1=White, 2=Black, 3=Draw) when resolution failed.
     mapping(uint256 => uint8) public metaWinningOption;
+
+    /// @notice Fallback cancellation delay after resolution failure (3 days).
+    uint256 public constant FALLBACK_DELAY = 3 days;
+
+    /// @notice Timestamp when prediction resolution failed for a room.
+    mapping(uint256 => uint256) public metaFailedAt;
+
+    /// @notice Stored move count when prediction resolution failed for a room.
+    mapping(uint256 => uint16) public metaMoveCount;
 
     /// @notice Accumulated protocol fees not yet withdrawn.
     uint256 public protocolFees;
@@ -201,6 +213,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     error SingleSignedAlreadySubmitted();
     error SingleSignedDisabled();
     error InvalidAddress();
+    error RenounceOwnershipDisabled();
 
     // ──────────────────────── Constructor ────────────────────────
 
@@ -252,7 +265,6 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
 
         if (metaContract != address(0)) {
             IAvaClashMeta(metaContract).registerMatch(roomId, room.playerA, msg.sender);
-            IAvaClashMeta(metaContract).lockBetting(roomId);
         }
 
         emit RoomJoined(roomId, msg.sender);
@@ -317,7 +329,21 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
 
+        if (room.gameStarted) {
+            return;
+        }
         room.gameStarted = true;
+        if (room.gameStartedAt == 0) {
+            room.gameStartedAt = block.timestamp;
+        }
+
+        if (metaContract != address(0)) {
+            try IAvaClashMeta(metaContract).lockBetting(roomId) {}
+            catch {
+                emit MetaCallFailed(roomId, IAvaClashMeta.lockBetting.selector);
+            }
+        }
+
         emit GameStarted(roomId);
     }
 
@@ -369,7 +395,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
             }
         }
 
-        uint256 fee = _distribute(roomId, room, winner);
+        uint256 fee = _distribute(roomId, room, winner, moveCount);
 
         emit ResultSubmitted(roomId, winner, movesHash);
         emit Settled(roomId, winner, fee);
@@ -425,6 +451,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
         room.singleSignedNonce = nonce;
         room.singleSignedAt = block.timestamp;
         room.singleSignedBond = msg.value;
+        room.singleSignedMoveCount = moveCount;
 
         emit SingleSignedSubmitted(roomId, winner);
     }
@@ -518,7 +545,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
             pendingWithdrawals[room.singleSignedWinner] += sBond + cBond;
         }
 
-        uint256 fee = _distribute(roomId, room, validWinner);
+        uint256 fee = _distribute(roomId, room, validWinner, room.singleSignedMoveCount);
 
         emit ChallengeResolved(roomId, validWinner);
         emit Settled(roomId, validWinner, fee);
@@ -582,7 +609,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
         room.singleSignedBond = 0;
         pendingWithdrawals[winner] += sBond;
 
-        uint256 fee = _distribute(roomId, room, winner);
+        uint256 fee = _distribute(roomId, room, winner, room.singleSignedMoveCount);
 
         emit Settled(roomId, winner, fee);
     }
@@ -595,7 +622,8 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
         if (room.singleSignedAt != 0) revert SingleSignedAlreadySubmitted();
-        if (block.timestamp < room.startedAt + REFUND_TIMEOUT) revert RefundTooEarly();
+        uint256 baseTime = room.gameStartedAt > room.startedAt ? room.gameStartedAt : room.startedAt;
+        if (block.timestamp < baseTime + REFUND_TIMEOUT) revert RefundTooEarly();
 
         room.status = RoomStatus.Refunded;
         pendingWithdrawals[room.playerA] += room.stake;
@@ -754,21 +782,28 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
         if (!metaResolutionFailed[roomId]) revert NoFailedResolution();
         if (metaContract == address(0)) revert MetaNotConfigured();
         uint8 option = metaWinningOption[roomId];
+        uint16 moveCount = metaMoveCount[roomId];
         delete metaResolutionFailed[roomId];
+        delete metaFailedAt[roomId];
         delete metaWinningOption[roomId];
-        IAvaClashMeta(metaContract).resolvePrediction(roomId, option);
+        delete metaMoveCount[roomId];
+        IAvaClashMeta(metaContract).resolvePrediction(roomId, option, moveCount);
     }
 
     /**
      * @notice Fallback to cancel spectator prediction pool if resolution permanently failed,
      *         allowing all spectators to claim 100% refund.
+     *         Enforces FALLBACK_DELAY (3 days) after failure before it can be triggered.
      * @param roomId The room ID.
      */
     function fallbackCancelPrediction(uint256 roomId) external {
         if (!metaResolutionFailed[roomId]) revert NoFailedResolution();
         if (metaContract == address(0)) revert MetaNotConfigured();
+        if (block.timestamp < metaFailedAt[roomId] + FALLBACK_DELAY) revert TimelockNotReady();
         delete metaResolutionFailed[roomId];
+        delete metaFailedAt[roomId];
         delete metaWinningOption[roomId];
+        delete metaMoveCount[roomId];
         IAvaClashMeta(metaContract).cancelPrediction(roomId);
     }
 
@@ -818,7 +853,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
      *      Draw = no fee, full refund. Win = 5% fee, rest to winner.
      *      If metaContract is configured, updates on-chain ELO and resolves spectator predictions.
      */
-    function _distribute(uint256 roomId, Room storage room, address winner) internal returns (uint256 fee) {
+    function _distribute(uint256 roomId, Room storage room, address winner, uint16 moveCount) internal returns (uint256 fee) {
         uint256 pot = room.stake * 2;
         if (winner == address(0)) {
             // Draw: each player gets their stake back (no fee on draw)
@@ -826,10 +861,12 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
             pendingWithdrawals[room.playerB] += room.stake;
             fee = 0;
             if (metaContract != address(0)) {
-                try IAvaClashMeta(metaContract).resolvePrediction(roomId, 3) {}
+                try IAvaClashMeta(metaContract).resolvePrediction(roomId, 3, moveCount) {}
                 catch {
                     metaResolutionFailed[roomId] = true;
+                    metaFailedAt[roomId] = block.timestamp;
                     metaWinningOption[roomId] = 3;
+                    metaMoveCount[roomId] = moveCount;
                     emit MetaCallFailed(roomId, IAvaClashMeta.resolvePrediction.selector);
                 }
             }
@@ -846,10 +883,12 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
                 }
                 address whitePlayer = room.creatorIsWhite ? room.playerA : room.playerB;
                 uint8 winningOption = (winner == whitePlayer) ? 1 : 2;
-                try IAvaClashMeta(metaContract).resolvePrediction(roomId, winningOption) {}
+                try IAvaClashMeta(metaContract).resolvePrediction(roomId, winningOption, moveCount) {}
                 catch {
                     metaResolutionFailed[roomId] = true;
+                    metaFailedAt[roomId] = block.timestamp;
                     metaWinningOption[roomId] = winningOption;
+                    metaMoveCount[roomId] = moveCount;
                     emit MetaCallFailed(roomId, IAvaClashMeta.resolvePrediction.selector);
                 }
             }
@@ -934,5 +973,12 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
         bool bValid = (signerB == playerA || signerB == playerB || signerB == relaySigner);
 
         if (!aValid || !bValid) revert InvalidSignature();
+    }
+
+    /**
+     * @notice Renouncing ownership is disabled to prevent accidental loss of admin controls.
+     */
+    function renounceOwnership() public view override onlyOwner {
+        revert RenounceOwnershipDisabled();
     }
 }

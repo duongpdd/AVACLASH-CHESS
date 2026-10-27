@@ -89,6 +89,19 @@ export const CHESS_ESCROW_ABI = [
   },
   {
     "type": "function",
+    "name": "FALLBACK_DELAY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MAX_STAKE",
     "inputs": [],
     "outputs": [
@@ -553,6 +566,16 @@ export const CHESS_ESCROW_ABI = [
             "name": "challengedAt",
             "type": "uint256",
             "internalType": "uint256"
+          },
+          {
+            "name": "singleSignedMoveCount",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "gameStartedAt",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -613,6 +636,44 @@ export const CHESS_ESCROW_ABI = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "metaFailedAt",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "metaMoveCount",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
       }
     ],
     "stateMutability": "view"
@@ -855,7 +916,7 @@ export const CHESS_ESCROW_ABI = [
     "name": "renounceOwnership",
     "inputs": [],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -984,6 +1045,16 @@ export const CHESS_ESCROW_ABI = [
       },
       {
         "name": "challengedAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "singleSignedMoveCount",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "gameStartedAt",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -1855,6 +1926,11 @@ export const CHESS_ESCROW_ABI = [
   {
     "type": "error",
     "name": "RefundTooEarly",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RenounceOwnershipDisabled",
     "inputs": []
   },
   {
