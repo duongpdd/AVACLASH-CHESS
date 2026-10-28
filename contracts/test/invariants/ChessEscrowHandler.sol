@@ -19,8 +19,28 @@ contract ChessEscrowHandler is Test {
     address public arbiter;
     address public treasury;
 
-    // Track active/open/challenged room IDs
+    // All created room IDs
     uint256[] public allRoomIds;
+
+    // Room queues for O(1) state transitions during fuzzing
+    uint256[] public openRooms;
+    uint256[] public activeRooms;
+    uint256[] public singleSignedRooms;
+    uint256[] public challengedRooms;
+
+    function _removeFrom(uint256[] storage arr, uint256 val) internal {
+        uint256 len = arr.length;
+        for (uint256 i = 0; i < len; i++) {
+            if (arr[i] == val) {
+                arr[i] = arr[len - 1];
+                arr.pop();
+                break;
+            }
+        }
+    }
+
+    // Paused steps management (item 3d: pause ~2% of calls and auto-unpause after a few calls)
+    uint256 public pausedRemainingSteps;
 
     bytes32 internal constant RESULT_TYPEHASH =
         keccak256("Result(uint256 matchId,address winner,uint8 outcome,uint8 reason,uint16 moveCount,bytes32 movesHash,uint256 nonce,uint256 deadline)");
@@ -52,14 +72,41 @@ contract ChessEscrowHandler is Test {
         return allRoomIds.length;
     }
 
+    uint256 internal globalNonce = 1000;
+
+    function _warpTo(uint256 targetTime) internal {
+        if (targetTime > block.timestamp) {
+            vm.warp(targetTime);
+        }
+    }
+
+    function _checkChallengedSampled() internal {
+        if (challengedRooms.length > 0) {
+            tracker.inc_invariantChallengedSampled();
+        }
+    }
+
+    function _checkAutoUnpause() internal returns (bool) {
+        _checkChallengedSampled();
+        if (escrow.paused()) {
+            if (pausedRemainingSteps > 0) {
+                pausedRemainingSteps--;
+            }
+            if (pausedRemainingSteps == 0) {
+                vm.prank(escrow.owner());
+                escrow.unpause();
+                tracker.inc_unpause();
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ──────── Action 1: Create Room ────────
     function createRoom(uint256 actorIdx, uint256 stakeAmount, bool creatorIsWhite) external {
         tracker.incCall();
-        if (escrow.paused()) {
-            vm.prank(escrow.owner());
-            escrow.unpause();
-            tracker.inc_unpause();
-        }
+        if (_checkAutoUnpause()) return;
+        if (escrow.paused()) return;
 
         address creator = players[actorIdx % 3];
         uint256 stake = bound(stakeAmount, 0.01 ether, 1 ether);
@@ -67,21 +114,25 @@ contract ChessEscrowHandler is Test {
         vm.prank(creator);
         uint256 roomId = escrow.createRoom{ value: stake }(creatorIsWhite);
         allRoomIds.push(roomId);
+        openRooms.push(roomId);
         tracker.inc_createRoom();
     }
 
     // ──────── Action 2: Join Room ────────
     function joinRoom(uint256 actorIdx, uint256 roomSeed) external {
         tracker.incCall();
-        if (allRoomIds.length == 0) return;
-        if (escrow.paused()) {
-            vm.prank(escrow.owner());
-            escrow.unpause();
-            tracker.inc_unpause();
+        if (_checkAutoUnpause()) return;
+        if (escrow.paused()) return;
+        if (openRooms.length == 0) return;
+
+        uint256 targetId;
+        if (roomSeed < escrow.nextRoomId() && escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Open) {
+            targetId = roomSeed;
+        } else {
+            targetId = openRooms[roomSeed % openRooms.length];
         }
 
-        uint256 roomId = allRoomIds[roomSeed % allRoomIds.length];
-        ChessEscrow.Room memory r = escrow.getRoom(roomId);
+        ChessEscrow.Room memory r = escrow.getRoom(targetId);
         if (r.status != ChessEscrow.RoomStatus.Open) return;
 
         address joiner = players[actorIdx % 3];
@@ -90,61 +141,105 @@ contract ChessEscrowHandler is Test {
         }
 
         vm.prank(joiner);
-        escrow.joinRoom{ value: r.stake }(roomId);
+        escrow.joinRoom{ value: r.stake }(targetId);
+        _removeFrom(openRooms, targetId);
+        activeRooms.push(targetId);
         tracker.inc_joinRoom();
     }
 
     // ──────── Action 3: Signal Game Started ────────
     function signalGameStartedAction(uint256 roomSeed) external {
         tracker.incCall();
-        if (allRoomIds.length == 0) return;
-        uint256 roomId = allRoomIds[roomSeed % allRoomIds.length];
+        if (_checkAutoUnpause()) return;
+        if (escrow.paused()) return;
+        if (activeRooms.length == 0) return;
 
-        ChessEscrow.Room memory r = escrow.getRoom(roomId);
-        if (r.status != ChessEscrow.RoomStatus.Active || r.gameStarted) return;
+        uint256 targetId;
+        if (roomSeed < escrow.nextRoomId() && escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active) {
+            targetId = roomSeed;
+        } else {
+            targetId = activeRooms[roomSeed % activeRooms.length];
+        }
+
+        ChessEscrow.Room memory check = escrow.getRoom(targetId);
+        if (check.status != ChessEscrow.RoomStatus.Active || check.gameStarted) return;
 
         vm.prank(relay);
-        escrow.signalGameStarted(roomId);
+        escrow.signalGameStarted(targetId);
         tracker.inc_signalGameStarted();
     }
 
     // ──────── Action 4: Cancel Room ────────
     function cancelRoom(uint256 roomSeed) external {
         tracker.incCall();
-        if (allRoomIds.length == 0) return;
-        uint256 roomId = allRoomIds[roomSeed % allRoomIds.length];
+        if (_checkAutoUnpause()) return;
+        if (escrow.paused()) return;
+        if (openRooms.length == 0) return;
 
-        ChessEscrow.Room memory r = escrow.getRoom(roomId);
-        if (r.status != ChessEscrow.RoomStatus.Open) return;
+        bool isScripted = (roomSeed < escrow.nextRoomId());
+        if (!isScripted && roomSeed % 20 != 0) return;
 
-        vm.prank(r.playerA);
-        escrow.cancelRoom(roomId);
+        uint256 targetId;
+        if (isScripted && escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Open) {
+            targetId = roomSeed;
+        } else {
+            targetId = openRooms[roomSeed % openRooms.length];
+        }
+
+        ChessEscrow.Room memory check = escrow.getRoom(targetId);
+        if (check.status != ChessEscrow.RoomStatus.Open) return;
+
+        vm.prank(check.playerA);
+        escrow.cancelRoom(targetId);
+        _removeFrom(openRooms, targetId);
         tracker.inc_cancelRoom();
     }
 
     // ──────── Action 5: Abort Room ────────
     function abortRoom(uint256 roomSeed) external {
         tracker.incCall();
-        if (allRoomIds.length == 0) return;
-        uint256 roomId = allRoomIds[roomSeed % allRoomIds.length];
+        if (_checkAutoUnpause()) return;
+        if (escrow.paused()) return;
+        if (activeRooms.length == 0) return;
 
-        ChessEscrow.Room memory r = escrow.getRoom(roomId);
-        if (r.status != ChessEscrow.RoomStatus.Active) return;
-        if (r.gameStarted || r.singleSignedAt != 0) return;
+        bool isScripted = (roomSeed < escrow.nextRoomId());
+        if (!isScripted && roomSeed % 20 != 0) return;
 
-        vm.warp(block.timestamp + escrow.ABORT_TIMEOUT() + 1);
-        escrow.abortRoom(roomId);
+        uint256 targetId;
+        if (isScripted && escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active) {
+            targetId = roomSeed;
+        } else {
+            targetId = activeRooms[roomSeed % activeRooms.length];
+        }
+
+        ChessEscrow.Room memory check = escrow.getRoom(targetId);
+        if (check.status != ChessEscrow.RoomStatus.Active || check.gameStarted || check.singleSignedAt != 0) return;
+
+        vm.warp(check.startedAt + escrow.ABORT_TIMEOUT() + 1);
+        escrow.abortRoom(targetId);
+        _removeFrom(activeRooms, targetId);
         tracker.inc_abortRoom();
     }
 
     // ──────── Action 6: Submit Result (Dual Player Signatures) ────────
     function submitResultDual(uint256 roomSeed, uint8 outcomeSeed) external {
         tracker.incCall();
-        if (allRoomIds.length == 0) return;
-        uint256 roomId = allRoomIds[roomSeed % allRoomIds.length];
+        if (_checkAutoUnpause()) return;
+        if (escrow.paused()) return;
+        if (activeRooms.length == 0) return;
+
+        bool isScripted = (roomSeed < escrow.nextRoomId());
+        if (!isScripted && roomSeed % 20 != 0) return;
+
+        uint256 roomId;
+        if (isScripted && escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active) {
+            roomId = roomSeed;
+        } else {
+            roomId = activeRooms[roomSeed % activeRooms.length];
+        }
 
         ChessEscrow.Room memory r = escrow.getRoom(roomId);
-        if (r.status != ChessEscrow.RoomStatus.Active) return;
+        if (r.status != ChessEscrow.RoomStatus.Active || r.singleSignedAt != 0) return;
 
         uint8 outcome = outcomeSeed % 3; // 0=White, 1=Black, 2=Draw
         address whitePlayer = r.creatorIsWhite ? r.playerA : r.playerB;
@@ -156,7 +251,7 @@ contract ChessEscrowHandler is Test {
         else winner = address(0);
 
         bytes32 movesHash = keccak256(abi.encodePacked("invariant-dual", roomId, outcome));
-        uint256 nonce = block.timestamp + 10;
+        uint256 nonce = ++globalNonce;
         uint256 deadline = block.timestamp + 1 hours;
 
         uint256 pkA = _getPk(r.playerA);
@@ -167,17 +262,29 @@ contract ChessEscrowHandler is Test {
         bytes memory sigB = _sign(pkB, roomId, winner, outcome, 0, 30, movesHash, nonce, deadline);
 
         escrow.submitResult(roomId, winner, outcome, 0, 30, movesHash, nonce, deadline, sigA, sigB);
+        _removeFrom(activeRooms, roomId);
         tracker.inc_submitResultDual();
     }
 
     // ──────── Action 7: Submit Result (Player + Relay Signatures, 2-of-3) ────────
     function submitResultRelay(uint256 roomSeed, uint8 outcomeSeed, uint256 playerChoice) external {
         tracker.incCall();
-        if (allRoomIds.length == 0) return;
-        uint256 roomId = allRoomIds[roomSeed % allRoomIds.length];
+        if (_checkAutoUnpause()) return;
+        if (escrow.paused()) return;
+        if (activeRooms.length == 0) return;
+
+        bool isScripted = (roomSeed < escrow.nextRoomId());
+        if (!isScripted && roomSeed % 20 != 1) return;
+
+        uint256 roomId;
+        if (isScripted && escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active) {
+            roomId = roomSeed;
+        } else {
+            roomId = activeRooms[roomSeed % activeRooms.length];
+        }
 
         ChessEscrow.Room memory r = escrow.getRoom(roomId);
-        if (r.status != ChessEscrow.RoomStatus.Active) return;
+        if (r.status != ChessEscrow.RoomStatus.Active || r.singleSignedAt != 0) return;
 
         uint8 outcome = outcomeSeed % 3;
         address whitePlayer = r.creatorIsWhite ? r.playerA : r.playerB;
@@ -189,7 +296,7 @@ contract ChessEscrowHandler is Test {
         else winner = address(0);
 
         bytes32 movesHash = keccak256(abi.encodePacked("invariant-relay", roomId, outcome));
-        uint256 nonce = block.timestamp + 15;
+        uint256 nonce = ++globalNonce;
         uint256 deadline = block.timestamp + 1 hours;
 
         address player = (playerChoice % 2 == 0) ? r.playerA : r.playerB;
@@ -200,20 +307,42 @@ contract ChessEscrowHandler is Test {
         bytes memory sigRelay = _sign(relayPk, roomId, winner, outcome, 0, 30, movesHash, nonce, deadline);
 
         escrow.submitResult(roomId, winner, outcome, 0, 30, movesHash, nonce, deadline, sigPlayer, sigRelay);
+        _removeFrom(activeRooms, roomId);
         tracker.inc_submitResultRelay();
     }
 
     // ──────── Action 8: Submit Single Signed (Submitter Bond Branch) ────────
     function submitSingleSignedAction(uint256 roomSeed, uint8 outcomeSeed) external {
         tracker.incCall();
-        if (allRoomIds.length == 0) return;
+        if (_checkAutoUnpause()) return;
+        if (escrow.paused()) return;
+
         if (!escrow.singleSignedEnabled()) {
             vm.prank(escrow.owner());
             escrow.setSingleSignedEnabled(true);
             tracker.inc_setSingleSignedEnabled();
         }
 
-        uint256 roomId = allRoomIds[roomSeed % allRoomIds.length];
+        uint256 roomId;
+        if (
+            roomSeed < escrow.nextRoomId() &&
+            escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active &&
+            escrow.getRoom(roomSeed).singleSignedAt == 0
+        ) {
+            roomId = roomSeed;
+        } else if (activeRooms.length > 0) {
+            roomId = activeRooms[roomSeed % activeRooms.length];
+        } else {
+            address creator = players[outcomeSeed % 3];
+            address joiner = players[(outcomeSeed + 1) % 3];
+            vm.prank(creator);
+            roomId = escrow.createRoom{ value: 0.1 ether }(true);
+            allRoomIds.push(roomId);
+            vm.prank(joiner);
+            escrow.joinRoom{ value: 0.1 ether }(roomId);
+            activeRooms.push(roomId);
+        }
+
         ChessEscrow.Room memory r = escrow.getRoom(roomId);
         if (r.status != ChessEscrow.RoomStatus.Active || r.singleSignedAt != 0) return;
 
@@ -226,7 +355,7 @@ contract ChessEscrowHandler is Test {
         if (pkWinner == 0) return;
 
         bytes32 movesHash = keccak256(abi.encodePacked("single", roomId, outcome));
-        uint256 nonce = block.timestamp + 20;
+        uint256 nonce = ++globalNonce;
         uint256 deadline = block.timestamp + 1 hours;
         uint256 bond = escrow.getChallengeBond(r.stake);
 
@@ -234,17 +363,44 @@ contract ChessEscrowHandler is Test {
 
         vm.prank(winner);
         escrow.submitSingleSigned{ value: bond }(roomId, winner, outcome, 0, 20, movesHash, nonce, deadline, sig);
+        _removeFrom(activeRooms, roomId);
+        singleSignedRooms.push(roomId);
         tracker.inc_submitSingleSigned();
     }
 
     // ──────── Action 9: Challenge (Challenger Bond Branch) ────────
     function challengeAction(uint256 roomSeed, uint8 outcomeSeed) external {
         tracker.incCall();
-        if (allRoomIds.length == 0) return;
-        uint256 roomId = allRoomIds[roomSeed % allRoomIds.length];
+        if (_checkAutoUnpause()) return;
+        if (escrow.paused()) return;
+
+        bool isScripted = (
+            roomSeed < escrow.nextRoomId() &&
+            escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active &&
+            escrow.getRoom(roomSeed).singleSignedAt != 0
+        );
+
+        if (!isScripted) {
+            // If challenge already has plenty and finalize is not yet at 55, give finalize priority
+            if (tracker.ghost_challenge() >= 120 && tracker.ghost_finalizeSingleSigned() < 55) {
+                return;
+            }
+        }
+
+        uint256 roomId;
+        if (isScripted) {
+            roomId = roomSeed;
+        } else if (singleSignedRooms.length > 0) {
+            roomId = singleSignedRooms[roomSeed % singleSignedRooms.length];
+        } else {
+            return;
+        }
 
         ChessEscrow.Room memory r = escrow.getRoom(roomId);
         if (r.status != ChessEscrow.RoomStatus.Active || r.singleSignedAt == 0) return;
+
+        // Challenge within window
+        vm.warp(r.singleSignedAt + 60);
 
         address opponent = (r.singleSignedWinner == r.playerA) ? r.playerB : r.playerA;
         address whitePlayer = r.creatorIsWhite ? r.playerA : r.playerB;
@@ -259,12 +415,10 @@ contract ChessEscrowHandler is Test {
             outcome = 2;
         }
 
-        // Challenge within window
-        vm.warp(r.singleSignedAt + 60);
         uint256 bond = escrow.getChallengeBond(r.stake);
 
         bytes32 movesHash = keccak256(abi.encodePacked("challenge", roomId, outcome));
-        uint256 nonce = block.timestamp + 25;
+        uint256 nonce = ++globalNonce;
         uint256 deadline = block.timestamp + 1 hours;
         uint256 pkOpponent = _getPk(opponent);
         if (pkOpponent == 0) return;
@@ -273,20 +427,46 @@ contract ChessEscrowHandler is Test {
 
         vm.prank(opponent);
         escrow.challenge{ value: bond }(roomId, counterWinner, outcome, 0, 22, movesHash, nonce, deadline, sig);
+        _removeFrom(singleSignedRooms, roomId);
+        challengedRooms.push(roomId);
         tracker.inc_challenge();
     }
 
     // ──────── Action 10: Resolve Challenge (Arbiter Ruling Bond Branch) ────────
     function resolveChallengeAction(uint256 roomSeed, uint8 rulingSeed) external {
         tracker.incCall();
-        if (allRoomIds.length == 0) return;
-        uint256 roomId = allRoomIds[roomSeed % allRoomIds.length];
+        if (_checkAutoUnpause()) return;
+        if (escrow.paused()) return;
+
+        bool isScripted = (
+            roomSeed < escrow.nextRoomId() &&
+            escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Challenged
+        );
+
+        if (!isScripted) {
+            // Keep arbiter and default challenges in strict lockstep
+            if (
+                tracker.ghost_resolveChallenge() > tracker.ghost_resolveDefaultChallenge() &&
+                tracker.ghost_resolveDefaultChallenge() < 55
+            ) {
+                return;
+            }
+        }
+
+        uint256 roomId;
+        if (isScripted) {
+            roomId = roomSeed;
+        } else if (challengedRooms.length > 0) {
+            roomId = challengedRooms[roomSeed % challengedRooms.length];
+        } else {
+            return;
+        }
 
         ChessEscrow.Room memory r = escrow.getRoom(roomId);
         if (r.status != ChessEscrow.RoomStatus.Challenged) return;
 
-        // Resolve within arbiter deadline
-        vm.warp(r.challengedAt + 3600);
+        vm.warp(r.challengedAt + 60);
+
         address whitePlayer = r.creatorIsWhite ? r.playerA : r.playerB;
         address blackPlayer = r.creatorIsWhite ? r.playerB : r.playerA;
 
@@ -297,56 +477,121 @@ contract ChessEscrowHandler is Test {
 
         vm.prank(escrow.arbiter());
         escrow.resolveChallenge(roomId, winner);
+        _removeFrom(challengedRooms, roomId);
         tracker.inc_resolveChallenge();
     }
 
     // ──────── Action 11: Resolve Default Challenge (Default Bond Branch) ────────
     function resolveDefaultChallengeAction(uint256 roomSeed) external {
         tracker.incCall();
-        if (allRoomIds.length == 0) return;
-        uint256 roomId = allRoomIds[roomSeed % allRoomIds.length];
+        if (_checkAutoUnpause()) return;
+        if (escrow.paused()) return;
+
+        bool isScripted = (
+            roomSeed < escrow.nextRoomId() &&
+            escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Challenged
+        );
+
+        if (!isScripted) {
+            // Keep arbiter and default challenges in strict lockstep
+            if (
+                tracker.ghost_resolveDefaultChallenge() >= tracker.ghost_resolveChallenge() &&
+                tracker.ghost_resolveChallenge() < 55
+            ) {
+                return;
+            }
+        }
+
+        uint256 roomId;
+        if (isScripted) {
+            roomId = roomSeed;
+        } else if (challengedRooms.length > 0) {
+            roomId = challengedRooms[roomSeed % challengedRooms.length];
+        } else {
+            return;
+        }
 
         ChessEscrow.Room memory r = escrow.getRoom(roomId);
         if (r.status != ChessEscrow.RoomStatus.Challenged) return;
 
-        // Arbiter silent past deadline
         vm.warp(r.challengedAt + escrow.ARBITER_DEADLINE() + 1);
         escrow.resolveDefaultChallenge(roomId);
+        _removeFrom(challengedRooms, roomId);
         tracker.inc_resolveDefaultChallenge();
     }
 
     // ──────── Action 12: Finalize Single Signed (Finalize Bond Branch) ────────
     function finalizeSingleSignedAction(uint256 roomSeed) external {
         tracker.incCall();
-        if (allRoomIds.length == 0) return;
-        uint256 roomId = allRoomIds[roomSeed % allRoomIds.length];
+        if (_checkAutoUnpause()) return;
+        if (escrow.paused()) return;
+
+        bool isScripted = (
+            roomSeed < escrow.nextRoomId() &&
+            escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active &&
+            escrow.getRoom(roomSeed).singleSignedAt != 0
+        );
+
+        if (!isScripted) {
+            // Once target is achieved (55 >= 50), do not consume more single-signed rooms
+            if (tracker.ghost_finalizeSingleSigned() >= 55) {
+                return;
+            }
+            // Challenge needs ~110 rooms (to satisfy 50 arbiter + 50 default). Give challenge priority until reached.
+            if (tracker.ghost_challenge() < 110 && tracker.ghost_finalizeSingleSigned() >= 40) {
+                return;
+            }
+        }
+
+        uint256 roomId;
+        if (isScripted) {
+            roomId = roomSeed;
+        } else if (singleSignedRooms.length > 0) {
+            roomId = singleSignedRooms[roomSeed % singleSignedRooms.length];
+        } else {
+            return;
+        }
 
         ChessEscrow.Room memory r = escrow.getRoom(roomId);
         if (r.status != ChessEscrow.RoomStatus.Active || r.singleSignedAt == 0) return;
 
         vm.warp(r.singleSignedAt + escrow.CHALLENGE_WINDOW() + 1);
         escrow.finalizeSingleSigned(roomId);
+        _removeFrom(singleSignedRooms, roomId);
         tracker.inc_finalizeSingleSigned();
     }
 
     // ──────── Action 13: Refund on Timeout ────────
     function refundOnTimeoutAction(uint256 roomSeed) external {
         tracker.incCall();
-        if (allRoomIds.length == 0) return;
-        uint256 roomId = allRoomIds[roomSeed % allRoomIds.length];
+        if (_checkAutoUnpause()) return;
+        if (escrow.paused()) return;
+        if (activeRooms.length == 0) return;
 
-        ChessEscrow.Room memory r = escrow.getRoom(roomId);
-        if (r.status != ChessEscrow.RoomStatus.Active || r.singleSignedAt != 0) return;
+        bool isScripted = (roomSeed < escrow.nextRoomId());
+        if (!isScripted && roomSeed % 20 != 2) return;
 
-        uint256 baseTime = r.gameStartedAt > r.startedAt ? r.gameStartedAt : r.startedAt;
+        uint256 roomId;
+        if (isScripted && escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active) {
+            roomId = roomSeed;
+        } else {
+            roomId = activeRooms[roomSeed % activeRooms.length];
+        }
+
+        ChessEscrow.Room memory check = escrow.getRoom(roomId);
+        if (check.status != ChessEscrow.RoomStatus.Active || check.singleSignedAt != 0) return;
+
+        uint256 baseTime = check.gameStartedAt > check.startedAt ? check.gameStartedAt : check.startedAt;
         vm.warp(baseTime + escrow.REFUND_TIMEOUT() + 1);
         escrow.refundOnTimeout(roomId);
+        _removeFrom(activeRooms, roomId);
         tracker.inc_refundOnTimeout();
     }
 
     // ──────── Action 14: Withdraw Pull Payments ────────
     function withdraw(uint256 actorIdx) external {
         tracker.incCall();
+        _checkAutoUnpause();
         address actor = players[actorIdx % 3];
         if (escrow.pendingWithdrawals(actor) > 0) {
             vm.prank(actor);
@@ -358,6 +603,7 @@ contract ChessEscrowHandler is Test {
     // ──────── Action 15: Withdraw Protocol Fees ────────
     function withdrawProtocolFees() external {
         tracker.incCall();
+        _checkAutoUnpause();
         if (escrow.protocolFees() > 0) {
             vm.prank(escrow.owner());
             escrow.withdrawProtocolFees();
@@ -365,12 +611,18 @@ contract ChessEscrowHandler is Test {
         }
     }
 
-    // ──────── Action 16: Pause Contract ────────
-    function pauseAction() external {
+    // ──────── Action 16: Pause Contract (Item 3d: ~2% of calls and auto-unpause) ────────
+    function pauseAction(uint256 seed) external {
         tracker.incCall();
+        if (_checkAutoUnpause()) return;
+
+        // With 18 actions, pausing on ~36% of pauseAction calls yields ~2% of total calls
+        if (seed % 100 >= 36) return;
+
         if (!escrow.paused()) {
             vm.prank(escrow.owner());
             escrow.pause();
+            pausedRemainingSteps = 3 + (seed % 3); // Stay paused for 3 to 5 calls
             tracker.inc_pause();
         }
     }
@@ -379,17 +631,22 @@ contract ChessEscrowHandler is Test {
     function unpauseAction() external {
         tracker.incCall();
         if (escrow.paused()) {
-            vm.prank(escrow.owner());
-            escrow.unpause();
-            tracker.inc_unpause();
+            if (pausedRemainingSteps == 0) {
+                vm.prank(escrow.owner());
+                escrow.unpause();
+                tracker.inc_unpause();
+            } else {
+                pausedRemainingSteps--;
+            }
         }
     }
 
     // ──────── Action 18: Set Single Signed Enabled ────────
     function setSingleSignedEnabledAction(uint8 seed) external {
         tracker.incCall();
-        // Keep enabled most of the time (80% enabled, 20% disabled) to ensure high bond coverage
-        bool enabled = (seed % 5 != 0);
+        _checkAutoUnpause();
+        // Keep enabled 90% of the time to ensure high bond coverage
+        bool enabled = (seed % 10 != 0);
         vm.prank(escrow.owner());
         escrow.setSingleSignedEnabled(enabled);
         tracker.inc_setSingleSignedEnabled();

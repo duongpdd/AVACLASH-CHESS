@@ -59,10 +59,10 @@ contract ChessEscrowInvariantTest is Test {
     }
 
     /**
-     * @notice Unit simulation asserting minimum execution thresholds (>= 100 per bond branch)
+     * @notice Scripted deterministic scenario asserting minimum execution thresholds (>= 100 per bond branch)
      *         and printing the ghost counters summary table cleanly to stdout.
      */
-    function test_ghostCountersSummaryAndCoverage() public {
+    function test_scriptedScenarioCoverage() public {
         GhostTracker testTracker = new GhostTracker();
         ChessEscrow testEscrow = new ChessEscrow(vm.addr(0xDE1A4), makeAddr("arbiter"), makeAddr("treasury"));
         testEscrow.setSingleSignedEnabled(true);
@@ -131,12 +131,13 @@ contract ChessEscrowInvariantTest is Test {
 
             testHandler.withdraw(i);
             testHandler.withdrawProtocolFees();
-            testHandler.pauseAction();
+            testHandler.pauseAction(i);
             testHandler.unpauseAction();
             testHandler.setSingleSignedEnabledAction(uint8(i));
         }
 
-        // Print full ghost counters summary table
+        // Print scripted ghost counters summary table
+        console.log("--- SCRIPTED SCENARIO SUMMARY ---");
         testTracker.printSummary();
 
         // Assert minimum successful calls for each bond branch (>= 100)
@@ -151,6 +152,12 @@ contract ChessEscrowInvariantTest is Test {
      * @notice Invariant: Solvency and fund conservation across 128,000 random calls.
      *         At all times and after any valid random sequences:
      *         address(escrow).balance == sum(pendingWithdrawals) + protocolFees + expectedRoomHoldings
+     *
+     * Independent calculation for EVERY RoomStatus:
+     *   Open = stake;
+     *   Active = 2*stake + singleSignedBond;
+     *   Challenged = 2*stake + singleSignedBond + challengeBond;
+     *   Settled / Cancelled / Refunded / Aborted = 0.
      */
     function invariant_solvencyConservation() public {
         // 1. Sum all pending pull-withdrawal balances
@@ -166,14 +173,11 @@ contract ChessEscrowInvariantTest is Test {
         // 2. Accumulated protocol fees
         uint256 fees = escrow.protocolFees();
 
-        // 3. First-principles independent calculation of funds currently held across all rooms.
-        // Independent because it derives expected holdings solely from raw room status rules:
-        // - Open rooms: creator stake only (1 * stake).
-        // - Active rooms: creator + joiner stake (2 * stake) + submitter bond (if claim active).
-        // - Challenged rooms: 2 * stake + submitter bond + challenger bond.
-        // - Terminal rooms: 0 held in active stakes/bonds.
+        // 3. Independent calculation of funds currently held across all rooms for EVERY RoomStatus
         uint256 expectedRoomHoldings = 0;
         uint256 nextId = escrow.nextRoomId();
+        bool hasChallenged = false;
+
         for (uint256 id = 0; id < nextId; id++) {
             ChessEscrow.Room memory r = escrow.getRoom(id);
             if (r.status == ChessEscrow.RoomStatus.Open) {
@@ -182,7 +186,20 @@ contract ChessEscrowInvariantTest is Test {
                 expectedRoomHoldings += (r.stake * 2) + r.singleSignedBond;
             } else if (r.status == ChessEscrow.RoomStatus.Challenged) {
                 expectedRoomHoldings += (r.stake * 2) + r.singleSignedBond + r.challengeBond;
+                hasChallenged = true;
+            } else if (
+                r.status == ChessEscrow.RoomStatus.Settled ||
+                r.status == ChessEscrow.RoomStatus.Cancelled ||
+                r.status == ChessEscrow.RoomStatus.Refunded ||
+                r.status == ChessEscrow.RoomStatus.Aborted
+            ) {
+                // Holdings for terminal statuses are strictly 0 wei
+                // All funds have migrated to pendingWithdrawals or protocolFees
             }
+        }
+
+        if (hasChallenged) {
+            tracker.inc_invariantChallengedSampled();
         }
 
         uint256 expectedBalance = totalPending + fees + expectedRoomHoldings;
@@ -191,5 +208,21 @@ contract ChessEscrowInvariantTest is Test {
             expectedBalance,
             "Invariant broken: escrow.balance != sum(pendingWithdrawals) + protocolFees + expectedRoomHoldings"
         );
+    }
+
+    /**
+     * @notice Callback hook invoked by Foundry after all invariant runs and depths complete.
+     *         Prints the ghost counters summary of the fuzz campaign and asserts minimum thresholds (>= 50 per bond branch).
+     */
+    function afterInvariant() public view {
+        console.log("--- INVARIANT FUZZ CAMPAIGN SUMMARY ---");
+        tracker.printSummary();
+
+        assertGe(tracker.ghost_submitSingleSigned(), 50, "fuzz ghost_submitSingleSigned < 50");
+        assertGe(tracker.ghost_challenge(), 50, "fuzz ghost_challenge < 50");
+        assertGe(tracker.ghost_resolveChallenge(), 50, "fuzz ghost_resolveChallenge < 50");
+        assertGe(tracker.ghost_resolveDefaultChallenge(), 50, "fuzz ghost_resolveDefaultChallenge < 50");
+        assertGe(tracker.ghost_finalizeSingleSigned(), 50, "fuzz ghost_finalizeSingleSigned < 50");
+        assertGe(tracker.ghost_invariantChallengedSampled(), 50, "fuzz ghost_invariantChallengedSampled < 50");
     }
 }
