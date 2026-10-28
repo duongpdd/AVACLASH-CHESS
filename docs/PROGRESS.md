@@ -1,6 +1,6 @@
 # Tiến độ Phát triển Dự án — AvaClash Chess
 
-> **Cập nhật lần cuối:** 27/10/2026 (Lượt 3b) | **Trạng thái tổng thể:** Phase 5 Đang hoàn thiện (~85%) — Chống hồi sinh ván cờ, Lưu ván đang chơi (Q19), gameStartedAt & refund timeout anchor, Q20 moveCount, Q18 joinedAt betting window, Invariant testing toàn diện với Ghost counters & Independent Solvency, Cache getRoom & Rate Limiting
+> **Cập nhật lần cuối:** 28/10/2026 (Lượt 3b-Fix) | **Trạng thái tổng thể:** Phase 5 Đang hoàn thiện (~88%) — Xác nhận winningOption 1/2/3 và Ma trận 12 test tích hợp Meta thật, Khôi phục trọn bộ 8 test MetaTryCatch mock revert, Invariant afterInvariant assert ghost counters fuzz độc lập, Đồng hồ không dừng khi ngắt mạng & ân hạn 120s khi restart, Lưu kết quả trước RPC & retry backoff 5m, Bảo vệ Proxy TRUST_PROXY & verifyClient Origin 403
 
 AvaClash Chess là nền tảng cờ vua Web3 1v1 PvP trên mạng Avalanche Fuji Testnet, kết hợp giữa luật cờ vua chuẩn quốc tế FIDE (5+0 Blitz) và hạ tầng kinh tế phi tập trung (Escrow cá cược AVAX, On-chain ELO, No-Loss Vault, Parimutuel Spectator Betting).
 
@@ -10,20 +10,20 @@ AvaClash Chess là nền tảng cờ vua Web3 1v1 PvP trên mạng Avalanche Fuj
 
 ```
 [Phase 1: Core Engine & Shared] ──────► 100% Hoàn thành (95/95 tests pass)
-[Phase 2: Smart Contract Escrow] ─────► 100% Hoàn thành (107/107 tests pass: 94 unit/fuzz + 10 meta-integ + 3 try-catch)
+[Phase 2: Smart Contract Escrow] ─────► 100% Hoàn thành (128/128 tests pass: 94 escrow + 21 meta-integ + 13 try-catch)
 [Phase 3: Phaser 3 Game Arena] ───────► 100% Hoàn thành (17/17 tests pass)
 [Phase 4: Web3 Meta Layer & Anti-Cheat] ► 100% Hoàn thành (24/24 tests pass)
-[Phase 5: Relay, Security & Invariants] ► ~85% Thực tế (133 contract tests gồm 128,000 calls invariant, 31 relay tests gồm 12 Anvil tests; CHƯA Deploy Fuji, CHƯA Nối Ví Wagmi)
+[Phase 5: Relay, Security & Invariants] ► ~88% Thực tế (154 contract tests gồm fuzz invariant 3,800 depth, 36 relay tests gồm 13 Anvil e2e; CHƯA Deploy Fuji, CHƯA Nối Ví Wagmi)
 [Phase 6: Audit, Mainnet & Season 1] ──► 0% Lập kế hoạch
 ```
 
 | Giai đoạn   | Mô tả                           | Trọng tâm kỹ thuật                                                                     |    Trạng thái     |   Test Coverage    |
 | :---------- | :------------------------------ | :------------------------------------------------------------------------------------- | :---------------: | :----------------: |
 | **Phase 1** | Monorepo Setup & Shared Package | UCI move format, keccak256 hash, EIP-712 v2, Zod validation, Replay, Cross-spec fixture|   ✅ Hoàn thành   | 95/95 tests (100%) |
-| **Phase 2** | Smart Contract Escrow           | `ChessEscrow.sol`, Ownable2Step, gameStartedAt, Q20 moveCount, Disable renounceOwnership|   ✅ Hoàn thành   | 107/107 tests (100%) |
+| **Phase 2** | Smart Contract Escrow           | `ChessEscrow.sol`, Ownable2Step, winningOption 1/2/3, Meta try/catch fallback delay    |   ✅ Hoàn thành   | 128/128 tests (100%) |
 | **Phase 3** | Local Chess Game Arena          | Phaser 3 canvas, `GameState.ts`, FIDE 5+0 clocks, UI 100dvh, Victory Modal, Room Lobby |   ✅ Hoàn thành   | 17/17 tests (100%) |
 | **Phase 4** | Web3 Meta Layer & Fair Play     | `AvaClashMeta.sol` (Q18 joinedAt window, hasBet anti-self-bet, 20-move void refund)    |   ✅ Hoàn thành   | 24/24 tests (100%) |
-| **Phase 5** | Relay, Security & Integration   | Relay chống hồi sinh, active game persistence (Q19), getRoom cache, IP rate limit, Invariant ghost counters | ⚠️ Đang hoàn thiện (~85%) | 33/33 tests (100%: 31 Vitest + 2 Invariants) |
+| **Phase 5** | Relay, Security & Integration   | Relay clock disconnect/restart ân hạn, saveGameResult retry 5m, TRUST_PROXY & verifyClient, Invariant afterInvariant | ⚠️ Đang hoàn thiện (~88%) | 38/38 tests (100%: 36 Vitest + 2 Invariants) |
 | **Phase 6** | Audit & Avalanche Mainnet       | Security Audit, Subnet/C-Chain mainnet, Season leaderboard                             |    ⚪ Dự kiến     |    Chưa bắt đầu    |
 
 ---
@@ -126,20 +126,20 @@ AvaClash Chess là nền tảng cờ vua Web3 1v1 PvP trên mạng Avalanche Fuj
 
 ---
 
-## 3. Tổng hợp Chỉ số Kiểm thử & Mã nguồn (Metrics Thật Lượt 3b)
+## 3. Tổng hợp Chỉ số Kiểm thử & Mã nguồn (Metrics Thật Lượt 3b-Fix)
 
 | Hạng mục kiểm thử                                            | Công cụ | Số lượng Test |          Kết quả          |
 | :----------------------------------------------------------- | :------ | :-----------: | :-----------------------: |
 | **Logic cờ vua, Mã hóa, EIP-712 v2, Replay, Schema, Cross-Spec**| Vitest |      95       |      ✅ 95/95 Passed      |
-| **WebSocket Relay Server (packages/relay unit + hardening)** | Vitest  |      19       |      ✅ 19/19 Passed      |
-| **Tích hợp Relay với Anvil thật (anvil-integration.test.ts)**| Vitest  |      12       |      ✅ 12/12 Passed      |
+| **WebSocket Relay Server (packages/relay unit, proxy, origin)**| Vitest  |      23       |      ✅ 23/23 Passed (gồm 2 ABI tests)|
+| **Tích hợp Relay với Anvil thật (anvil-integration.test.ts)**| Vitest  |      13       |      ✅ 13/13 Passed      |
 | **Giao diện Client & Game State (web)**                      | Vitest  |      17       |      ✅ 17/17 Passed      |
 | **Hợp đồng ký quỹ cược (ChessEscrow unit, fuzz, cross-spec)** | Foundry |      94       |      ✅ 94/94 Passed      |
 | **Hợp đồng Meta Layer (AvaClashMeta unit tests)**            | Foundry |      24       |      ✅ 24/24 Passed      |
-| **Tích hợp Escrow ↔ Meta (ChessEscrowMetaIntegration)**       | Foundry |      10       |      ✅ 10/10 Passed      |
-| **Cô lập try/catch & Cứu hộ (ChessEscrowMetaTryCatch)**      | Foundry |       3       |       ✅ 3/3 Passed       |
-| **Bất biến bảo toàn thanh khoản & Ghost Counters**           | Foundry |       2       | ✅ 2/2 Passed (128,000 calls)|
-| **TỔNG CỘNG TOÀN DỰ ÁN**                                    | —       |    **276**    | **276/276 Passed (100%)** |
+| **Tích hợp Escrow ↔ Meta (ChessEscrowMetaIntegration)**       | Foundry |      21       |      ✅ 21/21 Passed      |
+| **Cô lập try/catch & Cứu hộ (ChessEscrowMetaTryCatch)**      | Foundry |      13       |      ✅ 13/13 Passed      |
+| **Bất biến bảo toàn thanh khoản & Ghost Counters**           | Foundry |       2       | ✅ 2/2 Passed (3,800 depth campaign)|
+| **TỔNG CỘNG TOÀN DỰ ÁN**                                    | —       |    **302**    | **302/302 Passed (100%)** |
 
 ---
 

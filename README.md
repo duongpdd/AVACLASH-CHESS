@@ -107,3 +107,22 @@ server {
     }
 }
 ```
+
+## Phạm vi demo Fuji
+
+Dự án AvaClash Chess hiện đang triển khai và thử nghiệm trên mạng **Avalanche Fuji Testnet**. Phạm vi demo bao gồm:
+- **Ký quỹ cá cược 1v1 PvP:** Nạp cược AVAX, chọn màu quân, ghép cặp và ký quỹ qua hợp đồng `ChessEscrow.sol`.
+- **Luật cờ FIDE 5+0 Blitz:** Bàn cờ trực quan (Phaser 3 / Canvas) đồng bộ thời gian thực qua WebSocket Relay Server.
+- **Chứng thực phân xử EIP-712:** Kết quả ván đấu có chữ ký kép (hai người chơi) hoặc chữ ký relay (`relaySigner`) giải ngân trực tiếp on-chain.
+- **Thị trường cược khán giả Parimutuel:** Đặt cược vào 3 cửa (Trắng / Đen / Hòa) trong cửa sổ 120s trước khi ván đấu diễn ra với cơ chế hoàn trả an toàn.
+- **Tính điểm ELO on-chain & No-Loss Vault:** Cập nhật ELO minh bạch trên `AvaClashMeta.sol` và staking AVAX nhận điểm mùa giải.
+
+## Hạn chế đã biết
+
+1. **Cơ chế Single-Signed tắt mặc định:** `isSingleSignedEnabled = false` trên Fuji để triệt tiêu rủi ro tranh chấp bất đối xứng; chỉ mở lại khi có giải pháp fraud-proof hoặc chữ ký từng nước đi hoàn chỉnh.
+2. **Trọng tài (`arbiter`) là địa chỉ đơn lẻ:** Trọng tài hiện là một khóa ví đáng tin cậy giải quyết tranh chấp bond mà chưa có bằng chứng mật mã học (zero-knowledge proof hay interactive fraud proof on-chain).
+3. **Hệ thống ELO chưa chống Sybil triệt để:** Thuật toán hiện tại chỉ giảm hệ số thay đổi $\Delta$ khi hai địa chỉ ví gặp nhau nhiều lần trong ngày, chưa phát hiện và ngăn chặn được việc người dùng tạo nhiều ví phụ để cày điểm.
+4. **Cược khán giả chỉ là thử nghiệm:** Mô hình parimutuel spectator pool trên `AvaClashMeta.sol` hiện tại đóng vai trò thử nghiệm thị trường dự đoán; người dùng không nên sử dụng với giá trị vốn lớn.
+5. **Relay là điểm tin cậy duy nhất (Single Point of Trust):** Relay Server đóng vai trò điều phối nước đi và đồng hồ ngoài chuỗi; nếu Relay gặp sự cố hoặc offline kéo dài, ván đấu cần giải quyết qua cơ chế timeout hoặc khôi phục từ snapshot đĩa.
+6. **Chưa qua kiểm toán độc lập (Audit):** Toàn bộ mã nguồn hợp đồng thông minh và relay server chưa được kiểm toán bởi đơn vị bảo mật bên thứ ba; không phù hợp để triển khai trên Avalanche C-Chain Mainnet mà không có audit.
+7. **Quỹ giải thưởng mùa giải (`seasonPrizePool`) chưa có cơ chế chi trả:** Phần tích lũy 5% phí spectator vào `seasonPrizePool` hiện được giữ an toàn trên hợp đồng và chưa có smart contract phân bổ thưởng cuối mùa giải.

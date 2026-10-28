@@ -228,3 +228,43 @@
     1. `retryResolvePrediction(roomId)`: Cho phép gọi lại giải ngân phần thưởng theo đúng kết quả khi Meta hoạt động lại bình thường.
     2. `fallbackCancelPrediction(roomId)`: Hủy pool dự đoán để 100% khán giả rút lại tiền cược gốc qua `claimSpectatorRefund(roomId)`.
     3. **Hoàn tiền độc lập sau 7 ngày (`MAX_UNRESOLVED`):** Khán giả có thể tự gọi `claimSpectatorRefund(roomId)` trên `AvaClashMeta.sol` sau 7 ngày nếu pool chưa được xử lý mà không cần phụ thuộc vào Escrow.
+
+---
+
+## Quyết định Lượt 3b-Fix (Kiểm chứng và Vá)
+
+### Q21 / D15: Cơ chế đồng hồ Relay khi người chơi mất kết nối — `Accepted`
+- **Quyết định:**
+  - Khi Relay đang chạy bình thường, việc người chơi mất kết nối mạng hoặc ngắt kết nối WebSocket **KHÔNG** làm đồng hồ bàn cờ dừng lại (xóa bỏ logic `pauseClock` khi disconnect). Đồng hồ tiếp tục trừ giờ của người chơi đến lượt; khi hết giờ, Relay tự động kết thúc ván đấu và ký chứng chỉ xử thua do timeout cho bên còn lại theo đúng tinh thần FIDE Blitz.
+  - Chỉ thời gian Relay bị sập hoặc tắt server không bị trừ vào người chơi.
+  - Sau khi khôi phục ván đấu từ tệp `active`, ván đấu bước vào thời gian ân hạn tối đa 120 giây (`recoveryGraceMs = 120_000`). Đồng hồ chỉ tiếp tục chạy khi cả hai kỳ thủ đều đã kết nối lại và nhận ghế, hoặc sau 120 giây kể từ mốc khôi phục (`recoveredAt + recoveryGraceMs`), tùy điều kiện nào đến trước.
+- **Lý do:** Ngăn chặn gian lận "rút dây mạng" để đóng băng đồng hồ khi đang ở thế cờ thua; bảo đảm tính công bằng tuyệt đối cho đối thủ.
+
+### Q22 / D16: Lưu kết quả phòng ngay lập tức khi kết thúc trước khi gọi RPC/ký — `Accepted`
+- **Quyết định:**
+  - Trong `handleGameOver`, Relay thực hiện lưu trạng thái kết quả ván đấu (`moves`, `outcome`, `reason`, `winner`, `whiteAddress`, `blackAddress`) xuống đĩa và RAM **NGAY LẬP TỨC**, trước khi gọi RPC đọc dữ liệu on-chain hoặc tạo chữ ký EIP-712.
+  - Cơ chế ký chữ ký kết quả được trang bị vòng lặp retry với exponential backoff (tối đa 5 phút) để xử lý các lỗi RPC mạng tạm thời.
+  - Việc dọn dẹp bộ nhớ RAM và xóa tệp `active` được đặt an toàn trong khối `finally`.
+  - Lệnh `request_result` hoạt động độc lập và sẵn sàng phục vụ ký lại kết quả cho kỳ thủ bất kỳ lúc nào dựa trên dữ liệu đã lưu, kể cả khi kết quả chưa từng được broadcast thành công tới client.
+- **Lý do:** Bảo vệ dữ liệu kết quả ván cờ không bị thất lạc khi mạng RPC bị nghẽn hoặc ngắt kết nối vào đúng thời điểm kết thúc ván đấu.
+
+### Q23 / D17: Bảo vệ Proxy và kiểm thực Origin cho WebSocket Relay — `Accepted`
+- **Quyết định:**
+  - Cấu hình biến môi trường `TRUST_PROXY`: Chỉ khi `TRUST_PROXY=true` Relay mới tin tưởng header `X-Forwarded-For` và lấy phần tử IP đầu tiên trong chuỗi (client IP thực sự sau proxy ghi đè). Mặc định `false` lấy `req.socket.remoteAddress`.
+  - Cấu hình biến môi trường `ALLOWED_ORIGINS`: Danh sách tên miền được phép kết nối phân tách bằng dấu phẩy.
+  - Thực thi xác thực `verifyClient` trong `WebSocketServer`: Nếu header `Origin` không thuộc danh sách `ALLOWED_ORIGINS`, từ chối kết nối ngay từ bước nâng cấp HTTP với mã `403 Forbidden`.
+  - Yêu cầu thiếu `Origin` chỉ được chấp nhận khi `ALLOW_NO_ORIGIN=true` hoặc `NODE_ENV=test`.
+- **Lý do:** Ngăn chặn tấn công Cross-Site WebSocket Hijacking (CSWSH) và bảo đảm tính chính xác của IP rate limiter khi chạy sau reverse proxy như Caddy hoặc Nginx.
+
+### Q24 / D18: Bất biến thanh khoản độc lập cho toàn bộ trạng thái RoomStatus và giám sát Fuzz Campaign — `Accepted`
+- **Quyết định:**
+  - Công thức kiểm tra bất biến thanh khoản độc lập duyệt qua toàn bộ các phòng từng được tạo và tính toán giá trị đang giữ theo từng `RoomStatus`:
+    - `Open`: `stake`
+    - `Active`: `2 * stake + singleSignedBond`
+    - `Challenged`: `2 * stake + singleSignedBond + challengeBond`
+    - `Settled / Cancelled / Refunded / Aborted`: `0`
+  - Tổng giá trị đang giữ ở tất cả các phòng + `pendingWithdrawals` + `protocolFees` phải khớp chính xác 100% với `address(escrow).balance`.
+  - Giữ trạng thái `Challenged` đủ lâu và bổ sung ghost counter đếm số lần bất biến được kiểm tra khi tồn tại phòng `Challenged`.
+  - Triển khai hook `afterInvariant()` trong Foundry để assert trực tiếp các ghost counters của chính lần chạy fuzz campaign: bảo đảm mọi nhánh bond (`submitSingleSigned`, `challenge`, `resolveChallenge`, `resolveDefaultChallenge`, `finalizeSingleSigned`) đều đạt $\ge 50$ lần gọi thành công.
+  - Hành động `pauseAction` chiếm khoảng 2% tần suất gọi và tự động gọi `unpause` sau một vài bước để tránh đóng băng handler.
+- **Lý do:** Khẳng định bằng toán học tính bảo toàn tuyệt đối của hợp đồng ký quỹ ở mọi kịch bản fuzzing ngẫu nhiên.
