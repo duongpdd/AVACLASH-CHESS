@@ -384,4 +384,176 @@ contract ChessEscrowMetaTryCatchTest is Test {
         assertEq(address(escrow).balance, 0);
         assertEq(address(realMeta).balance, 0);
     }
+
+    function test_FinalizeSingleSigned_SuccessWhenMetaReverts() public {
+        escrow.setSingleSignedEnabled(true);
+        vm.prank(playerA);
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
+
+        vm.prank(playerB);
+        escrow.joinRoom{ value: 0.1 ether }(roomId);
+
+        vm.prank(relaySigner);
+        escrow.signalGameStarted(roomId);
+
+        bytes32 movesHash = keccak256("single_signed");
+        uint256 nonce = 21;
+        uint256 deadline = block.timestamp + 1 hours;
+        uint16 moveCount = 24;
+
+        bytes memory sigA = _signResult(creatorPrivateKey, roomId, playerA, 0, 0, moveCount, movesHash, nonce, deadline);
+
+        vm.prank(playerA);
+        escrow.submitSingleSigned{ value: 0.02 ether }(roomId, playerA, 0, 0, moveCount, movesHash, nonce, deadline, sigA);
+
+        // Warp past challenge window (1 day)
+        vm.warp(block.timestamp + 1 days + 1);
+
+        // Expect MetaCallFailed for updateEloOnSettle and resolvePrediction
+        vm.expectEmit(true, false, false, true);
+        emit ChessEscrow.MetaCallFailed(roomId, IAvaClashMeta.updateEloOnSettle.selector);
+        vm.expectEmit(true, false, false, true);
+        emit ChessEscrow.MetaCallFailed(roomId, IAvaClashMeta.resolvePrediction.selector);
+
+        escrow.finalizeSingleSigned(roomId);
+
+        // Pot = 0.2 ether, fee = 0.01 ether, winner gets 0.19 ether + 0.02 ether bond = 0.21 ether
+        assertEq(escrow.pendingWithdrawals(playerA), 0.21 ether);
+        assertEq(escrow.protocolFees(), 0.01 ether);
+        assertTrue(escrow.metaResolutionFailed(roomId));
+        assertEq(escrow.metaWinningOption(roomId), 1);
+
+        vm.prank(playerA);
+        escrow.withdraw();
+        assertEq(playerA.balance, 9.9 ether - 0.02 ether + 0.21 ether);
+    }
+
+    function test_ResolveDefaultChallenge_SuccessWhenMetaReverts() public {
+        escrow.setSingleSignedEnabled(true);
+        vm.prank(playerA);
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
+
+        vm.prank(playerB);
+        escrow.joinRoom{ value: 0.1 ether }(roomId);
+
+        vm.prank(relaySigner);
+        escrow.signalGameStarted(roomId);
+
+        bytes32 movesHashA = keccak256("claim_a");
+        uint256 nonceA = 31;
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory sigA = _signResult(creatorPrivateKey, roomId, playerA, 0, 0, 24, movesHashA, nonceA, deadline);
+
+        vm.prank(playerA);
+        escrow.submitSingleSigned{ value: 0.02 ether }(roomId, playerA, 0, 0, 24, movesHashA, nonceA, deadline, sigA);
+
+        bytes32 movesHashB = keccak256("claim_b");
+        uint256 nonceB = 32;
+        bytes memory sigB = _signResult(joinerPrivateKey, roomId, playerB, 1, 0, 24, movesHashB, nonceB, deadline);
+
+        vm.prank(playerB);
+        escrow.challenge{ value: 0.02 ether }(roomId, playerB, 1, 0, 24, movesHashB, nonceB, deadline, sigB);
+
+        // Warp past arbiter deadline (24 hours)
+        vm.warp(block.timestamp + 24 hours + 1);
+
+        // Expect MetaCallFailed for cancelPrediction
+        vm.expectEmit(true, false, false, true);
+        emit ChessEscrow.MetaCallFailed(roomId, IAvaClashMeta.cancelPrediction.selector);
+
+        escrow.resolveDefaultChallenge(roomId);
+
+        // Stakes refunded + bond penalty (submitter gets sBond 0.02 + cBond/2 0.01 = 0.03; challenger gets cBond/2 0.01)
+        assertEq(escrow.pendingWithdrawals(playerA), 0.1 ether + 0.03 ether);
+        assertEq(escrow.pendingWithdrawals(playerB), 0.1 ether + 0.01 ether);
+
+        vm.prank(playerA);
+        escrow.withdraw();
+        vm.prank(playerB);
+        escrow.withdraw();
+        assertEq(playerA.balance, 10 ether + 0.01 ether);
+        assertEq(playerB.balance, 10 ether - 0.01 ether);
+    }
+
+    function test_ResolveChallenge_SuccessWhenMetaReverts() public {
+        escrow.setSingleSignedEnabled(true);
+        vm.prank(playerA);
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
+
+        vm.prank(playerB);
+        escrow.joinRoom{ value: 0.1 ether }(roomId);
+
+        vm.prank(relaySigner);
+        escrow.signalGameStarted(roomId);
+
+        bytes32 movesHashA = keccak256("claim_a2");
+        uint256 nonceA = 41;
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory sigA = _signResult(creatorPrivateKey, roomId, playerA, 0, 0, 24, movesHashA, nonceA, deadline);
+
+        vm.prank(playerA);
+        escrow.submitSingleSigned{ value: 0.02 ether }(roomId, playerA, 0, 0, 24, movesHashA, nonceA, deadline, sigA);
+
+        bytes32 movesHashB = keccak256("claim_b2");
+        uint256 nonceB = 42;
+        bytes memory sigB = _signResult(joinerPrivateKey, roomId, playerB, 1, 0, 24, movesHashB, nonceB, deadline);
+
+        vm.prank(playerB);
+        escrow.challenge{ value: 0.02 ether }(roomId, playerB, 1, 0, 24, movesHashB, nonceB, deadline, sigB);
+
+        // Arbiter resolves declaring playerB (Black) as winner
+        vm.expectEmit(true, false, false, true);
+        emit ChessEscrow.MetaCallFailed(roomId, IAvaClashMeta.updateEloOnSettle.selector);
+        vm.expectEmit(true, false, false, true);
+        emit ChessEscrow.MetaCallFailed(roomId, IAvaClashMeta.resolvePrediction.selector);
+
+        vm.prank(arbiter);
+        escrow.resolveChallenge(roomId, playerB);
+
+        // Challenger was right: challenger (playerB) gets cBond (0.02) + sBond (0.02) = 0.04 ether bond
+        // Plus pot minus fee: 0.2 - 0.01 = 0.19 ether. Total = 0.23 ether.
+        assertEq(escrow.pendingWithdrawals(playerB), 0.23 ether);
+        assertTrue(escrow.metaResolutionFailed(roomId));
+        assertEq(escrow.metaWinningOption(roomId), 2);
+
+        vm.prank(playerB);
+        escrow.withdraw();
+        assertEq(playerB.balance, 9.9 ether - 0.02 ether + 0.23 ether);
+    }
+
+    function test_ClaimSpectatorRefund_After7DaysOfJoinedAt() public {
+        AvaClashMeta realMeta = new AvaClashMeta();
+        realMeta.setEscrowContract(address(escrow));
+        escrow.setMetaContract(address(realMeta));
+        vm.warp(block.timestamp + 2 days);
+        escrow.executeMetaContractChange();
+
+        address spectator = address(0xC9);
+        vm.deal(spectator, 1 ether);
+
+        vm.prank(playerA);
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
+
+        vm.prank(spectator);
+        realMeta.betOnMatch{ value: 0.5 ether }(roomId, 1);
+
+        uint256 joinTime = block.timestamp + 100;
+        vm.warp(joinTime);
+        vm.prank(playerB);
+        escrow.joinRoom{ value: 0.1 ether }(roomId);
+
+        // At joinTime + 6 days: cannot claim yet
+        vm.warp(joinTime + 6 days);
+        vm.prank(spectator);
+        vm.expectRevert(AvaClashMeta.MatchCancelled.selector);
+        realMeta.claimSpectatorRefund(roomId);
+
+        // At joinTime + 7 days + 1 second: refund opens independently
+        vm.warp(joinTime + 7 days + 1);
+        uint256 balBefore = spectator.balance;
+        vm.prank(spectator);
+        realMeta.claimSpectatorRefund(roomId);
+        assertEq(spectator.balance, balBefore + 0.5 ether);
+    }
 }
+
