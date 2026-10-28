@@ -68,9 +68,9 @@ interface TestClient {
   close: () => void;
 }
 
-function createTestClient(): Promise<TestClient> {
+function createTestClient(port: number = TEST_PORT): Promise<TestClient> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://localhost:${TEST_PORT}`);
+    const ws = new WebSocket(`ws://localhost:${port}`);
     const messages: any[] = [];
     const waiters: Array<{ predicate: (msg: any) => boolean; resolve: (val: any) => void }> = [];
 
@@ -794,6 +794,124 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       expect(closeInfo.reason).toContain("Rate limit exceeded");
     } finally {
       await disconnectServer.close();
+    }
+  });
+
+  it("Item 4: mid-game disconnection does NOT stop the clock; timeout signs loss for disconnected player", async () => {
+    const tempTimeoutDir = fs.mkdtempSync(path.join(os.tmpdir(), "relay-timeout-test-"));
+    const portTimeout = TEST_PORT + 86;
+    const timeoutServer = new RelayServer({
+      port: portTimeout,
+      relayPrivateKey: RELAY_KEY,
+      contractAddress: CONTRACT,
+      rpcUrl: "http://127.0.0.1:8545",
+      publicClient: mockPublicClient,
+      resultsDir: tempTimeoutDir,
+      initialTimeMs: 600, // 600ms total clock
+    });
+
+    try {
+      registerMockRoom(850, accountAlice.address, accountBob.address, true); // Alice is White, Bob is Black
+
+      const clientAlice = await createTestClient(portTimeout);
+      const clientBob = await createTestClient(portTimeout);
+
+      await authenticateAndJoin(clientAlice, accountAlice, 850);
+      await clientAlice.waitFor((m) => m.type === "room_state");
+
+      await authenticateAndJoin(clientBob, accountBob, 850);
+      await clientBob.waitFor((m) => m.type === "room_state" && m.status === "active");
+
+      // Alice is White, turn is Alice's ('w'). Alice disconnects!
+      clientAlice.close();
+
+      // Bob listens for timeout / game over / result proposal
+      const proposalPromise = clientBob.waitFor((m) => m.type === "result_proposal");
+      const sigPromise = clientBob.waitFor((m) => m.type === "result_signature");
+
+      // Clock should tick down while Alice is disconnected and time out
+      const proposal = await proposalPromise;
+      const sig = await sigPromise;
+
+      expect(proposal.roomId).toBe(850);
+      expect(proposal.winner.toLowerCase()).toBe(accountBob.address.toLowerCase());
+      expect(proposal.reason).toBe(2); // ReasonCode.Timeout (2)
+      expect(sig.signature).toMatch(/^0x[0-9a-fA-F]+$/);
+
+      clientBob.close();
+    } finally {
+      await timeoutServer.close();
+      try {
+        fs.rmSync(tempTimeoutDir, { recursive: true, force: true });
+      } catch {}
+    }
+  });
+
+  it("Item 4: recovery after restart keeps clock paused until both connect or grace timeout elapses", async () => {
+    const tempActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "recovery-grace-test-"));
+    const portGrace = TEST_PORT + 87;
+
+    try {
+      const activeDir = path.join(tempActiveDir, "active");
+      fs.mkdirSync(activeDir, { recursive: true });
+
+      // Save an active game where it is White's turn with 1000ms left
+      const roomId = 860;
+      registerMockRoom(roomId, accountAlice.address, accountBob.address, true);
+
+      const activeFile = path.join(activeDir, `43113_${CONTRACT.toLowerCase()}_${roomId}.json`);
+      fs.writeFileSync(
+        activeFile,
+        JSON.stringify({
+          chainId: CHAIN_ID,
+          contractAddress: CONTRACT,
+          roomId,
+          moves: ["e2e4", "e7e5"],
+          whiteMs: 1000,
+          blackMs: 1000,
+          activeTurn: "w",
+          whiteAddress: accountAlice.address,
+          blackAddress: accountBob.address,
+          status: "active",
+          savedAt: Date.now(),
+        })
+      );
+
+      const graceServer = new RelayServer({
+        port: portGrace,
+        relayPrivateKey: RELAY_KEY,
+        contractAddress: CONTRACT,
+        rpcUrl: "http://127.0.0.1:8545",
+        publicClient: mockPublicClient,
+        resultsDir: tempActiveDir,
+        chainId: CHAIN_ID,
+        recoveryGraceMs: 500, // 500ms grace period representing 120s
+      });
+
+      try {
+        // Only Bob (Black) connects. White is absent.
+        const clientBob = await createTestClient(portGrace);
+        await authenticateAndJoin(clientBob, accountBob, roomId);
+        const st1 = await clientBob.waitFor((m) => m.type === "room_state");
+        expect(st1.moves).toEqual(["e2e4", "e7e5"]);
+
+        const room = graceServer.getRoom(roomId);
+        expect(room).toBeDefined();
+
+        // 1. While within grace period (200ms < 500ms), clock must NOT tick
+        await new Promise((r) => setTimeout(r, 200));
+        expect(room!.whiteMs).toBe(1000);
+
+        // 2. After grace period (total 650ms > 500ms), clock MUST start ticking even without White!
+        await new Promise((r) => setTimeout(r, 450));
+        expect(room!.whiteMs).toBeLessThan(1000);
+
+        clientBob.close();
+      } finally {
+        await graceServer.close();
+      }
+    } finally {
+      try { fs.rmSync(tempActiveDir, { recursive: true, force: true }); } catch {}
     }
   });
 });

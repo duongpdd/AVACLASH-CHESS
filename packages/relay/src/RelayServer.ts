@@ -82,6 +82,7 @@ export interface RelayServerOptions {
   maxJoinsPerIpPerMinute?: number;
   maxRateLimitViolations?: number;
   roomCacheTtlMs?: number;
+  recoveryGraceMs?: number;
 }
 
 interface SocketSession {
@@ -206,6 +207,7 @@ export class RelayServer {
   public maxConnectionsPerIp: number;
   public maxRooms: number;
   public rateLimitPerSecond: number;
+  public recoveryGraceMs: number;
 
   private ipConnectionCounts: Map<string, number> = new Map();
   private socketSessions: Map<WebSocket, SocketSession> = new Map();
@@ -244,6 +246,7 @@ export class RelayServer {
     this.maxJoinsPerIpPerMinute = options.maxJoinsPerIpPerMinute ?? 60;
     this.maxRateLimitViolations = options.maxRateLimitViolations ?? 3;
     this.roomCacheTtlMs = options.roomCacheTtlMs ?? 3000;
+    this.recoveryGraceMs = options.recoveryGraceMs ?? 120_000;
     this.trustProxy = options.trustProxy ?? (process.env.TRUST_PROXY === "true");
 
     this.signalGameStartedEnabled =
@@ -794,6 +797,7 @@ export class RelayServer {
         room.status = recoveredState.status;
         room.lastClockUpdate = Date.now();
         if (room.status === "active") {
+          room.setRecovered(Date.now(), this.recoveryGraceMs);
           room.startClock();
         }
         console.log(

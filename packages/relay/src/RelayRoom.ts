@@ -25,6 +25,7 @@ export interface RelayRoomConfig {
   blackAddress: `0x${string}`;
   initialTimeMs?: number; // Default 5 mins (300,000 ms)
   waitingTimeoutMs?: number; // Default 10 mins (600,000 ms)
+  recoveryGraceMs?: number; // Grace period after restart before clock resumes (default 120s)
   onWaitingTimeout?: (room: RelayRoom) => void;
   onGameStarted?: (room: RelayRoom) => void;
   onMoveAccepted?: (room: RelayRoom) => void;
@@ -55,6 +56,10 @@ export class RelayRoom {
   public activeTurn: "w" | "b" = "w";
 
   public drawOfferFrom?: "w" | "b";
+
+  public recoveredAt?: number;
+  public recoveryGraceMs: number = 120_000;
+  private recoveryTimer?: NodeJS.Timeout;
 
   private clockInterval?: NodeJS.Timeout;
   private waitingTimeoutTimer?: NodeJS.Timeout;
@@ -97,6 +102,31 @@ export class RelayRoom {
         this.onWaitingTimeout?.(this);
       }
     }, waitingMs);
+
+    if (config.recoveryGraceMs !== undefined) {
+      this.recoveryGraceMs = config.recoveryGraceMs;
+    }
+  }
+
+  public setRecovered(recoveredAt: number = Date.now(), graceMs: number = 120_000): void {
+    this.recoveredAt = recoveredAt;
+    this.recoveryGraceMs = graceMs;
+    this.lastClockUpdate = Date.now();
+    if (this.recoveryTimer) {
+      clearTimeout(this.recoveryTimer);
+    }
+    this.recoveryTimer = setTimeout(() => {
+      this.clearRecovery();
+    }, graceMs);
+  }
+
+  public clearRecovery(): void {
+    if (this.recoveryTimer) {
+      clearTimeout(this.recoveryTimer);
+      this.recoveryTimer = undefined;
+    }
+    this.recoveredAt = undefined;
+    this.lastClockUpdate = Date.now();
   }
 
   public addPlayer(address: `0x${string}`, ws: WebSocket): "w" | "b" | "spectator" {
@@ -115,6 +145,9 @@ export class RelayRoom {
         if (this.status === "waiting") {
           this.startGame();
         } else if (this.status === "active") {
+          if (this.recoveredAt !== undefined) {
+            this.clearRecovery();
+          }
           this.lastClockUpdate = Date.now();
           if (!this.clockInterval) {
             this.startClock();
@@ -137,6 +170,9 @@ export class RelayRoom {
         if (this.status === "waiting") {
           this.startGame();
         } else if (this.status === "active") {
+          if (this.recoveredAt !== undefined) {
+            this.clearRecovery();
+          }
           this.lastClockUpdate = Date.now();
           if (!this.clockInterval) {
             this.startClock();
@@ -191,10 +227,17 @@ export class RelayRoom {
         return;
       }
 
-      // Requirement: clock only ticks when both players are connected
-      if (!this.whitePlayer || !this.blackPlayer) {
-        this.lastClockUpdate = Date.now();
-        return;
+      // If in recovery grace period after server restart:
+      // Clock stays paused until both players are present OR grace timeout elapses
+      if (this.recoveredAt !== undefined) {
+        if (this.whitePlayer && this.blackPlayer) {
+          this.clearRecovery();
+        } else if (Date.now() >= this.recoveredAt + this.recoveryGraceMs) {
+          this.clearRecovery();
+        } else {
+          this.lastClockUpdate = Date.now();
+          return;
+        }
       }
 
       const now = Date.now();
@@ -246,6 +289,9 @@ export class RelayRoom {
     if (!success) return false;
 
     // Update clocks
+    if (this.recoveredAt !== undefined) {
+      this.clearRecovery();
+    }
     const now = Date.now();
     const elapsed = now - this.lastClockUpdate;
     this.lastClockUpdate = now;
@@ -477,6 +523,10 @@ export class RelayRoom {
     if (this.clockInterval) {
       clearInterval(this.clockInterval);
       this.clockInterval = undefined;
+    }
+    if (this.recoveryTimer) {
+      clearTimeout(this.recoveryTimer);
+      this.recoveryTimer = undefined;
     }
     if (this.waitingTimeoutTimer) {
       clearTimeout(this.waitingTimeoutTimer);
