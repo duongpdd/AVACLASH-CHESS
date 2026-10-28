@@ -832,21 +832,57 @@ export class RelayServer {
         return;
       }
 
+      // Turn 3b-fix Item 5: Lưu kết quả NGAY khi ván kết thúc, trước khi đọc chain/ký
+      this.saveGameResult({
+        chainId: this.chainId,
+        contractAddress: this.contractAddress,
+        roomId: room.roomId,
+        moves: [...room.moves],
+        outcome,
+        reason,
+        winner: winnerAddress,
+        whiteAddress: room.whiteAddress,
+        blackAddress: room.blackAddress,
+        timestamp: Date.now(),
+      });
+
       if (!this.contractAddress || this.contractAddress.toLowerCase() === ZERO_ADDRESS.toLowerCase()) {
         console.warn("[Relay] contractAddress not configured. Skipping co-signature.");
         return;
       }
 
       // Check on-chain room status before signing (MUST bypass cache to read fresh)
-      let roomData: any;
-      try {
-        roomData = await this.fetchOnChainRoom(room.roomId, true);
-      } catch (err) {
-        console.error(`[Relay] Failed to query on-chain room before signing room ${room.roomId}:`, err);
+      // Retry backoff (up to 5 minutes) if RPC errors occur
+      const maxRetryMs = 300_000; // 5 minutes max
+      const startTime = Date.now();
+      let delayMs = 1000;
+      let roomData: any = null;
+
+      while (Date.now() - startTime < maxRetryMs) {
+        try {
+          roomData = await this.fetchOnChainRoom(room.roomId, true);
+          break; // RPC read successful
+        } catch (err: any) {
+          console.warn(
+            `[Relay] Failed to query on-chain room ${room.roomId} (${err?.message || err}). Retrying in ${delayMs}ms...`
+          );
+          if (Date.now() - startTime + delayMs >= maxRetryMs) {
+            console.error(`[Relay] RPC retry timeout (5m) exceeded for room ${room.roomId}`);
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          delayMs = Math.min(delayMs * 2, 15_000);
+        }
+      }
+
+      if (!roomData) {
+        console.error(
+          `[Relay] Could not query on-chain room ${room.roomId} after retries. Result is saved; players can use request_result once RPC recovers.`
+        );
         return;
       }
 
-      if (!roomData || Number(roomData.status) !== 1) {
+      if (Number(roomData.status) !== 1) {
         console.warn(
           `[Relay] Room ${room.roomId} is no longer Active on-chain (status=${roomData?.status}). Refusing to sign.`
         );
@@ -899,22 +935,10 @@ export class RelayServer {
         signature: relaySignature,
       };
       room.broadcast(signatureMsg);
-
-      // Save finished game to resultsDir (Turn 3a Item 4 / Turn 3b Item 1)
-      this.saveGameResult({
-        chainId: this.chainId,
-        contractAddress: this.contractAddress,
-        roomId: room.roomId,
-        moves: [...room.moves],
-        outcome,
-        reason,
-        winner: winnerAddress,
-        whiteAddress: room.whiteAddress,
-        blackAddress: room.blackAddress,
-        timestamp: Date.now(),
-      });
-
-      // 4. Schedule automatic room cleanup after 10 minutes
+    } catch (err) {
+      console.error(`[Relay] Error in handleGameOver for room ${room.roomId}:`, err);
+    } finally {
+      // 4. Schedule automatic room cleanup after 10 minutes in finally block
       setTimeout(() => {
         const r = this.rooms.get(room.roomId);
         if (r && r.status === "finished") {
@@ -922,8 +946,6 @@ export class RelayServer {
           this.rooms.delete(room.roomId);
         }
       }, 10 * 60 * 1000);
-    } catch (err) {
-      console.error(`[Relay] Error in handleGameOver for room ${room.roomId}:`, err);
     }
   }
 

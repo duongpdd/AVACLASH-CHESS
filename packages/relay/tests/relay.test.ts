@@ -601,6 +601,7 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       },
     };
 
+    const tempCachedDir = fs.mkdtempSync(path.join(os.tmpdir(), "cached-server-results-"));
     const portCached = TEST_PORT + 83;
     const cachedServer = new RelayServer({
       port: portCached,
@@ -608,6 +609,7 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       contractAddress: CONTRACT,
       rpcUrl: "http://127.0.0.1:8545",
       publicClient: trackingPublicClient,
+      resultsDir: tempCachedDir,
     });
 
     try {
@@ -688,13 +690,14 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       // handleGameOver is called -> MUST bypass cache and read fresh on-chain (count becomes 2)
       const room = cachedServer.getRoom(801);
       expect(room).toBeDefined();
-      await (cachedServer as any).handleGameOver(room, "checkmate", "w");
+      await (cachedServer as any).handleGameOver(room, "white", "checkmate", room!.whiteAddress);
       expect(getRoomCallCount).toBe(2);
 
       clientAlice.close();
       clientBob.close();
     } finally {
       await cachedServer.close();
+      try { fs.rmSync(tempCachedDir, { recursive: true, force: true }); } catch {}
     }
   });
 
