@@ -83,6 +83,8 @@ export interface RelayServerOptions {
   maxRateLimitViolations?: number;
   roomCacheTtlMs?: number;
   recoveryGraceMs?: number;
+  allowedOrigins?: string[];
+  allowNoOrigin?: boolean;
 }
 
 interface SocketSession {
@@ -118,6 +120,8 @@ export class RelayServer {
   public maxRateLimitViolations: number;
   public roomCacheTtlMs: number;
   public roomCache: Map<number, { room: any; fetchedAt: number }> = new Map();
+  public allowedOrigins: string[];
+  public allowNoOrigin: boolean;
   private ipJoinTimestamps: Map<string, number[]> = new Map();
 
   public async fetchOnChainRoom(roomId: number, bypassCache: boolean = false): Promise<any> {
@@ -247,7 +251,27 @@ export class RelayServer {
     this.maxRateLimitViolations = options.maxRateLimitViolations ?? 3;
     this.roomCacheTtlMs = options.roomCacheTtlMs ?? 3000;
     this.recoveryGraceMs = options.recoveryGraceMs ?? 120_000;
-    this.trustProxy = options.trustProxy ?? (process.env.TRUST_PROXY === "true");
+    this.trustProxy =
+      options.trustProxy !== undefined
+        ? options.trustProxy
+        : (process.env.TRUST_PROXY === "true");
+
+    const envOrigins = process.env.ALLOWED_ORIGINS;
+    if (options.allowedOrigins) {
+      this.allowedOrigins = options.allowedOrigins.map((o) => o.trim().toLowerCase());
+    } else if (envOrigins) {
+      this.allowedOrigins = envOrigins
+        .split(",")
+        .map((o) => o.trim().toLowerCase())
+        .filter(Boolean);
+    } else {
+      this.allowedOrigins = [];
+    }
+
+    this.allowNoOrigin =
+      options.allowNoOrigin !== undefined
+        ? options.allowNoOrigin
+        : (process.env.ALLOW_NO_ORIGIN === "true" || process.env.NODE_ENV === "test");
 
     this.signalGameStartedEnabled =
       options.signalGameStartedEnabled ??
@@ -287,10 +311,36 @@ export class RelayServer {
 
     const maxPayload = options.maxPayload ?? 4 * 1024; // 4 KB maxPayload
 
+    const verifyClient = (
+      info: { origin: string; secure: boolean; req: IncomingMessage },
+      cb: (res: boolean, code?: number, message?: string) => void
+    ) => {
+      const originHeader = info.origin || (info.req.headers["origin"] as string | undefined);
+      if (!originHeader) {
+        if (this.allowNoOrigin) {
+          return cb(true);
+        }
+        return cb(false, 403, "Forbidden: Origin header required");
+      }
+
+      const normalized = originHeader.trim().toLowerCase();
+      if (this.allowedOrigins.length > 0) {
+        if (this.allowedOrigins.includes(normalized)) {
+          return cb(true);
+        }
+        return cb(false, 403, "Forbidden: Origin not allowed");
+      }
+
+      if (this.allowNoOrigin) {
+        return cb(true);
+      }
+      return cb(false, 403, "Forbidden: Origin not allowed");
+    };
+
     if (options.server) {
-      this.wss = new WebSocketServer({ server: options.server, maxPayload });
+      this.wss = new WebSocketServer({ server: options.server, maxPayload, verifyClient });
     } else {
-      this.wss = new WebSocketServer({ port: options.port ?? 8080, maxPayload });
+      this.wss = new WebSocketServer({ port: options.port ?? 8080, maxPayload, verifyClient });
     }
 
     this.setupWss();
@@ -311,12 +361,18 @@ export class RelayServer {
 
   private setupWss(): void {
     this.wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
-      const trustProxy = this.trustProxy || process.env.TRUST_PROXY === "true";
-      const ip =
-        (trustProxy
-          ? (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress
-          : req.socket.remoteAddress) ||
-        "127.0.0.1";
+      const trustProxy = this.trustProxy;
+      let ip = req.socket.remoteAddress || "127.0.0.1";
+      if (trustProxy) {
+        const xff = req.headers["x-forwarded-for"];
+        if (typeof xff === "string" && xff.trim().length > 0) {
+          const first = xff.split(",")[0].trim();
+          if (first) ip = first;
+        } else if (Array.isArray(xff) && xff.length > 0) {
+          const first = xff[0].split(",")[0].trim();
+          if (first) ip = first;
+        }
+      }
 
       // Check IP connection limit
       const currentIpCount = this.ipConnectionCounts.get(ip) ?? 0;

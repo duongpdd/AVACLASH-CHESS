@@ -60,3 +60,50 @@ forge test
 # Run TypeScript / workspace tests
 pnpm test
 ```
+
+## Running Relay Behind Reverse Proxy (Caddy / Nginx)
+
+When deploying `@avaclash/relay` in production, terminate TLS at a reverse proxy (Caddy or Nginx) to serve secure WebSocket (`wss://`).
+
+### Environment Variables
+- `TRUST_PROXY=true`: Instructs the relay to trust the `X-Forwarded-For` header and extract the client's public IP (the first IP in the list).
+- `ALLOWED_ORIGINS=https://avaclash.app,https://staging.avaclash.app`: Comma-separated list of allowed Origins. Connections with other origins are rejected with `403 Forbidden` during WebSocket upgrade (`verifyClient`).
+- `ALLOW_NO_ORIGIN=false`: Reject requests missing the `Origin` header (defaults to true only in test environments).
+
+### 1. Caddy Configuration (`Caddyfile`)
+```caddy
+relay.avaclash.app {
+    reverse_proxy localhost:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+```
+
+### 2. Nginx Configuration (`nginx.conf`)
+```nginx
+server {
+    server_name relay.avaclash.app;
+    listen 443 ssl http2;
+
+    ssl_certificate /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+
+        # Overwrite X-Forwarded-For with the real client IP:
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
+```

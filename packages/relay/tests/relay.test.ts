@@ -917,4 +917,132 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       try { fs.rmSync(tempActiveDir, { recursive: true, force: true }); } catch {}
     }
   });
+
+  it("Item 6: Origin verification rejects disallowed origin with 403, accepts allowed origin, and enforces allowNoOrigin", async () => {
+    const portOrigin = TEST_PORT + 88;
+    const originServer = new RelayServer({
+      port: portOrigin,
+      relayPrivateKey: RELAY_KEY,
+      contractAddress: CONTRACT,
+      rpcUrl: "http://127.0.0.1:8545",
+      publicClient: mockPublicClient,
+      allowedOrigins: ["https://avaclash.app", "http://localhost:3000"],
+      allowNoOrigin: false,
+    });
+
+    const connectWithHeaders = (headers: Record<string, string>): Promise<{ ws: WebSocket; opened: boolean; error?: any }> => {
+      return new Promise((resolve) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${portOrigin}`, { headers });
+        ws.on("open", () => resolve({ ws, opened: true }));
+        ws.on("error", (err) => resolve({ ws, opened: false, error: err }));
+      });
+    };
+
+    try {
+      // 1. Rejected when Origin is not allowed
+      const evilRes = await connectWithHeaders({ Origin: "https://evil.com" });
+      expect(evilRes.opened).toBe(false);
+      expect(evilRes.error?.message).toContain("403");
+      evilRes.ws.close();
+
+      // 2. Accepted when Origin is allowed
+      const goodRes = await connectWithHeaders({ Origin: "https://avaclash.app" });
+      expect(goodRes.opened).toBe(true);
+      goodRes.ws.close();
+
+      // 3. Rejected when Origin is missing and allowNoOrigin=false
+      const noOriginRes = await connectWithHeaders({});
+      expect(noOriginRes.opened).toBe(false);
+      expect(noOriginRes.error?.message).toContain("403");
+      noOriginRes.ws.close();
+    } finally {
+      await originServer.close();
+    }
+  });
+
+  it("Item 6: TRUST_PROXY respects X-Forwarded-For taking the first IP when true, and ignores it when false", async () => {
+    const portProxyTrue = TEST_PORT + 89;
+    const serverProxyTrue = new RelayServer({
+      port: portProxyTrue,
+      relayPrivateKey: RELAY_KEY,
+      contractAddress: CONTRACT,
+      rpcUrl: "http://127.0.0.1:8545",
+      publicClient: mockPublicClient,
+      trustProxy: true,
+      maxConnectionsPerIp: 1, // Only 1 connection per IP allowed
+    });
+
+    try {
+      // Connect first client with X-Forwarded-For: 203.0.113.195, 10.0.0.1
+      const ws1 = new WebSocket(`ws://127.0.0.1:${portProxyTrue}`, {
+        headers: { "X-Forwarded-For": "203.0.113.195, 10.0.0.1" },
+      });
+      await new Promise<void>((resolve, reject) => {
+        ws1.on("open", () => resolve());
+        ws1.on("error", reject);
+      });
+
+      // Second client with same first IP (203.0.113.195) should be closed due to maxConnectionsPerIp=1
+      const ws2 = new WebSocket(`ws://127.0.0.1:${portProxyTrue}`, {
+        headers: { "X-Forwarded-For": "203.0.113.195, 192.168.1.1" },
+      });
+      const ws2Close = await new Promise<{ code: number; reason: string }>((resolve) => {
+        ws2.on("close", (code, reason) => resolve({ code, reason: reason.toString() }));
+      });
+      expect(ws2Close.code).toBe(1008);
+      expect(ws2Close.reason).toContain("Too many connections");
+
+      // Third client with different first IP (198.51.100.22) should succeed!
+      const ws3 = new WebSocket(`ws://127.0.0.1:${portProxyTrue}`, {
+        headers: { "X-Forwarded-For": "198.51.100.22, 10.0.0.1" },
+      });
+      await new Promise<void>((resolve, reject) => {
+        ws3.on("open", () => resolve());
+        ws3.on("error", reject);
+      });
+
+      ws1.close();
+      ws3.close();
+    } finally {
+      await serverProxyTrue.close();
+    }
+
+    // Now test trustProxy: false -> X-Forwarded-For is completely ignored
+    const portProxyFalse = TEST_PORT + 90;
+    const serverProxyFalse = new RelayServer({
+      port: portProxyFalse,
+      relayPrivateKey: RELAY_KEY,
+      contractAddress: CONTRACT,
+      rpcUrl: "http://127.0.0.1:8545",
+      publicClient: mockPublicClient,
+      trustProxy: false,
+      maxConnectionsPerIp: 1,
+    });
+
+    try {
+      // wsA connects from 127.0.0.1 with spoofed header
+      const wsA = new WebSocket(`ws://127.0.0.1:${portProxyFalse}`, {
+        headers: { "X-Forwarded-For": "111.111.111.111" },
+      });
+      await new Promise<void>((resolve, reject) => {
+        wsA.on("open", () => resolve());
+        wsA.on("error", reject);
+      });
+
+      // wsB connects from 127.0.0.1 with another spoofed header
+      // Because trustProxy=false, server sees both as 127.0.0.1 and rejects wsB!
+      const wsB = new WebSocket(`ws://127.0.0.1:${portProxyFalse}`, {
+        headers: { "X-Forwarded-For": "222.222.222.222" },
+      });
+      const wsBClose = await new Promise<{ code: number; reason: string }>((resolve) => {
+        wsB.on("close", (code, reason) => resolve({ code, reason: reason.toString() }));
+      });
+      expect(wsBClose.code).toBe(1008);
+      expect(wsBClose.reason).toContain("Too many connections");
+
+      wsA.close();
+    } finally {
+      await serverProxyFalse.close();
+    }
+  });
 });
