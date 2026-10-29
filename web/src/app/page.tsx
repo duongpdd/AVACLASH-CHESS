@@ -3,39 +3,34 @@
 import { useState } from "react";
 import Link from "next/link";
 import RoomLobbyWidget from "@/components/RoomLobbyWidget";
+import FujiTestnetBanner from "@/components/FujiTestnetBanner";
+import WalletBar from "@/components/WalletBar";
 
 export default function HomePage() {
-  const [selectedTab, setSelectedTab] = useState<"hotseat" | "noloss" | "wager">("hotseat");
+  const [selectedTab, setSelectedTab] = useState<"hotseat" | "noloss" | "wager">("wager");
 
   return (
-    <main className="relative min-h-dvh w-full overflow-x-hidden bg-gray-950 text-slate-100 flex flex-col items-center justify-between px-4 py-8 select-none">
-      {/* Hiệu ứng ánh sáng nền Ambient Glow */}
-      <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-96 w-[700px] rounded-full bg-amber-500/15 blur-[140px]" />
-      <div className="pointer-events-none absolute bottom-10 right-10 h-96 w-96 rounded-full bg-indigo-600/15 blur-[140px]" />
-      <div className="pointer-events-none absolute top-1/3 -left-20 h-80 w-80 rounded-full bg-rose-600/10 blur-[130px]" />
+    <>
+      <FujiTestnetBanner />
+      <main className="relative min-h-dvh w-full overflow-x-hidden bg-gray-950 text-slate-100 flex flex-col items-center justify-between px-4 py-6 select-none">
+        {/* Hiệu ứng ánh sáng nền Ambient Glow */}
+        <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-96 w-[700px] rounded-full bg-amber-500/15 blur-[140px]" />
+        <div className="pointer-events-none absolute bottom-10 right-10 h-96 w-96 rounded-full bg-indigo-600/15 blur-[140px]" />
+        <div className="pointer-events-none absolute top-1/3 -left-20 h-80 w-80 rounded-full bg-rose-600/10 blur-[130px]" />
 
-      {/* Top Navbar */}
-      <header className="relative z-10 max-w-6xl w-full flex items-center justify-between py-2 border-b border-white/10 mb-6">
-        <div className="flex items-center gap-2.5">
-          <span className="text-3xl text-amber-400 drop-shadow-[0_2px_10px_rgba(251,191,36,0.4)]">
-            ♚
-          </span>
-          <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-amber-300 via-orange-400 to-rose-400 bg-clip-text text-transparent">
-            AvaClash Chess
-          </span>
-        </div>
+        {/* Top Navbar */}
+        <header className="relative z-10 max-w-6xl w-full flex flex-col sm:flex-row items-center justify-between gap-4 py-2 border-b border-white/10 mb-6">
+          <div className="flex items-center gap-2.5">
+            <span className="text-3xl text-amber-400 drop-shadow-[0_2px_10px_rgba(251,191,36,0.4)]">
+              ♚
+            </span>
+            <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-amber-300 via-orange-400 to-rose-400 bg-clip-text text-transparent">
+              AvaClash Chess
+            </span>
+          </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Avalanche Fuji Testnet</span>
-          </div>
-          <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-slate-900/80 px-3 py-1 text-xs font-bold font-mono text-amber-300">
-            <span>Reputation:</span>
-            <span>1200 ELO</span>
-          </div>
-        </div>
-      </header>
+          <WalletBar />
+        </header>
 
       {/* Hero Section */}
       <div className="relative z-10 max-w-4xl w-full flex flex-col items-center text-center">
@@ -192,5 +187,6 @@ export default function HomePage() {
         </div>
       </footer>
     </main>
+    </>
   );
 }

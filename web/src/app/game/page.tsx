@@ -8,6 +8,8 @@ import type { ChessScene } from "@/game/ChessScene";
 import type { CapturedPiece, MaterialStats } from "@/game/GameState";
 import VictoryModal from "@/components/VictoryModal";
 import SpectatorPoolWidget from "@/components/SpectatorPoolWidget";
+import FujiTestnetBanner from "@/components/FujiTestnetBanner";
+import WalletBar from "@/components/WalletBar";
 import { useFairPlayGuard } from "@/hooks/useFairPlayGuard";
 
 // Dynamic import — no SSR for Phaser
@@ -315,34 +317,20 @@ export default function GamePage() {
 
   return (
     <div className="h-dvh w-full overflow-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-indigo-950 text-slate-100 flex flex-col select-none">
+      <FujiTestnetBanner />
       {/* Header */}
-      <header className="h-12 shrink-0 border-b border-white/10 bg-slate-950/60 backdrop-blur-md px-6 flex items-center justify-between z-10">
+      <header className="h-14 shrink-0 border-b border-white/10 bg-slate-950/60 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between z-10 gap-2">
         <Link href="/" className="flex items-center gap-2.5 group">
           <span className="text-2xl text-amber-400 transition-transform group-hover:scale-110">
             ♚
           </span>
-          <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-amber-300 to-orange-400 bg-clip-text text-transparent">
+          <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-amber-300 to-orange-400 bg-clip-text text-transparent hidden sm:inline">
             AvaClash Chess
           </span>
         </Link>
 
-        <div className="flex items-center gap-3 text-xs text-slate-400">
-          {/* Trạng thái Fair-Play Guard */}
-          {fairPlayAlert ? (
-            <span className="rounded-md bg-rose-500/20 border border-rose-500/50 px-2.5 py-1 font-semibold text-rose-300 animate-pulse flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-rose-400 animate-ping" />
-              ⚠️ Tab Switch Detected (-10s)
-            </span>
-          ) : (
-            <span className="rounded-md bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 font-medium text-emerald-300 flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              🛡️ Fair-Play Active
-            </span>
-          )}
-
-          <span className="rounded-md bg-slate-800/80 border border-white/10 px-2.5 py-1 font-medium text-slate-300">
-            Hot-Seat • 5+0 Blitz
-          </span>
+        <div className="flex items-center gap-3">
+          <WalletBar />
         </div>
       </header>
 
