@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useAccount,
   useReadContract,
@@ -31,7 +31,7 @@ export function useWithdraw() {
     },
   });
 
-  const { writeContractAsync, data: txHash } = useWriteContract();
+  const { writeContractAsync, reset: resetWrite, data: txHash } = useWriteContract();
 
   const {
     isLoading: isConfirming,
@@ -40,6 +40,16 @@ export function useWithdraw() {
   } = useWaitForTransactionReceipt({
     hash: txHash,
   });
+
+  // Handle reverted status from receipt
+  useEffect(() => {
+    if (receipt?.status === "reverted") {
+      setStep("error");
+      setErrorMessage(
+        "Giao dịch đã bị hoàn tác (reverted) trên blockchain. Vui lòng kiểm tra trên Explorer."
+      );
+    }
+  }, [receipt]);
 
   const withdraw = async () => {
     setErrorMessage(null);
@@ -70,7 +80,23 @@ export function useWithdraw() {
   const reset = () => {
     setStep("idle");
     setErrorMessage(null);
+    resetWrite();
   };
+
+  const isReverted = receipt?.status === "reverted";
+  const isTxSuccess = isSuccess && receipt?.status === "success";
+
+  const effectiveStep: TxStep = isReverted
+    ? "error"
+    : isTxSuccess
+      ? "success"
+      : isConfirming
+        ? "confirming"
+        : step;
+
+  const effectiveError = isReverted
+    ? "Giao dịch đã bị hoàn tác (reverted) trên blockchain. Vui lòng kiểm tra trên Explorer."
+    : errorMessage;
 
   return {
     withdraw,
@@ -80,8 +106,8 @@ export function useWithdraw() {
       : "0.0",
     isLoadingPending,
     refetchPending,
-    step: isSuccess ? "success" : isConfirming ? "confirming" : step,
-    errorMessage,
+    step: effectiveStep,
+    errorMessage: effectiveError,
     txHash,
     receipt,
     reset,

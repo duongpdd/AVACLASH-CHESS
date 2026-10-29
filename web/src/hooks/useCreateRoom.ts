@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useWriteContract,
   useWaitForTransactionReceipt,
   useReadContract,
   useAccount,
 } from "wagmi";
-import { parseEther, formatEther } from "viem";
+import { parseEther, formatEther, parseEventLogs } from "viem";
 import { CHESS_ESCROW_ABI } from "@avaclash/shared";
 import { ESCROW_ADDRESS, UI_MAX_STAKE } from "@/config/env";
 import { decodeContractError } from "@/utils/errors";
@@ -37,13 +37,7 @@ export function useCreateRoom() {
     functionName: "MAX_STAKE",
   });
 
-  const { data: nextRoomId, refetch: refetchNextRoomId } = useReadContract({
-    address: ESCROW_ADDRESS,
-    abi: CHESS_ESCROW_ABI,
-    functionName: "nextRoomId",
-  });
-
-  const { writeContractAsync, data: txHash } = useWriteContract();
+  const { writeContractAsync, reset: resetWrite, data: txHash } = useWriteContract();
 
   const {
     isLoading: isConfirming,
@@ -52,6 +46,36 @@ export function useCreateRoom() {
   } = useWaitForTransactionReceipt({
     hash: txHash,
   });
+
+  // Extract createdRoomId from receipt RoomCreated event and handle reverted status
+  useEffect(() => {
+    if (receipt) {
+      if (receipt.status === "reverted") {
+        setStep("error");
+        setErrorMessage(
+          "Giao dịch đã bị hoàn tác (reverted) trên blockchain. Vui lòng kiểm tra trên Explorer."
+        );
+      } else if (receipt.status === "success") {
+        try {
+          const logs = parseEventLogs({
+            abi: CHESS_ESCROW_ABI,
+            eventName: "RoomCreated",
+            logs: receipt.logs,
+          });
+          const myLog = logs.find((l: any) =>
+            address
+              ? l.args?.creator?.toLowerCase() === address.toLowerCase()
+              : true
+          );
+          if (myLog && myLog.args?.roomId !== undefined) {
+            setCreatedRoomId(myLog.args.roomId);
+          }
+        } catch {
+          // Fallback if parsing logs fails
+        }
+      }
+    }
+  }, [receipt, address]);
 
   const checkStake = (stakeStr: string): string | null => {
     return validateStake(stakeStr, minStake, maxStake, UI_MAX_STAKE);
@@ -70,7 +94,6 @@ export function useCreateRoom() {
 
     try {
       setStep("waiting_wallet");
-      const currentNextId = nextRoomId;
       const hash = await writeContractAsync({
         address: ESCROW_ADDRESS,
         abi: CHESS_ESCROW_ABI,
@@ -80,9 +103,6 @@ export function useCreateRoom() {
       });
 
       setStep("confirming");
-      if (currentNextId !== undefined) {
-        setCreatedRoomId(currentNextId);
-      }
       return hash;
     } catch (err) {
       const decoded = decodeContractError(err);
@@ -96,12 +116,28 @@ export function useCreateRoom() {
     setStep("idle");
     setErrorMessage(null);
     setCreatedRoomId(null);
+    resetWrite();
   };
+
+  const isReverted = receipt?.status === "reverted";
+  const isTxSuccess = isSuccess && receipt?.status === "success";
+
+  const effectiveStep: TxStep = isReverted
+    ? "error"
+    : isTxSuccess
+      ? "success"
+      : isConfirming
+        ? "confirming"
+        : step;
+
+  const effectiveError = isReverted
+    ? "Giao dịch đã bị hoàn tác (reverted) trên blockchain. Vui lòng kiểm tra trên Explorer."
+    : errorMessage;
 
   return {
     createRoom,
-    step: isSuccess ? "success" : isConfirming ? "confirming" : step,
-    errorMessage,
+    step: effectiveStep,
+    errorMessage: effectiveError,
     txHash,
     receipt,
     createdRoomId,

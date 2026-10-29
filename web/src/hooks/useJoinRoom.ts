@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useWriteContract,
   useWaitForTransactionReceipt,
@@ -49,7 +49,7 @@ export function useJoinRoom(roomId?: bigint | number) {
     },
   });
 
-  const { writeContractAsync, data: txHash } = useWriteContract();
+  const { writeContractAsync, reset: resetWrite, data: txHash } = useWriteContract();
 
   const {
     isLoading: isConfirming,
@@ -58,6 +58,16 @@ export function useJoinRoom(roomId?: bigint | number) {
   } = useWaitForTransactionReceipt({
     hash: txHash,
   });
+
+  // Handle reverted status from receipt
+  useEffect(() => {
+    if (receipt?.status === "reverted") {
+      setStep("error");
+      setErrorMessage(
+        "Giao dịch đã bị hoàn tác (reverted) trên blockchain. Vui lòng kiểm tra trên Explorer."
+      );
+    }
+  }, [receipt]);
 
   const exists = doesRoomExist(room, nextRoomId, parsedRoomId);
   const joinerColor = getJoinerColor(room);
@@ -123,7 +133,23 @@ export function useJoinRoom(roomId?: bigint | number) {
   const reset = () => {
     setStep("idle");
     setErrorMessage(null);
+    resetWrite();
   };
+
+  const isReverted = receipt?.status === "reverted";
+  const isTxSuccess = isSuccess && receipt?.status === "success";
+
+  const effectiveStep: TxStep = isReverted
+    ? "error"
+    : isTxSuccess
+      ? "success"
+      : isConfirming
+        ? "confirming"
+        : step;
+
+  const effectiveError = isReverted
+    ? "Giao dịch đã bị hoàn tác (reverted) trên blockchain. Vui lòng kiểm tra trên Explorer."
+    : errorMessage;
 
   return {
     joinRoom,
@@ -137,8 +163,8 @@ export function useJoinRoom(roomId?: bigint | number) {
     stakeFormatted,
     isCreator,
     isOpen,
-    step: isSuccess ? "success" : isConfirming ? "confirming" : step,
-    errorMessage,
+    step: effectiveStep,
+    errorMessage: effectiveError,
     txHash,
     receipt,
     reset,
