@@ -31,3 +31,4 @@ Ngoài 8 test trên, bộ test `ChessEscrowMetaTryCatch.t.sol` đã được b�
 | 11 | `test_ResolveDefaultChallenge_SuccessWhenMetaReverts` | `contracts/test/ChessEscrowMetaTryCatch.t.sol:431` | Kiểm tra trọng tài vắng mặt (`resolveDefaultChallenge`) thành công khi Meta revert. |
 | 12 | `test_ResolveChallenge_SuccessWhenMetaReverts` | `contracts/test/ChessEscrowMetaTryCatch.t.sol:478` | Kiểm tra trọng tài phán quyết (`resolveChallenge`) thành công khi Meta revert. |
 | 13 | `test_ClaimSpectatorRefund_After7DaysOfJoinedAt` | `contracts/test/ChessEscrowMetaTryCatch.t.sol:524` | Khán giả rút hoàn tiền độc lập sau 7 ngày kể từ `joinedAt` mà không phụ thuộc escrow. |
+

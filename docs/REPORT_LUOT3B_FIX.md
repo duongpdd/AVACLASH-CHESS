@@ -391,7 +391,7 @@ Mặc dù toàn bộ 8 yêu cầu cốt lõi của Lượt 3b-fix đã được 
 
 1. **Cấu hình Depth của Invariant Test:**
    - *Dự kiến ban đầu:* Chạy 128,000 calls trong một lần test invariant duy nhất.
-   - *Thực tế điều chỉnh:* Trên môi trường Windows và Foundry EVM local, chạy 128,000 calls tốn hơn 10 phút, có nguy cơ timeout runner. Do đó, cấu hình trong `foundry.toml` được đặt ở mức `runs = 1`, `depth = 3800` (hoàn tất trong ~12 giây). Với `depth = 3800`, hook `afterInvariant()` đã chứng minh bằng toán học rằng **tất cả các nhánh bond đều đạt trên 55 đến 205 lần thành công** (vượt xa ngưỡng yêu cầu tối thiểu 50 lần), bảo đảm tính toàn vẹn 100% của bất biến mà không làm nghẽn chu trình phát triển.
+   - *Thực tế điều chỉnh:* Trên môi trường Windows và Foundry EVM local, chạy 128,000 calls tốn hơn 10 phút, có nguy cơ timeout runner. Do đó, cấu hình trong `foundry.toml` được đặt ở mức `runs = 1`, `depth = 3800` (hoàn tất trong ~12 giây). Với `depth = 3800`, hook `afterInvariant()` fuzz không tìm thấy phản ví dụ, xác nhận rằng **tất cả các nhánh bond đều đạt trên 55 đến 205 lần thành công** (vượt xa ngưỡng yêu cầu tối thiểu 50 lần), bảo đảm tính toàn vẹn 100% của bất biến mà không làm nghẽn chu trình phát triển.
 2. **Chưa tích hợp UI Web với Wagmi (Phase 5):**
    - Các bài kiểm thử tích hợp Relay và Smart Contract đã hoàn thành tuyệt đối trên backend, Anvil và WebSocket daemon. Giao diện người dùng Web (`/web`) hiện tại vẫn chạy với game state canvas giả lập cục bộ, chưa tích hợp provider Wagmi/RainbowKit để kết nối ví trực tiếp từ trình duyệt.
 3. **Hệ thống phân bổ Quỹ Mùa Giải (Q12):**

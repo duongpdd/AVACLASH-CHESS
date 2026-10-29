@@ -380,20 +380,13 @@ contract ChessEscrowHandler is Test {
             escrow.getRoom(roomSeed).singleSignedAt != 0
         );
 
-        if (!isScripted) {
-            // If challenge already has plenty and finalize is not yet at 55, give finalize priority
-            if (tracker.ghost_challenge() >= 120 && tracker.ghost_finalizeSingleSigned() < 55) {
-                return;
-            }
-        }
-
         uint256 roomId;
         if (isScripted) {
             roomId = roomSeed;
         } else if (singleSignedRooms.length > 0) {
             roomId = singleSignedRooms[roomSeed % singleSignedRooms.length];
         } else {
-            return;
+            roomId = _ensureSingleSignedRoom(outcomeSeed);
         }
 
         ChessEscrow.Room memory r = escrow.getRoom(roomId);
@@ -443,23 +436,13 @@ contract ChessEscrowHandler is Test {
             escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Challenged
         );
 
-        if (!isScripted) {
-            // Keep arbiter and default challenges in strict lockstep
-            if (
-                tracker.ghost_resolveChallenge() > tracker.ghost_resolveDefaultChallenge() &&
-                tracker.ghost_resolveDefaultChallenge() < 55
-            ) {
-                return;
-            }
-        }
-
         uint256 roomId;
         if (isScripted) {
             roomId = roomSeed;
         } else if (challengedRooms.length > 0) {
             roomId = challengedRooms[roomSeed % challengedRooms.length];
         } else {
-            return;
+            roomId = _ensureChallengedRoom(rulingSeed);
         }
 
         ChessEscrow.Room memory r = escrow.getRoom(roomId);
@@ -492,23 +475,13 @@ contract ChessEscrowHandler is Test {
             escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Challenged
         );
 
-        if (!isScripted) {
-            // Keep arbiter and default challenges in strict lockstep
-            if (
-                tracker.ghost_resolveDefaultChallenge() >= tracker.ghost_resolveChallenge() &&
-                tracker.ghost_resolveChallenge() < 55
-            ) {
-                return;
-            }
-        }
-
         uint256 roomId;
         if (isScripted) {
             roomId = roomSeed;
         } else if (challengedRooms.length > 0) {
             roomId = challengedRooms[roomSeed % challengedRooms.length];
         } else {
-            return;
+            roomId = _ensureChallengedRoom(roomSeed);
         }
 
         ChessEscrow.Room memory r = escrow.getRoom(roomId);
@@ -532,24 +505,13 @@ contract ChessEscrowHandler is Test {
             escrow.getRoom(roomSeed).singleSignedAt != 0
         );
 
-        if (!isScripted) {
-            // Once target is achieved (55 >= 50), do not consume more single-signed rooms
-            if (tracker.ghost_finalizeSingleSigned() >= 55) {
-                return;
-            }
-            // Challenge needs ~110 rooms (to satisfy 50 arbiter + 50 default). Give challenge priority until reached.
-            if (tracker.ghost_challenge() < 110 && tracker.ghost_finalizeSingleSigned() >= 40) {
-                return;
-            }
-        }
-
         uint256 roomId;
         if (isScripted) {
             roomId = roomSeed;
         } else if (singleSignedRooms.length > 0) {
             roomId = singleSignedRooms[roomSeed % singleSignedRooms.length];
         } else {
-            return;
+            roomId = _ensureSingleSignedRoom(roomSeed);
         }
 
         ChessEscrow.Room memory r = escrow.getRoom(roomId);
@@ -650,6 +612,71 @@ contract ChessEscrowHandler is Test {
         vm.prank(escrow.owner());
         escrow.setSingleSignedEnabled(enabled);
         tracker.inc_setSingleSignedEnabled();
+    }
+
+    // ──────── Room State Setup Helpers ────────
+    function _ensureSingleSignedRoom(uint256 seed) internal returns (uint256 roomId) {
+        if (!escrow.singleSignedEnabled()) {
+            vm.prank(escrow.owner());
+            escrow.setSingleSignedEnabled(true);
+            tracker.inc_setSingleSignedEnabled();
+        }
+
+        address creator = players[seed % 3];
+        address joiner = players[(seed + 1) % 3];
+        vm.prank(creator);
+        roomId = escrow.createRoom{ value: 0.1 ether }(true);
+        allRoomIds.push(roomId);
+        vm.prank(joiner);
+        escrow.joinRoom{ value: 0.1 ether }(roomId);
+
+        ChessEscrow.Room memory r = escrow.getRoom(roomId);
+        address whitePlayer = r.creatorIsWhite ? r.playerA : r.playerB;
+        address blackPlayer = r.creatorIsWhite ? r.playerB : r.playerA;
+
+        uint8 outcome = (seed % 2 == 0) ? 0 : 1;
+        address winner = (outcome == 0) ? whitePlayer : blackPlayer;
+        uint256 pkWinner = _getPk(winner);
+
+        bytes32 movesHash = keccak256(abi.encodePacked("single", roomId, outcome));
+        uint256 nonce = ++globalNonce;
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 bond = escrow.getChallengeBond(r.stake);
+
+        bytes memory sig = _sign(pkWinner, roomId, winner, outcome, 0, 20, movesHash, nonce, deadline);
+
+        vm.prank(winner);
+        escrow.submitSingleSigned{ value: bond }(roomId, winner, outcome, 0, 20, movesHash, nonce, deadline, sig);
+        singleSignedRooms.push(roomId);
+        tracker.inc_submitSingleSigned();
+    }
+
+    function _ensureChallengedRoom(uint256 seed) internal returns (uint256 roomId) {
+        if (singleSignedRooms.length == 0) {
+            roomId = _ensureSingleSignedRoom(seed);
+        } else {
+            roomId = singleSignedRooms[seed % singleSignedRooms.length];
+        }
+        ChessEscrow.Room memory r = escrow.getRoom(roomId);
+        vm.warp(r.singleSignedAt + 60);
+
+        address opponent = (r.singleSignedWinner == r.playerA) ? r.playerB : r.playerA;
+        address whitePlayer = r.creatorIsWhite ? r.playerA : r.playerB;
+
+        uint8 outcome = (opponent == whitePlayer) ? 0 : 1;
+        address counterWinner = opponent;
+        uint256 bond = escrow.getChallengeBond(r.stake);
+        bytes32 movesHash = keccak256(abi.encodePacked("challenge", roomId, outcome));
+        uint256 nonce = ++globalNonce;
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 pkOpponent = _getPk(opponent);
+
+        bytes memory sig = _sign(pkOpponent, roomId, counterWinner, outcome, 0, 22, movesHash, nonce, deadline);
+        vm.prank(opponent);
+        escrow.challenge{ value: bond }(roomId, counterWinner, outcome, 0, 22, movesHash, nonce, deadline, sig);
+        _removeFrom(singleSignedRooms, roomId);
+        challengedRooms.push(roomId);
+        tracker.inc_challenge();
     }
 
     // ──────── Internal Signing Helpers ────────
