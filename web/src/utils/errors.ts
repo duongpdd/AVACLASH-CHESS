@@ -3,6 +3,7 @@ import { ContractFunctionRevertedError } from "viem";
 export const ERROR_MESSAGES: Record<string, string> = {
   StakeTooLow: "Mức cược quá thấp (tối thiểu 0.01 AVAX).",
   StakeTooHigh: "Mức cược vượt quá giới hạn hợp đồng (tối đa 1.0 AVAX).",
+  RoomNotFound: "Phòng không tồn tại.",
   RoomNotOpen: "Phòng không ở trạng thái mở hoặc đã có đối thủ tham gia.",
   RoomNotActive: "Phòng chưa bắt đầu hoặc không còn hoạt động.",
   NotCreator: "Bạn không phải người tạo phòng này.",

@@ -71,6 +71,7 @@ contract ChessEscrowInvariantTest is Test {
 
         // Branch 1: 110 rooms through single signed claim -> challenge -> arbiter resolution
         for (uint256 i = 0; i < 110; i++) {
+            testHandler.tryNonExistentRoomActions(i, i % 8, i);
             testHandler.createRoom(i, 0.1 ether, true);
             uint256 rid = testHandler.roomCount() - 1;
             testHandler.joinRoom(i + 1, rid);
@@ -82,6 +83,7 @@ contract ChessEscrowInvariantTest is Test {
 
         // Branch 2: 110 rooms through single signed claim -> challenge -> default challenge resolution
         for (uint256 i = 0; i < 110; i++) {
+            testHandler.tryNonExistentRoomActions(i + 100, (i + 1) % 8, i);
             testHandler.createRoom(i + 200, 0.1 ether, false);
             uint256 rid = testHandler.roomCount() - 1;
             testHandler.joinRoom(i + 201, rid);
@@ -93,6 +95,7 @@ contract ChessEscrowInvariantTest is Test {
 
         // Branch 3: 110 rooms through single signed claim -> finalize without challenge
         for (uint256 i = 0; i < 110; i++) {
+            testHandler.tryNonExistentRoomActions(i + 200, (i + 2) % 8, i);
             testHandler.createRoom(i + 400, 0.1 ether, true);
             uint256 rid = testHandler.roomCount() - 1;
             testHandler.joinRoom(i + 401, rid);
@@ -147,6 +150,8 @@ contract ChessEscrowInvariantTest is Test {
         assertGe(testTracker.ghost_resolveChallenge(), 100, "ghost_resolveChallenge < 100");
         assertGe(testTracker.ghost_resolveDefaultChallenge(), 100, "ghost_resolveDefaultChallenge < 100");
         assertGe(testTracker.ghost_finalizeSingleSigned(), 100, "ghost_finalizeSingleSigned < 100");
+        assertGe(testTracker.ghost_nonExistentRoomRevert(), 100, "ghost_nonExistentRoomRevert < 100");
+        assertGe(testTracker.ghost_nonExistentRoomRevert() * 100 / testTracker.totalCalls(), 3, "ghost_nonExistentRoomRevert < 3% of calls");
     }
 
     /**
@@ -226,6 +231,7 @@ contract ChessEscrowInvariantTest is Test {
         uint256 c_resD = tracker.ghost_resolveDefaultChallenge();
         uint256 c_fin = tracker.ghost_finalizeSingleSigned();
         uint256 c_samp = tracker.ghost_invariantChallengedSampled();
+        uint256 c_nonEx = tracker.ghost_nonExistentRoomRevert();
         uint256 runCount = 1;
 
         string memory path = "cache/campaign_ghost.json";
@@ -237,6 +243,9 @@ contract ChessEscrowInvariantTest is Test {
                 c_resD += vm.parseJsonUint(json, ".ghost_resolveDefaultChallenge");
                 c_fin += vm.parseJsonUint(json, ".ghost_finalizeSingleSigned");
                 c_samp += vm.parseJsonUint(json, ".ghost_invariantChallengedSampled");
+                try vm.parseJsonUint(json, ".ghost_nonExistentRoomRevert") returns (uint256 val) {
+                    c_nonEx += val;
+                } catch {}
                 runCount += vm.parseJsonUint(json, ".runCount");
             }
         } catch {}
@@ -248,6 +257,7 @@ contract ChessEscrowInvariantTest is Test {
         vm.serializeUint(obj, "ghost_resolveDefaultChallenge", c_resD);
         vm.serializeUint(obj, "ghost_finalizeSingleSigned", c_fin);
         vm.serializeUint(obj, "ghost_invariantChallengedSampled", c_samp);
+        vm.serializeUint(obj, "ghost_nonExistentRoomRevert", c_nonEx);
         string memory finalJson = vm.serializeUint(obj, "runCount", runCount);
         vm.writeFile(path, finalJson);
 
@@ -258,6 +268,7 @@ contract ChessEscrowInvariantTest is Test {
         console.log("Campaign resolveDefaultChallenge   :", c_resD);
         console.log("Campaign finalizeSingleSigned      :", c_fin);
         console.log("Campaign invariantChallengedSampled:", c_samp);
+        console.log("Campaign nonExistentRoomRevert     :", c_nonEx);
 
         if (runCount >= 2 || (c_sub >= 20 && c_chal >= 20 && c_resC >= 20 && c_resD >= 20 && c_fin >= 20)) {
             assertGe(c_sub, 20, "campaign ghost_submitSingleSigned < 20");
@@ -266,6 +277,7 @@ contract ChessEscrowInvariantTest is Test {
             assertGe(c_resD, 20, "campaign ghost_resolveDefaultChallenge < 20");
             assertGe(c_fin, 20, "campaign ghost_finalizeSingleSigned < 20");
             assertGe(c_samp, 20, "campaign ghost_invariantChallengedSampled < 20");
+            assertGe(c_nonEx, 20, "campaign ghost_nonExistentRoomRevert < 20");
         }
     }
 }

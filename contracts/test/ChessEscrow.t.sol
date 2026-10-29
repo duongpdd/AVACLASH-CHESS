@@ -193,6 +193,71 @@ contract ChessEscrowTest is Test {
         escrow.joinRoom{ value: STAKE }(roomId);
     }
 
+    function test_joinRoom_revert_nonExistentRoom() public {
+        uint256 nonExistentId = escrow.nextRoomId();
+        vm.prank(bob);
+        vm.expectRevert(ChessEscrow.RoomNotFound.selector);
+        escrow.joinRoom{ value: 0 }(nonExistentId);
+
+        ChessEscrow.Room memory room = escrow.getRoom(nonExistentId);
+        assertEq(uint256(room.status), 0);
+        assertEq(room.playerB, address(0));
+    }
+
+    function test_cancelRoom_revert_nonExistentRoom() public {
+        uint256 nonExistentId = escrow.nextRoomId();
+        vm.prank(alice);
+        vm.expectRevert(ChessEscrow.RoomNotFound.selector);
+        escrow.cancelRoom(nonExistentId);
+    }
+
+    function test_signalGameStarted_revert_nonExistentRoom() public {
+        uint256 nonExistentId = escrow.nextRoomId();
+        vm.prank(relay);
+        vm.expectRevert(ChessEscrow.RoomNotFound.selector);
+        escrow.signalGameStarted(nonExistentId);
+    }
+
+    function test_abortRoom_revert_nonExistentRoom() public {
+        uint256 nonExistentId = escrow.nextRoomId();
+        vm.prank(alice);
+        vm.expectRevert(ChessEscrow.RoomNotFound.selector);
+        escrow.abortRoom(nonExistentId);
+    }
+
+    function test_refundOnTimeout_revert_nonExistentRoom() public {
+        uint256 nonExistentId = escrow.nextRoomId();
+        vm.expectRevert(ChessEscrow.RoomNotFound.selector);
+        escrow.refundOnTimeout(nonExistentId);
+    }
+
+    function test_submitResult_revert_nonExistentRoom() public {
+        uint256 nonExistentId = escrow.nextRoomId();
+        bytes32 movesHash = keccak256("test");
+        bytes memory sigA = _signResult(alicePk, nonExistentId, alice, 0, 0, 10, movesHash, 1, block.timestamp + 1 hours);
+        bytes memory sigB = _signResult(bobPk, nonExistentId, alice, 0, 0, 10, movesHash, 1, block.timestamp + 1 hours);
+        vm.expectRevert(ChessEscrow.RoomNotFound.selector);
+        escrow.submitResult(nonExistentId, alice, 0, 0, 10, movesHash, 1, block.timestamp + 1 hours, sigA, sigB);
+    }
+
+    function test_submitSingleSigned_revert_nonExistentRoom() public {
+        uint256 nonExistentId = escrow.nextRoomId();
+        bytes32 movesHash = keccak256("test");
+        bytes memory sig = _signResult(alicePk, nonExistentId, alice, 0, 0, 10, movesHash, 1, block.timestamp + 1 hours);
+        vm.prank(alice);
+        vm.expectRevert(ChessEscrow.RoomNotFound.selector);
+        escrow.submitSingleSigned{ value: 0.01 ether }(nonExistentId, alice, 0, 0, 10, movesHash, 1, block.timestamp + 1 hours, sig);
+    }
+
+    function test_challenge_revert_nonExistentRoom() public {
+        uint256 nonExistentId = escrow.nextRoomId();
+        bytes32 movesHash = keccak256("test");
+        bytes memory sig = _signResult(bobPk, nonExistentId, bob, 1, 0, 10, movesHash, 1, block.timestamp + 1 hours);
+        vm.prank(bob);
+        vm.expectRevert(ChessEscrow.RoomNotFound.selector);
+        escrow.challenge{ value: 0.01 ether }(nonExistentId, bob, 1, 0, 10, movesHash, 1, block.timestamp + 1 hours, sig);
+    }
+
     // ──────── cancelRoom Tests ────────
 
     function test_cancelRoom() public {

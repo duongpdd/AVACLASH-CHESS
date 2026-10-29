@@ -31,6 +31,7 @@ contract GhostTracker {
     uint256 public ghost_unpause;
     uint256 public ghost_setSingleSignedEnabled;
     uint256 public ghost_invariantChallengedSampled;
+    uint256 public ghost_nonExistentRoomRevert;
 
     function incCall() external {
         totalCalls++;
@@ -55,6 +56,7 @@ contract GhostTracker {
     function inc_unpause() external { ghost_unpause++; }
     function inc_setSingleSignedEnabled() external { ghost_setSingleSignedEnabled++; }
     function inc_invariantChallengedSampled() external { ghost_invariantChallengedSampled++; }
+    function inc_nonExistentRoomRevert() external { ghost_nonExistentRoomRevert++; }
 
     function printSummary() external view {
         console.log("================================================================================");
@@ -81,6 +83,7 @@ contract GhostTracker {
         console.log("unpause                        :", ghost_unpause);
         console.log("setSingleSignedEnabled         :", ghost_setSingleSignedEnabled);
         console.log("invariant (Challenged sampled) :", ghost_invariantChallengedSampled);
+        console.log("nonExistentRoomRevert          :", ghost_nonExistentRoomRevert);
         console.log("================================================================================");
     }
 }

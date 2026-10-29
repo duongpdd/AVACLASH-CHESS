@@ -218,6 +218,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     error SingleSignedDisabled();
     error InvalidAddress();
     error RenounceOwnershipDisabled();
+    error RoomNotFound();
 
     // ──────────────────────── Constructor ────────────────────────
 
@@ -258,6 +259,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
      * @param roomId The room to join.
      */
     function joinRoom(uint256 roomId) external payable whenNotPaused {
+        if (roomId >= nextRoomId) revert RoomNotFound();
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Open) revert RoomNotOpen();
         if (msg.sender == room.playerA) revert CannotJoinOwnRoom();
@@ -279,6 +281,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
      * @param roomId The room to cancel.
      */
     function cancelRoom(uint256 roomId) external {
+        if (roomId >= nextRoomId) revert RoomNotFound();
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Open) revert RoomNotOpen();
         if (msg.sender != room.playerA) revert NotCreator();
@@ -302,6 +305,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
      * @param roomId The room to abort.
      */
     function abortRoom(uint256 roomId) external {
+        if (roomId >= nextRoomId) revert RoomNotFound();
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
         if (room.singleSignedAt != 0) revert SingleSignedAlreadySubmitted();
@@ -329,6 +333,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
      * @param roomId The room where game started.
      */
     function signalGameStarted(uint256 roomId) external {
+        if (roomId >= nextRoomId) revert RoomNotFound();
         if (msg.sender != relaySigner) revert InvalidSignature();
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
@@ -377,6 +382,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
         bytes calldata sigA,
         bytes calldata sigB
     ) external nonReentrant {
+        if (roomId >= nextRoomId) revert RoomNotFound();
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
         _validateOutcomeAndWinner(room, winner, outcome);
@@ -429,6 +435,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
         uint256 deadline,
         bytes calldata sig
     ) external payable nonReentrant {
+        if (roomId >= nextRoomId) revert RoomNotFound();
         if (!singleSignedEnabled) revert SingleSignedDisabled();
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
@@ -481,6 +488,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
         uint256 deadline,
         bytes calldata sig
     ) external payable nonReentrant {
+        if (roomId >= nextRoomId) revert RoomNotFound();
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
         if (room.singleSignedAt == 0) revert NoPendingSingleSigned();
@@ -523,6 +531,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
      * @param validWinner The arbiter's determined winner (address(0) for draw).
      */
     function resolveChallenge(uint256 roomId, address validWinner) external nonReentrant {
+        if (roomId >= nextRoomId) revert RoomNotFound();
         if (msg.sender != arbiter) revert NotArbiter();
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Challenged) revert RoomNotChallenged();
@@ -560,6 +569,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
      * @param roomId The room ID.
      */
     function resolveDefaultChallenge(uint256 roomId) external nonReentrant {
+        if (roomId >= nextRoomId) revert RoomNotFound();
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Challenged) revert RoomNotChallenged();
         if (block.timestamp < room.challengedAt + ARBITER_DEADLINE) revert ArbiterDeadlineNotReached();
@@ -598,6 +608,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
      * @param roomId The room ID.
      */
     function finalizeSingleSigned(uint256 roomId) external nonReentrant {
+        if (roomId >= nextRoomId) revert RoomNotFound();
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
         if (room.singleSignedAt == 0) revert NoPendingSingleSigned();
@@ -623,6 +634,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
      * @param roomId The room ID.
      */
     function refundOnTimeout(uint256 roomId) external nonReentrant {
+        if (roomId >= nextRoomId) revert RoomNotFound();
         Room storage room = rooms[roomId];
         if (room.status != RoomStatus.Active) revert RoomNotActive();
         if (room.singleSignedAt != 0) revert SingleSignedAlreadySubmitted();

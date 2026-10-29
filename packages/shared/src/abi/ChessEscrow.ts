@@ -1958,6 +1958,11 @@ export const CHESS_ESCROW_ABI = [
   },
   {
     "type": "error",
+    "name": "RoomNotFound",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "RoomNotOpen",
     "inputs": []
   },

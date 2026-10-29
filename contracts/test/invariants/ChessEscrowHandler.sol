@@ -614,6 +614,81 @@ contract ChessEscrowHandler is Test {
         tracker.inc_setSingleSignedEnabled();
     }
 
+    // ──────── Action 19: Try Non-Existent Room Operations ────────
+    function tryNonExistentRoomActions(uint256 actorIdx, uint256 funcChoice, uint256 offset) external {
+        tracker.incCall();
+        if (_checkAutoUnpause()) return;
+
+        uint256 nonExistentId = escrow.nextRoomId() + bound(offset, 0, 1000);
+        address caller = players[actorIdx % 3];
+        uint256 choice = funcChoice % 8;
+
+        if (choice == 0) {
+            vm.prank(caller);
+            try escrow.joinRoom{ value: 0 }(nonExistentId) {
+                revert("joinRoom on non-existent room did not revert");
+            } catch (bytes memory err) {
+                require(bytes4(err) == ChessEscrow.RoomNotFound.selector, "Wrong revert error in joinRoom");
+            }
+        } else if (choice == 1) {
+            vm.prank(caller);
+            try escrow.cancelRoom(nonExistentId) {
+                revert("cancelRoom on non-existent room did not revert");
+            } catch (bytes memory err) {
+                require(bytes4(err) == ChessEscrow.RoomNotFound.selector, "Wrong revert error in cancelRoom");
+            }
+        } else if (choice == 2) {
+            vm.prank(caller);
+            try escrow.abortRoom(nonExistentId) {
+                revert("abortRoom on non-existent room did not revert");
+            } catch (bytes memory err) {
+                require(bytes4(err) == ChessEscrow.RoomNotFound.selector, "Wrong revert error in abortRoom");
+            }
+        } else if (choice == 3) {
+            vm.prank(relay);
+            try escrow.signalGameStarted(nonExistentId) {
+                revert("signalGameStarted on non-existent room did not revert");
+            } catch (bytes memory err) {
+                require(bytes4(err) == ChessEscrow.RoomNotFound.selector, "Wrong revert error in signalGameStarted");
+            }
+        } else if (choice == 4) {
+            try escrow.refundOnTimeout(nonExistentId) {
+                revert("refundOnTimeout on non-existent room did not revert");
+            } catch (bytes memory err) {
+                require(bytes4(err) == ChessEscrow.RoomNotFound.selector, "Wrong revert error in refundOnTimeout");
+            }
+        } else if (choice == 5) {
+            bytes32 movesHash = keccak256("test");
+            bytes memory sigA = _sign(playerPks[0], nonExistentId, caller, 0, 0, 10, movesHash, 1, block.timestamp + 1 hours);
+            bytes memory sigB = _sign(playerPks[1], nonExistentId, caller, 0, 0, 10, movesHash, 1, block.timestamp + 1 hours);
+            try escrow.submitResult(nonExistentId, caller, 0, 0, 10, movesHash, 1, block.timestamp + 1 hours, sigA, sigB) {
+                revert("submitResult on non-existent room did not revert");
+            } catch (bytes memory err) {
+                require(bytes4(err) == ChessEscrow.RoomNotFound.selector, "Wrong revert error in submitResult");
+            }
+        } else if (choice == 6) {
+            bytes32 movesHash = keccak256("test");
+            bytes memory sig = _sign(playerPks[actorIdx % 3], nonExistentId, caller, 0, 0, 10, movesHash, 1, block.timestamp + 1 hours);
+            vm.prank(caller);
+            try escrow.submitSingleSigned{ value: 0.01 ether }(nonExistentId, caller, 0, 0, 10, movesHash, 1, block.timestamp + 1 hours, sig) {
+                revert("submitSingleSigned on non-existent room did not revert");
+            } catch (bytes memory err) {
+                require(bytes4(err) == ChessEscrow.RoomNotFound.selector, "Wrong revert error in submitSingleSigned");
+            }
+        } else {
+            bytes32 movesHash = keccak256("test");
+            bytes memory sig = _sign(playerPks[actorIdx % 3], nonExistentId, caller, 1, 0, 10, movesHash, 1, block.timestamp + 1 hours);
+            vm.prank(caller);
+            try escrow.challenge{ value: 0.01 ether }(nonExistentId, caller, 1, 0, 10, movesHash, 1, block.timestamp + 1 hours, sig) {
+                revert("challenge on non-existent room did not revert");
+            } catch (bytes memory err) {
+                require(bytes4(err) == ChessEscrow.RoomNotFound.selector, "Wrong revert error in challenge");
+            }
+        }
+
+        tracker.inc_nonExistentRoomRevert();
+    }
+
     // ──────── Room State Setup Helpers ────────
     function _ensureSingleSignedRoom(uint256 seed) internal returns (uint256 roomId) {
         if (!escrow.singleSignedEnabled()) {
