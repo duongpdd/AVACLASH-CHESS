@@ -9,12 +9,15 @@ import { useJoinRoom } from "@/hooks/useJoinRoom";
 import { useRoom } from "@/hooks/useRoom";
 import { useOpenRooms } from "@/hooks/useOpenRooms";
 import { useWithdraw } from "@/hooks/useWithdraw";
+import { useContractBytecodeGuard } from "@/hooks/useContractBytecodeGuard";
 import TxStatusAlert from "./TxStatusAlert";
 
 export default function RoomLobbyWidget() {
   const { isConnected } = useAccount();
   const chainId = useChainId();
   const isWrongNetwork = isConnected && chainId !== targetChain.id;
+  const { isBlocked: isConfigBlocked, errorMessage: configLockReason } =
+    useContractBytecodeGuard();
 
   const [activeTab, setActiveTab] = useState<
     "create" | "join" | "open_rooms" | "inspect"
@@ -210,6 +213,16 @@ export default function RoomLobbyWidget() {
         </button>
       </div>
 
+      {isConfigBlocked && (
+        <div className="p-3 bg-rose-950/60 border border-rose-500/40 rounded-xl text-xs text-rose-200 flex items-start gap-2.5 animate-fade-in">
+          <span className="text-lg leading-none">🛑</span>
+          <div>
+            <div className="font-bold text-rose-100">Mọi thao tác hợp đồng bị khóa:</div>
+            <div className="text-[11px] text-rose-300 mt-0.5">{configLockReason}</div>
+          </div>
+        </div>
+      )}
+
       {/* TAB 1: CREATE ROOM */}
       {activeTab === "create" && (
         <div className="flex flex-col gap-4">
@@ -287,27 +300,32 @@ export default function RoomLobbyWidget() {
             disabled={
               !isConnected ||
               isWrongNetwork ||
+              isConfigBlocked ||
               createStep === "waiting_wallet" ||
               createStep === "confirming"
             }
             onClick={() => createRoom(creatorIsWhite, stake)}
             className={`w-full py-3 rounded-xl font-bold text-sm shadow-xl transition-all ${
-              !isConnected
-                ? "bg-slate-800 text-slate-500 cursor-not-allowed"
-                : isWrongNetwork
-                  ? "bg-rose-900/60 text-rose-300 cursor-not-allowed"
-                  : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950"
+              isConfigBlocked
+                ? "bg-rose-950/80 text-rose-400 border border-rose-500/40 cursor-not-allowed"
+                : !isConnected
+                  ? "bg-slate-800 text-slate-500 cursor-not-allowed"
+                  : isWrongNetwork
+                    ? "bg-rose-900/60 text-rose-300 cursor-not-allowed"
+                    : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950"
             }`}
           >
-            {!isConnected
-              ? "Vui lòng nối ví trước"
-              : isWrongNetwork
-                ? "Vui lòng chuyển sang đúng mạng"
-                : createStep === "waiting_wallet"
-                  ? "Đang chờ ví ký..."
-                  : createStep === "confirming"
-                    ? "Đang xác nhận trên Avalanche..."
-                    : `Tạo phòng & Cược ${stake} AVAX`}
+            {isConfigBlocked
+              ? "Bị khóa: Lỗi cấu hình Smart Contract"
+              : !isConnected
+                ? "Vui lòng nối ví trước"
+                : isWrongNetwork
+                  ? "Vui lòng chuyển sang đúng mạng"
+                  : createStep === "waiting_wallet"
+                    ? "Đang chờ ví ký..."
+                    : createStep === "confirming"
+                      ? "Đang xác nhận trên Avalanche..."
+                      : `Tạo phòng & Cược ${stake} AVAX`}
           </button>
 
           <TxStatusAlert
@@ -433,6 +451,7 @@ export default function RoomLobbyWidget() {
             disabled={
               !isConnected ||
               isWrongNetwork ||
+              isConfigBlocked ||
               !previewRoom ||
               !isRoomExists ||
               !isJoinable ||
@@ -441,28 +460,32 @@ export default function RoomLobbyWidget() {
             }
             onClick={() => joinRoom(targetJoinId)}
             className={`w-full py-3 rounded-xl font-bold text-sm shadow-xl transition-all ${
-              !isConnected
-                ? "bg-slate-800 text-slate-500 cursor-not-allowed"
-                : isWrongNetwork
-                  ? "bg-rose-900/60 text-rose-300 cursor-not-allowed"
-                  : !isRoomExists || !isJoinable
-                    ? "bg-slate-800 text-slate-500 cursor-not-allowed"
-                    : "bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-400 hover:to-orange-400 text-slate-950"
+              isConfigBlocked
+                ? "bg-rose-950/80 text-rose-400 border border-rose-500/40 cursor-not-allowed"
+                : !isConnected
+                  ? "bg-slate-800 text-slate-500 cursor-not-allowed"
+                  : isWrongNetwork
+                    ? "bg-rose-900/60 text-rose-300 cursor-not-allowed"
+                    : !isRoomExists || !isJoinable
+                      ? "bg-slate-800 text-slate-500 cursor-not-allowed"
+                      : "bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-400 hover:to-orange-400 text-slate-950"
             }`}
           >
-            {!isConnected
-              ? "Vui lòng nối ví trước"
-              : isWrongNetwork
-                ? "Vui lòng chuyển sang đúng mạng"
-                : !isRoomExists
-                  ? "Phòng không tồn tại"
-                  : !isJoinable
-                    ? (joinableError ?? "Không thể vào phòng")
-                    : joinStep === "waiting_wallet"
-                      ? "Đang chờ ví ký..."
-                      : joinStep === "confirming"
-                        ? "Đang xác nhận vào phòng..."
-                        : `Xác nhận vào phòng (${joinerColor}) & Cược ${joinStakeFormatted} AVAX`}
+            {isConfigBlocked
+              ? "Bị khóa: Lỗi cấu hình Smart Contract"
+              : !isConnected
+                ? "Vui lòng nối ví trước"
+                : isWrongNetwork
+                  ? "Vui lòng chuyển sang đúng mạng"
+                  : !isRoomExists
+                    ? "Phòng không tồn tại"
+                    : !isJoinable
+                      ? (joinableError ?? "Không thể vào phòng")
+                      : joinStep === "waiting_wallet"
+                        ? "Đang chờ ví ký..."
+                        : joinStep === "confirming"
+                          ? "Đang xác nhận vào phòng..."
+                          : `Xác nhận vào phòng (${joinerColor}) & Cược ${joinStakeFormatted} AVAX`}
           </button>
 
           <TxStatusAlert

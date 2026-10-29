@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import RoomLobbyWidget from "@/components/RoomLobbyWidget";
 import FujiTestnetBanner from "@/components/FujiTestnetBanner";
+import ConfigErrorBanner from "@/components/ConfigErrorBanner";
 import WalletBar from "@/components/WalletBar";
 
 export default function HomePage() {
@@ -12,6 +13,7 @@ export default function HomePage() {
   return (
     <>
       <FujiTestnetBanner />
+      <ConfigErrorBanner />
       <main className="relative min-h-dvh w-full overflow-x-hidden bg-gray-950 text-slate-100 flex flex-col items-center justify-between px-4 py-6 select-none">
         {/* Hiệu ứng ánh sáng nền Ambient Glow */}
         <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-96 w-[700px] rounded-full bg-amber-500/15 blur-[140px]" />

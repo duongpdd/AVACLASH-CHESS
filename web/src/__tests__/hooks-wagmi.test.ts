@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { parseEther, encodeEventTopics, encodeAbiParameters, parseAbiParameters } from "viem";
+import { type Address, parseEther, encodeEventTopics, encodeAbiParameters, parseAbiParameters } from "viem";
 import { CHESS_ESCROW_ABI } from "@avaclash/shared";
 import { useCreateRoom } from "../hooks/useCreateRoom";
 import { useJoinRoom } from "../hooks/useJoinRoom";
@@ -82,7 +82,7 @@ describe("Web3 Hooks Unit Tests with Wagmi Mocking", () => {
       const topics1 = encodeEventTopics({
         abi: CHESS_ESCROW_ABI,
         eventName: "RoomCreated",
-        args: { roomId: BigInt(42), creator: mockAddress },
+        args: { roomId: BigInt(42), creator: mockAddress as Address },
       });
       const data1 = encodeAbiParameters(
         parseAbiParameters("uint256 stake, bool creatorIsWhite"),
@@ -133,7 +133,7 @@ describe("Web3 Hooks Unit Tests with Wagmi Mocking", () => {
       const topics2 = encodeEventTopics({
         abi: CHESS_ESCROW_ABI,
         eventName: "RoomCreated",
-        args: { roomId: BigInt(43), creator: mockAddress },
+        args: { roomId: BigInt(43), creator: mockAddress as Address },
       });
       const data2 = encodeAbiParameters(
         parseAbiParameters("uint256 stake, bool creatorIsWhite"),

@@ -618,6 +618,7 @@ contract ChessEscrowHandler is Test {
     function tryNonExistentRoomActions(uint256 actorIdx, uint256 funcChoice, uint256 offset) external {
         tracker.incCall();
         if (_checkAutoUnpause()) return;
+        if (escrow.paused()) return;
 
         uint256 nonExistentId = escrow.nextRoomId() + bound(offset, 0, 1000);
         address caller = players[actorIdx % 3];

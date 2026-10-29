@@ -12,6 +12,7 @@ import {
 import { formatEther } from "viem";
 import { targetChain } from "@/config/wagmi";
 import { useWithdraw } from "@/hooks/useWithdraw";
+import { useContractBytecodeGuard } from "@/hooks/useContractBytecodeGuard";
 
 export default function WalletBar() {
   const { address, isConnected } = useAccount();
@@ -20,6 +21,7 @@ export default function WalletBar() {
   const chainId = useChainId();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
   const { data: balance } = useBalance({ address });
+  const { isBlocked: isConfigBlocked } = useContractBytecodeGuard();
   const {
     pendingBalanceFormatted,
     pendingBalance,
@@ -143,11 +145,20 @@ export default function WalletBar() {
               type="button"
               onClick={() => withdraw()}
               disabled={
+                isConfigBlocked ||
                 withdrawStep === "waiting_wallet" ||
                 withdrawStep === "confirming"
               }
-              className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-extrabold text-xs px-3 py-1.5 rounded-xl shadow-md hover:brightness-110 transition-all animate-pulse"
-              title="Có tiền thắng hoặc tiền hoàn sẵn sàng rút về ví!"
+              className={`flex items-center gap-1.5 font-extrabold text-xs px-3 py-1.5 rounded-xl shadow-md transition-all ${
+                isConfigBlocked
+                  ? "bg-slate-800 text-slate-500 cursor-not-allowed"
+                  : "bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 hover:brightness-110 animate-pulse"
+              }`}
+              title={
+                isConfigBlocked
+                  ? "Bị khóa: Lỗi cấu hình Smart Contract"
+                  : "Có tiền thắng hoặc tiền hoàn sẵn sàng rút về ví!"
+              }
             >
               <span>🎁 Rút: {pendingBalanceFormatted} AVAX</span>
             </button>
