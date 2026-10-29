@@ -5,6 +5,8 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const contractsOutDir = path.resolve(__dirname, "../../../contracts/out");
+
 const artifactPath = path.resolve(
   __dirname,
   "../../../contracts/out/ChessEscrow.sol/ChessEscrow.json"
@@ -21,9 +23,19 @@ if (!fs.existsSync(outDir)) {
   fs.mkdirSync(outDir, { recursive: true });
 }
 
+// If contracts/out directory does not exist, warn and gracefully skip without error
+if (!fs.existsSync(contractsOutDir)) {
+  console.warn(
+    `[generate-abi] Cảnh báo: contracts/out không tồn tại (${contractsOutDir}). Bỏ qua sinh ABI và sử dụng tệp ABI đã commit.`
+  );
+  process.exit(0);
+}
+
 if (!fs.existsSync(artifactPath)) {
-  console.error(`Artifact not found at ${artifactPath}. Please run 'forge build' first.`);
-  process.exit(1);
+  console.warn(
+    `[generate-abi] Cảnh báo: Artifact không tồn tại tại ${artifactPath}. Bỏ qua sinh ABI và sử dụng tệp ABI đã commit.`
+  );
+  process.exit(0);
 }
 
 const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf-8"));
