@@ -152,6 +152,68 @@ contract ChessEscrowMetaIntegrationTest is Test {
         vm.prank(spectator1);
         meta.claimSpectatorRefund(roomId);
         assertEq(spectator1.balance, balBefore + 0.5 ether);
+
+        // Verify on-chain ELO unchanged when moveCount < 20 (MIN_MOVES_FOR_ELO)
+        assertEq(meta.getElo(playerA), 1200);
+        assertEq(meta.getElo(playerB), 1200);
+    }
+
+    function test_Elo_MovesUnder20_EloUnchanged() public {
+        vm.prank(playerA);
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
+
+        vm.prank(playerB);
+        escrow.joinRoom{ value: 0.1 ether }(roomId);
+
+        vm.prank(relaySigner);
+        escrow.signalGameStarted(roomId);
+
+        // Move count = 19 (< 20 threshold)
+        bytes32 movesHash = keccak256("19_moves");
+        uint256 nonce = 101;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sigA = _signResult(creatorPrivateKey, roomId, playerA, 0, 0, 19, movesHash, nonce, deadline);
+        bytes memory sigRelay = _signResult(relayPrivateKey, roomId, playerA, 0, 0, 19, movesHash, nonce, deadline);
+
+        assertEq(meta.getElo(playerA), 1200);
+        assertEq(meta.getElo(playerB), 1200);
+
+        vm.prank(playerA);
+        escrow.submitResult(roomId, playerA, 0, 0, 19, movesHash, nonce, deadline, sigA, sigRelay);
+
+        // Under 20 plies: ELO must NOT change
+        assertEq(meta.getElo(playerA), 1200);
+        assertEq(meta.getElo(playerB), 1200);
+    }
+
+    function test_Elo_MovesAtLeast20_EloChanged() public {
+        vm.prank(playerA);
+        uint256 roomId = escrow.createRoom{ value: 0.1 ether }(true);
+
+        vm.prank(playerB);
+        escrow.joinRoom{ value: 0.1 ether }(roomId);
+
+        vm.prank(relaySigner);
+        escrow.signalGameStarted(roomId);
+
+        // Move count = 20 (>= 20 threshold)
+        bytes32 movesHash = keccak256("20_moves");
+        uint256 nonce = 102;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sigA = _signResult(creatorPrivateKey, roomId, playerA, 0, 0, 20, movesHash, nonce, deadline);
+        bytes memory sigRelay = _signResult(relayPrivateKey, roomId, playerA, 0, 0, 20, movesHash, nonce, deadline);
+
+        assertEq(meta.getElo(playerA), 1200);
+        assertEq(meta.getElo(playerB), 1200);
+
+        vm.prank(playerA);
+        escrow.submitResult(roomId, playerA, 0, 0, 20, movesHash, nonce, deadline, sigA, sigRelay);
+
+        // At least 20 plies: ELO MUST change
+        assertEq(meta.getElo(playerA), 1224);
+        assertEq(meta.getElo(playerB), 1176);
     }
 
     function test_DrawMatchFlow_EloAndSpectatorDrawOption() public {

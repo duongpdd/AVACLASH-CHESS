@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { MIN_MOVES_THRESHOLD } from "./Constants.sol";
 
 /**
  * @title AvaClashMeta
@@ -66,7 +67,7 @@ contract AvaClashMeta is ReentrancyGuard {
     uint256 public constant MAX_UNRESOLVED = 7 days;
 
     /// @notice Minimum moves required for valid prediction settlement (20). Matches with fewer moves cancel prediction (Q20).
-    uint16 public constant MIN_MOVES_FOR_PREDICTION = 20;
+    uint16 public constant MIN_MOVES_FOR_PREDICTION = MIN_MOVES_THRESHOLD;
 
     /// @notice Betting window duration after opponent joins the room (120 seconds, Q18).
     uint256 public constant BET_WINDOW = 120;

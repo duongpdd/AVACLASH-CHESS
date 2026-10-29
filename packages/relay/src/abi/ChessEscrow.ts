@@ -141,6 +141,19 @@ export const CHESS_ESCROW_ABI = [
   },
   {
     "type": "function",
+    "name": "MIN_MOVES_FOR_ELO",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MIN_STAKE",
     "inputs": [],
     "outputs": [

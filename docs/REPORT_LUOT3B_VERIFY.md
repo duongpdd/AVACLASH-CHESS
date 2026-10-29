@@ -31,14 +31,14 @@ Hai tệp log kiểm thử thô đã được chuyển hướng đầu ra bằng
   - Cửa 3 = Hòa
   - Ánh xạ tuyệt đối theo màu cờ bàn cờ, **hoàn toàn không phụ thuộc** vào việc người tạo phòng (`creator`) chọn cầm quân Trắng hay Đen.
 - **Bằng chứng mã nguồn hiện tại đã chuẩn xác theo Q13:**
-  - File: dòng trong [`ChessEscrow.sol`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/src/ChessEscrow.sol#L884-L885):
+  - File: dòng trong [`ChessEscrow.sol`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/src/ChessEscrow.sol#L890-L891):
     ```solidity
-    address whitePlayer = room.creatorIsWhite ? room.playerA : room.playerB;
-    uint256 winningOption = (winner == whitePlayer) ? 1 : 2;
+                address whitePlayer = room.creatorIsWhite ? room.playerA : room.playerB;
+                uint8 winningOption = (winner == whitePlayer) ? 1 : 2;
     ```
-  - Khi hòa trận (`ChessEscrow.sol:864,868`):
+  - Khi hòa trận ([`ChessEscrow.sol:868`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/src/ChessEscrow.sol#L868)):
     ```solidity
-    meta.resolvePrediction(metaMatchId, 3, address(0));
+                try IAvaClashMeta(metaContract).resolvePrediction(roomId, 3, moveCount) {}
     ```
   - File: dòng trong [`ChessEscrowMetaIntegration.t.sol`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/test/ChessEscrowMetaIntegration.t.sol#L227-L295):
     - Khi `creatorIsWhite = false` và Trắng thắng (Trắng là joiner `bob`):
@@ -171,3 +171,4 @@ Căn cứ theo nguyên tắc minh bạch kỹ thuật, dưới đây là các đ
 | **9** | `c9fa954` | `fix(test): remove shell: true from spawn anvil helper to eliminate DEP0190 warning` |
 | **10** | `a775989` | `fix(invariants): prevent arithmetic overflow in handler player indexing on boundary inputs` |
 | **6** | *(Commit này)* | `docs(verify): add comprehensive Luot 3b-verify report and attached raw test logs` |
+

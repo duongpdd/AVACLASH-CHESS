@@ -6,6 +6,7 @@ import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { Ownable2Step, Ownable } from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import { MIN_MOVES_THRESHOLD } from "./Constants.sol";
 
 interface IAvaClashMeta {
     function registerMatch(uint256 matchId, address pA, address pB) external;
@@ -52,6 +53,9 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
 
     /// @notice Arbiter ruling deadline after challenge (24 hours).
     uint256 public constant ARBITER_DEADLINE = 24 hours;
+
+    /// @notice Minimum moves required for ELO update on settlement (20).
+    uint16 public constant MIN_MOVES_FOR_ELO = MIN_MOVES_THRESHOLD;
 
     // ──────────────────────── Types ────────────────────────
 
@@ -876,10 +880,12 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
             protocolFees += fee;
             pendingWithdrawals[winner] += pot - fee;
             if (metaContract != address(0)) {
-                address loser = (winner == room.playerA) ? room.playerB : room.playerA;
-                try IAvaClashMeta(metaContract).updateEloOnSettle(winner, loser) {}
-                catch {
-                    emit MetaCallFailed(roomId, IAvaClashMeta.updateEloOnSettle.selector);
+                if (moveCount >= MIN_MOVES_FOR_ELO) {
+                    address loser = (winner == room.playerA) ? room.playerB : room.playerA;
+                    try IAvaClashMeta(metaContract).updateEloOnSettle(winner, loser) {}
+                    catch {
+                        emit MetaCallFailed(roomId, IAvaClashMeta.updateEloOnSettle.selector);
+                    }
                 }
                 address whitePlayer = room.creatorIsWhite ? room.playerA : room.playerB;
                 uint8 winningOption = (winner == whitePlayer) ? 1 : 2;

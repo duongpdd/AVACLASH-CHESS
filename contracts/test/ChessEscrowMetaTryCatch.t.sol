@@ -185,9 +185,10 @@ contract ChessEscrowMetaTryCatchTest is Test {
         bytes32 movesHash = keccak256("e2e4");
         uint256 nonce = 1;
         uint256 deadline = block.timestamp + 1 hours;
+        uint16 moveCount = 20;
 
-        bytes memory sigA = _signResult(creatorPrivateKey, roomId, playerA, 0, 0, 1, movesHash, nonce, deadline);
-        bytes memory sigB = _signResult(joinerPrivateKey, roomId, playerA, 0, 0, 1, movesHash, nonce, deadline);
+        bytes memory sigA = _signResult(creatorPrivateKey, roomId, playerA, 0, 0, moveCount, movesHash, nonce, deadline);
+        bytes memory sigB = _signResult(joinerPrivateKey, roomId, playerA, 0, 0, moveCount, movesHash, nonce, deadline);
 
         // Expect MetaCallFailed for updateEloOnSettle and resolvePrediction
         vm.expectEmit(true, false, false, true);
@@ -196,7 +197,7 @@ contract ChessEscrowMetaTryCatchTest is Test {
         emit ChessEscrow.MetaCallFailed(roomId, IAvaClashMeta.resolvePrediction.selector);
 
         vm.prank(playerA);
-        escrow.submitResult(roomId, playerA, 0, 0, 1, movesHash, nonce, deadline, sigA, sigB);
+        escrow.submitResult(roomId, playerA, 0, 0, moveCount, movesHash, nonce, deadline, sigA, sigB);
 
         // Winner gets pot minus 5% fee (0.2 ether - 0.01 ether = 0.19 ether)
         assertEq(escrow.pendingWithdrawals(playerA), 0.19 ether);
