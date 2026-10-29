@@ -2,6 +2,7 @@ import { useReadContract, useReadContracts } from "wagmi";
 import { formatEther } from "viem";
 import { CHESS_ESCROW_ABI } from "@avaclash/shared";
 import { ESCROW_ADDRESS } from "@/config/env";
+import { isRoomJoinable } from "@/utils/room";
 
 export interface OpenRoomSummary {
   id: bigint;
@@ -57,15 +58,17 @@ export function useOpenRooms(maxScan: number = 20) {
     },
   });
 
-  // Filter only Open rooms (status === 0)
+  // Filter only valid, existing Open rooms using isRoomJoinable
   const openRooms: OpenRoomSummary[] = [];
   if (roomsData && roomsData.length > 0) {
     roomsData.forEach((res: any, index: number) => {
       if (res.status === "success" && res.result) {
         const r = res.result as any;
-        if (r.status === 0) {
+        const currentId = roomIdsToScan[index];
+        // Use isRoomJoinable to ensure roomId < nextRoomId, playerA != 0, status == 0, stake > 0
+        if (isRoomJoinable(r, nextRoomId, undefined, currentId)) {
           openRooms.push({
-            id: roomIdsToScan[index],
+            id: currentId,
             playerA: r.playerA,
             stake: r.stake,
             stakeFormatted: formatEther(r.stake),

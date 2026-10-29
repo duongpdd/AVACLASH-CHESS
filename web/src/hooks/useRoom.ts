@@ -2,6 +2,7 @@ import { useReadContract, useWatchContractEvent } from "wagmi";
 import { formatEther } from "viem";
 import { CHESS_ESCROW_ABI } from "@avaclash/shared";
 import { ESCROW_ADDRESS } from "@/config/env";
+import { doesRoomExist, isRoomJoinable } from "@/utils/room";
 
 export const ROOM_STATUS_TEXT: Record<
   number,
@@ -47,6 +48,16 @@ export const ROOM_STATUS_TEXT: Record<
 export function useRoom(roomId?: bigint | number) {
   const parsedId = roomId !== undefined ? BigInt(roomId) : undefined;
 
+  // Read nextRoomId to verify room existence
+  const { data: nextRoomId } = useReadContract({
+    address: ESCROW_ADDRESS,
+    abi: CHESS_ESCROW_ABI,
+    functionName: "nextRoomId",
+    query: {
+      refetchInterval: 5000,
+    },
+  });
+
   const {
     data: room,
     isLoading,
@@ -91,30 +102,41 @@ export function useRoom(roomId?: bigint | number) {
     },
   });
 
-  const statusInfo = room
-    ? ROOM_STATUS_TEXT[room.status] || {
-        label: "Không xác định",
-        color: "text-slate-400",
-        desc: "",
+  const exists = doesRoomExist(room, nextRoomId, parsedId);
+
+  const statusInfo = !exists
+    ? {
+        label: "Phòng không tồn tại",
+        color: "text-rose-400 bg-rose-400/10 border-rose-400/30",
+        desc: "Phòng này chưa được khởi tạo trên blockchain.",
       }
-    : null;
+    : room
+      ? ROOM_STATUS_TEXT[room.status] || {
+          label: "Không xác định",
+          color: "text-slate-400",
+          desc: "",
+        }
+      : null;
 
   return {
     room,
+    exists,
     isLoading,
     refetch,
     error,
     statusInfo,
-    stakeFormatted: room ? formatEther(room.stake) : "0",
-    whitePlayer: room
-      ? room.creatorIsWhite
-        ? room.playerA
-        : room.playerB
-      : null,
-    blackPlayer: room
-      ? room.creatorIsWhite
-        ? room.playerB
-        : room.playerA
-      : null,
+    stakeFormatted: room && exists ? formatEther(room.stake) : "0",
+    whitePlayer:
+      room && exists
+        ? room.creatorIsWhite
+          ? room.playerA
+          : room.playerB
+        : null,
+    blackPlayer:
+      room && exists
+        ? room.creatorIsWhite
+          ? room.playerB
+          : room.playerA
+        : null,
   };
 }

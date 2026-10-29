@@ -42,6 +42,9 @@ export default function RoomLobbyWidget() {
   const {
     joinRoom,
     room: previewRoom,
+    exists: isRoomExists,
+    joinable: isJoinable,
+    joinableError,
     isLoadingRoom,
     joinerColor,
     stakeFormatted: joinStakeFormatted,
@@ -363,7 +366,7 @@ export default function RoomLobbyWidget() {
               )}
             </div>
 
-            {previewRoom ? (
+            {previewRoom && isRoomExists ? (
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Trạng thái phòng:</span>
@@ -411,10 +414,16 @@ export default function RoomLobbyWidget() {
                     {joinStakeFormatted} AVAX
                   </span>
                 </div>
+
+                {!isJoinable && joinableError && (
+                  <div className="p-2 bg-rose-950/40 border border-rose-500/30 rounded-lg text-rose-300 text-xs text-center font-semibold">
+                    {joinableError}
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="text-slate-500 italic py-2 text-center">
-                Chưa tìm thấy phòng này hoặc chưa nhập ID hợp lệ.
+              <div className="text-slate-400 italic py-3 text-center bg-slate-900/50 rounded-lg border border-dashed border-white/10">
+                {targetJoinId !== undefined ? "Phòng không tồn tại" : "Vui lòng nhập ID phòng hợp lệ."}
               </div>
             )}
           </div>
@@ -425,8 +434,8 @@ export default function RoomLobbyWidget() {
               !isConnected ||
               isWrongNetwork ||
               !previewRoom ||
-              !isJoinOpen ||
-              isJoinCreator ||
+              !isRoomExists ||
+              !isJoinable ||
               joinStep === "waiting_wallet" ||
               joinStep === "confirming"
             }
@@ -436,7 +445,7 @@ export default function RoomLobbyWidget() {
                 ? "bg-slate-800 text-slate-500 cursor-not-allowed"
                 : isWrongNetwork
                   ? "bg-rose-900/60 text-rose-300 cursor-not-allowed"
-                  : !isJoinOpen || isJoinCreator
+                  : !isRoomExists || !isJoinable
                     ? "bg-slate-800 text-slate-500 cursor-not-allowed"
                     : "bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-400 hover:to-orange-400 text-slate-950"
             }`}
@@ -445,10 +454,10 @@ export default function RoomLobbyWidget() {
               ? "Vui lòng nối ví trước"
               : isWrongNetwork
                 ? "Vui lòng chuyển sang đúng mạng"
-                : isJoinCreator
-                  ? "Không thể vào phòng do chính bạn tạo"
-                  : !isJoinOpen
-                    ? "Phòng không ở trạng thái mở"
+                : !isRoomExists
+                  ? "Phòng không tồn tại"
+                  : !isJoinable
+                    ? (joinableError ?? "Không thể vào phòng")
                     : joinStep === "waiting_wallet"
                       ? "Đang chờ ví ký..."
                       : joinStep === "confirming"

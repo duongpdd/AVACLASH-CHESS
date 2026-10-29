@@ -9,6 +9,12 @@ import { formatEther } from "viem";
 import { CHESS_ESCROW_ABI } from "@avaclash/shared";
 import { ESCROW_ADDRESS } from "@/config/env";
 import { decodeContractError } from "@/utils/errors";
+import {
+  getJoinerColor,
+  isRoomJoinable,
+  getRoomJoinableError,
+  doesRoomExist,
+} from "@/utils/room";
 import { TxStep } from "./useCreateRoom";
 
 export function useJoinRoom(roomId?: bigint | number) {
@@ -17,6 +23,16 @@ export function useJoinRoom(roomId?: bigint | number) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const parsedRoomId = roomId !== undefined ? BigInt(roomId) : undefined;
+
+  // Read nextRoomId from contract to verify existence
+  const { data: nextRoomId } = useReadContract({
+    address: ESCROW_ADDRESS,
+    abi: CHESS_ESCROW_ABI,
+    functionName: "nextRoomId",
+    query: {
+      refetchInterval: 5000,
+    },
+  });
 
   // Read room info for preview before confirmation
   const {
@@ -43,20 +59,16 @@ export function useJoinRoom(roomId?: bigint | number) {
     hash: txHash,
   });
 
-  // Calculate joiner's color and room details
-  // creatorIsWhite = true -> joiner plays Black
-  // creatorIsWhite = false -> joiner plays White
-  const joinerColor = room
-    ? !room.creatorIsWhite
-      ? "White"
-      : "Black"
-    : null;
-  const stakeFormatted = room ? formatEther(room.stake) : null;
+  const exists = doesRoomExist(room, nextRoomId, parsedRoomId);
+  const joinerColor = getJoinerColor(room);
+  const joinable = isRoomJoinable(room, nextRoomId, address, parsedRoomId);
+  const joinableError = getRoomJoinableError(room, nextRoomId, address, parsedRoomId);
+  const stakeFormatted = room && exists ? formatEther(room.stake) : null;
   const isCreator =
-    address && room
+    address && room && exists
       ? address.toLowerCase() === room.playerA.toLowerCase()
       : false;
-  const isOpen = room ? room.status === 0 : false;
+  const isOpen = room && exists ? room.status === 0 : false;
 
   const joinRoom = async (targetId?: bigint | number) => {
     setErrorMessage(null);
@@ -69,20 +81,21 @@ export function useJoinRoom(roomId?: bigint | number) {
       return;
     }
 
-    if (!room) {
-      setErrorMessage("Không thể tải thông tin phòng");
+    if (!exists || !room) {
+      setErrorMessage("Phòng không tồn tại");
       setStep("error");
       return;
     }
 
-    if (isCreator) {
-      setErrorMessage("Không thể tự vào phòng do chính bạn tạo.");
+    if (!joinable) {
+      setErrorMessage(joinableError ?? "Không thể vào phòng này");
       setStep("error");
       return;
     }
 
-    if (!isOpen) {
-      setErrorMessage("Phòng không ở trạng thái mở hoặc đã có đối thủ.");
+    // Never send transaction with value = 0
+    if (room.stake <= BigInt(0)) {
+      setErrorMessage("Mức cược phòng không hợp lệ (không bao giờ gửi giao dịch với value = 0).");
       setStep("error");
       return;
     }
@@ -115,6 +128,9 @@ export function useJoinRoom(roomId?: bigint | number) {
   return {
     joinRoom,
     room,
+    exists,
+    joinable,
+    joinableError,
     isLoadingRoom,
     refetchRoom,
     joinerColor,

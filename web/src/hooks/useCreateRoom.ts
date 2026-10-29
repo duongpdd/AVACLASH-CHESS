@@ -9,6 +9,7 @@ import { parseEther, formatEther } from "viem";
 import { CHESS_ESCROW_ABI } from "@avaclash/shared";
 import { ESCROW_ADDRESS, UI_MAX_STAKE } from "@/config/env";
 import { decodeContractError } from "@/utils/errors";
+import { validateStake } from "@/utils/room";
 
 export type TxStep =
   | "idle"
@@ -52,30 +53,15 @@ export function useCreateRoom() {
     hash: txHash,
   });
 
-  const validateStake = (stakeStr: string): string | null => {
-    try {
-      const stakeVal = parseEther(stakeStr);
-      if (minStake && stakeVal < minStake) {
-        return `Mức cược tối thiểu là ${formatEther(minStake)} AVAX`;
-      }
-      if (maxStake && stakeVal > maxStake) {
-        return `Mức cược vượt quá tối đa ${formatEther(maxStake)} AVAX của hợp đồng`;
-      }
-      const uiMax = parseEther(UI_MAX_STAKE);
-      if (stakeVal > uiMax) {
-        return `Giao diện giới hạn cược tối đa ${UI_MAX_STAKE} AVAX (chế độ an toàn)`;
-      }
-      return null;
-    } catch {
-      return "Số tiền cược không hợp lệ";
-    }
+  const checkStake = (stakeStr: string): string | null => {
+    return validateStake(stakeStr, minStake, maxStake, UI_MAX_STAKE);
   };
 
   const createRoom = async (creatorIsWhite: boolean, stakeStr: string) => {
     setErrorMessage(null);
     setCreatedRoomId(null);
 
-    const validationError = validateStake(stakeStr);
+    const validationError = checkStake(stakeStr);
     if (validationError) {
       setErrorMessage(validationError);
       setStep("error");
@@ -122,7 +108,7 @@ export function useCreateRoom() {
     minStake: minStake ? formatEther(minStake) : "0.01",
     maxStake: maxStake ? formatEther(maxStake) : "1.0",
     uiMaxStake: UI_MAX_STAKE,
-    validateStake,
+    validateStake: checkStake,
     reset,
   };
 }
