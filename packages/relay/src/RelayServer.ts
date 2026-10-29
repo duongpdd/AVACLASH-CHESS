@@ -57,6 +57,7 @@ export interface ActiveGameState {
   activeTurn: "w" | "b";
   whiteAddress: string;
   blackAddress: string;
+  creatorIsWhite?: boolean;
   status: "waiting" | "active";
   savedAt: number; // Unix epoch ms
 }
@@ -74,6 +75,7 @@ export interface RelayServerOptions {
   signalGameStartedEnabled?: boolean;
   minRelayBalance?: bigint;
   resultsDir?: string;
+  activeDir?: string;
   trustProxy?: boolean;
   maxPayload?: number; // bytes, default 4096 (4 KB)
   maxConnectionsPerIp?: number;
@@ -114,6 +116,7 @@ export class RelayServer {
   public signalGameStartedEnabled: boolean;
   public minRelayBalance: bigint;
   public resultsDir: string;
+  public activeDir: string;
   public trustProxy: boolean;
   public savedResults: Map<string, SavedGameResult> = new Map();
   public maxJoinsPerIpPerMinute: number;
@@ -157,7 +160,7 @@ export class RelayServer {
   }
 
   public getActiveGamesDir(): string {
-    return path.join(this.resultsDir, "active");
+    return this.activeDir;
   }
 
   public getActiveGameFilePath(roomId: number): string {
@@ -181,6 +184,7 @@ export class RelayServer {
         activeTurn: room.activeTurn,
         whiteAddress: room.whiteAddress,
         blackAddress: room.blackAddress,
+        creatorIsWhite: room.creatorIsWhite,
         status: room.status === "active" ? "active" : "waiting",
         savedAt: Date.now(),
       };
@@ -307,6 +311,7 @@ export class RelayServer {
     }
 
     this.resultsDir = options.resultsDir ?? process.env.RESULTS_DIR ?? "./results";
+    this.activeDir = options.activeDir ?? process.env.ACTIVE_DIR ?? path.join(this.resultsDir, "active");
     this.loadAndPruneResults();
 
     const maxPayload = options.maxPayload ?? 4 * 1024; // 4 KB maxPayload
@@ -784,22 +789,42 @@ export class RelayServer {
         return;
       }
 
-      // Check if an active game state file exists for this room (Turn 3b Item 2 / Q19)
+      // Check if an active game state file exists for this room (Turn 3b Item 2 / Q19 / Turn 3b-verify Item 7)
       const activeFilePath = this.getActiveGameFilePath(msg.roomId);
       let recoveredState: ActiveGameState | null = null;
       if (fs.existsSync(activeFilePath)) {
         try {
           const raw = fs.readFileSync(activeFilePath, "utf-8");
           const parsed = JSON.parse(raw) as ActiveGameState;
-          if (
-            parsed.chainId === this.chainId &&
-            parsed.contractAddress.toLowerCase() === this.contractAddress.toLowerCase() &&
-            parsed.roomId === msg.roomId
-          ) {
+
+          const expectedWhite = (roomData.creatorIsWhite ? roomData.playerA : roomData.playerB as string).toLowerCase();
+          const expectedBlack = (roomData.creatorIsWhite ? roomData.playerB : roomData.playerA as string).toLowerCase();
+
+          const chainMatches = parsed.chainId === this.chainId;
+          const contractMatches = parsed.contractAddress.toLowerCase() === this.contractAddress.toLowerCase();
+          const roomMatches = parsed.roomId === msg.roomId;
+          const statusMatches = Number(roomData.status) === 1; // Room must be Active
+          const whiteMatches = parsed.whiteAddress && parsed.whiteAddress.toLowerCase() === expectedWhite;
+          const blackMatches = parsed.blackAddress && parsed.blackAddress.toLowerCase() === expectedBlack;
+          const creatorMatches = parsed.creatorIsWhite === undefined || parsed.creatorIsWhite === roomData.creatorIsWhite;
+
+          if (chainMatches && contractMatches && roomMatches && statusMatches && whiteMatches && blackMatches && creatorMatches) {
             recoveredState = parsed;
+          } else {
+            console.warn(
+              `[Relay] Active game file mismatch with on-chain room ${msg.roomId}: chain=${chainMatches}, contract=${contractMatches}, room=${roomMatches}, status=${statusMatches}(${roomData.status}), white=${whiteMatches}, black=${blackMatches}, creatorIsWhite=${creatorMatches}. Deleting stale active file.`
+            );
+            try {
+              fs.unlinkSync(activeFilePath);
+            } catch (err) {
+              console.warn(`[Relay] Failed to delete stale active file ${activeFilePath}:`, err);
+            }
           }
         } catch (err) {
           console.warn(`[Relay] Failed to read active game file for room ${msg.roomId}:`, err);
+          try {
+            fs.unlinkSync(activeFilePath);
+          } catch {}
         }
       }
 
@@ -810,6 +835,7 @@ export class RelayServer {
         roomId: msg.roomId,
         whiteAddress: whiteAddr as `0x${string}`,
         blackAddress: blackAddr as `0x${string}`,
+        creatorIsWhite: roomData.creatorIsWhite,
         initialTimeMs: this.initialTimeMs,
         onMoveAccepted: (r) => {
           this.saveActiveGameState(r);

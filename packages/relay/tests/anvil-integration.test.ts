@@ -61,6 +61,7 @@ describe("RelayServer Anvil End-to-End Integration", () => {
 
     relayPort = 9200 + Math.floor(Math.random() * 500);
     const defaultResultsDir = fs.mkdtempSync(path.join(os.tmpdir(), "anvil-relay-default-"));
+    const defaultActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "anvil-relay-default-act-"));
     server = new RelayServer({
       port: relayPort,
       relayPrivateKey: ANVIL_ACCOUNTS[1].privateKey,
@@ -70,6 +71,7 @@ describe("RelayServer Anvil End-to-End Integration", () => {
       publicClient: anvil.publicClient,
       walletClient: relayWallet,
       resultsDir: defaultResultsDir,
+      activeDir: defaultActiveDir,
       signalGameStartedEnabled: true,
     });
   }, 30000);
@@ -80,10 +82,19 @@ describe("RelayServer Anvil End-to-End Integration", () => {
       try {
         fs.rmSync(server.resultsDir, { recursive: true, force: true });
       } catch {}
+      try {
+        fs.rmSync(server.activeDir, { recursive: true, force: true });
+      } catch {}
     }
     if (anvil) {
       anvil.stop();
     }
+
+    // Item 7: Confirm no ./results or ./active created in workspace
+    expect(fs.existsSync(path.resolve(process.cwd(), "results"))).toBe(false);
+    expect(fs.existsSync(path.resolve(process.cwd(), "active"))).toBe(false);
+    expect(fs.existsSync(path.resolve(process.cwd(), "packages/relay/results"))).toBe(false);
+    expect(fs.existsSync(path.resolve(process.cwd(), "packages/relay/active"))).toBe(false);
   });
 
   async function createAndGetRoomId(
@@ -464,6 +475,8 @@ describe("RelayServer Anvil End-to-End Integration", () => {
     if (!anvil) return;
 
     // Create another RelayServer with signalGameStartedEnabled = false
+    const tmpResDisabled = fs.mkdtempSync(path.join(os.tmpdir(), "disabled-res-"));
+    const tmpActDisabled = fs.mkdtempSync(path.join(os.tmpdir(), "disabled-act-"));
     const disabledPort = relayPort + 15;
     const disabledServer = new RelayServer({
       port: disabledPort,
@@ -472,6 +485,8 @@ describe("RelayServer Anvil End-to-End Integration", () => {
       rpcUrl: anvil.rpcUrl,
       chainId: 31337,
       publicClient: anvil.publicClient,
+      resultsDir: tmpResDisabled,
+      activeDir: tmpActDisabled,
       signalGameStartedEnabled: false,
     });
 
@@ -553,12 +568,15 @@ describe("RelayServer Anvil End-to-End Integration", () => {
     aliceConn.ws.close();
     bobConn.ws.close();
     await disabledServer.close();
+    try { fs.rmSync(tmpResDisabled, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(tmpActDisabled, { recursive: true, force: true }); } catch {}
   });
 
   it("Persists game result to RESULTS_DIR and re-signs result upon request_result after server restart", { timeout: 35000 }, async () => {
     if (!anvil) return;
 
     const tempResultsDir = fs.mkdtempSync(path.join(os.tmpdir(), "avaclash-results-"));
+    const tempActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "avaclash-active-"));
     const dedicatedPort = relayPort + 30;
     const testServer = new RelayServer({
       port: dedicatedPort,
@@ -568,6 +586,7 @@ describe("RelayServer Anvil End-to-End Integration", () => {
       chainId: 31337,
       publicClient: anvil.publicClient,
       resultsDir: tempResultsDir,
+      activeDir: tempActiveDir,
       signalGameStartedEnabled: true,
     });
 
@@ -666,6 +685,7 @@ describe("RelayServer Anvil End-to-End Integration", () => {
       chainId: 31337,
       publicClient: anvil.publicClient,
       resultsDir: tempResultsDir,
+      activeDir: tempActiveDir,
       signalGameStartedEnabled: true,
     });
 
@@ -777,12 +797,18 @@ describe("RelayServer Anvil End-to-End Integration", () => {
     } catch {
       // ignore
     }
+    try {
+      fs.rmSync(tempActiveDir, { recursive: true, force: true });
+    } catch {
+      // ignore
+    }
   });
 
   it("Turn 3b Item 1: Resurrection attack prevented: winner and loser reconnecting after game over receive game_finished and cannot start new game, but winner can settle", async () => {
     if (!anvil) return;
 
     const tempResultsDir = fs.mkdtempSync(path.join(os.tmpdir(), "resurrection-test-"));
+    const tempActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "resurrection-act-"));
     const dedicatedPort = 9810 + Math.floor(Math.random() * 50);
     const dedicatedServer = new RelayServer({
       port: dedicatedPort,
@@ -797,6 +823,7 @@ describe("RelayServer Anvil End-to-End Integration", () => {
         transport: http(),
       }),
       resultsDir: tempResultsDir,
+      activeDir: tempActiveDir,
       signalGameStartedEnabled: false,
     });
 
@@ -896,10 +923,12 @@ describe("RelayServer Anvil End-to-End Integration", () => {
     alice2.ws.close();
     await dedicatedServer.close();
     try { fs.rmSync(tempResultsDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(tempActiveDir, { recursive: true, force: true }); } catch {}
   });
 
   it("Turn 3b Item 1: Results from other chainId or contract are ignored during load", async () => {
     const tempResultsDir = fs.mkdtempSync(path.join(os.tmpdir(), "cross-deploy-test-"));
+    const tempActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "cross-deploy-act-"));
     const dummyContract = "0x1111111111111111111111111111111111111111";
     // Write mock file with different contract and chainId
     fs.writeFileSync(
@@ -942,6 +971,7 @@ describe("RelayServer Anvil End-to-End Integration", () => {
       chainId: 31337,
       publicClient: anvil!.publicClient,
       resultsDir: tempResultsDir,
+      activeDir: tempActiveDir,
     });
 
     // Server must NOT load the result from chain 999 or contract dummyContract
@@ -949,6 +979,7 @@ describe("RelayServer Anvil End-to-End Integration", () => {
 
     await testServer.close();
     try { fs.rmSync(tempResultsDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(tempActiveDir, { recursive: true, force: true }); } catch {}
   });
 
   it("Turn 3b Item 1: Non-player address sending result_signature is rejected", async () => {
@@ -1055,6 +1086,7 @@ describe("RelayServer Anvil End-to-End Integration", () => {
     if (!anvil) return;
 
     const tempResultsDir = fs.mkdtempSync(path.join(os.tmpdir(), "active-games-test-"));
+    const tempActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "active-games-act-"));
     const port1 = 9880 + Math.floor(Math.random() * 50);
     const server1 = new RelayServer({
       port: port1,
@@ -1069,6 +1101,7 @@ describe("RelayServer Anvil End-to-End Integration", () => {
         transport: http(),
       }),
       resultsDir: tempResultsDir,
+      activeDir: tempActiveDir,
       initialTimeMs: 120_000,
       signalGameStartedEnabled: true,
     });
@@ -1147,10 +1180,9 @@ describe("RelayServer Anvil End-to-End Integration", () => {
     alice1.ws.send(JSON.stringify({ type: "move", roomId, seq: 2, uci: "g1f3" }));
     await bobMovePromise2;
 
-    // Active game state file must exist in active/
+    // Active game state file must exist in activeDir
     const activeFile = path.join(
-      tempResultsDir,
-      "active",
+      tempActiveDir,
       `31337_${escrowAddress.toLowerCase()}_${roomId}.json`
     );
     expect(fs.existsSync(activeFile)).toBe(true);
@@ -1184,6 +1216,7 @@ describe("RelayServer Anvil End-to-End Integration", () => {
         transport: http(),
       }),
       resultsDir: tempResultsDir,
+      activeDir: tempActiveDir,
       initialTimeMs: 120_000,
       signalGameStartedEnabled: true,
     });
@@ -1265,12 +1298,14 @@ describe("RelayServer Anvil End-to-End Integration", () => {
     bob2.ws.close();
     await server2.close();
     try { fs.rmSync(tempResultsDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(tempActiveDir, { recursive: true, force: true }); } catch {}
   }, 30000);
 
   it("Turn 3b Item 5: handleGameOver saves result before RPC/signing; RPC error at game over still allows subsequent request_result and on-chain settlement", { timeout: 35000 }, async () => {
     if (!anvil) return;
 
     const tempResultsDir = fs.mkdtempSync(path.join(os.tmpdir(), "rpc-error-test-"));
+    const tempActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "rpc-error-act-"));
     const dedicatedPort = relayPort + 66;
 
     // A wrapping publicClient that can simulate transient RPC failure on demand
@@ -1293,6 +1328,7 @@ describe("RelayServer Anvil End-to-End Integration", () => {
       chainId: 31337,
       publicClient: wrappingPublicClient,
       resultsDir: tempResultsDir,
+      activeDir: tempActiveDir,
       signalGameStartedEnabled: true,
     });
 
@@ -1459,6 +1495,7 @@ describe("RelayServer Anvil End-to-End Integration", () => {
     } finally {
       await serverRpc.close();
       try { fs.rmSync(tempResultsDir, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(tempActiveDir, { recursive: true, force: true }); } catch {}
     }
   });
 });

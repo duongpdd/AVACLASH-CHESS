@@ -153,9 +153,11 @@ async function authenticateAndJoin(
 describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
   let server: RelayServer;
   let tempResultsDir: string;
+  let tempActiveDir: string;
 
   beforeAll(async () => {
     tempResultsDir = fs.mkdtempSync(path.join(os.tmpdir(), "relay-unit-results-"));
+    tempActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "relay-unit-active-"));
     server = new RelayServer({
       port: TEST_PORT,
       relayPrivateKey: RELAY_KEY,
@@ -164,6 +166,7 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       initialTimeMs: 60 * 1000,
       publicClient: mockPublicClient,
       resultsDir: tempResultsDir,
+      activeDir: tempActiveDir,
     });
   });
 
@@ -172,6 +175,15 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     try {
       fs.rmSync(tempResultsDir, { recursive: true, force: true });
     } catch {}
+    try {
+      fs.rmSync(tempActiveDir, { recursive: true, force: true });
+    } catch {}
+
+    // Item 7: Confirm no ./results or ./active created in workspace
+    expect(fs.existsSync(path.resolve(process.cwd(), "results"))).toBe(false);
+    expect(fs.existsSync(path.resolve(process.cwd(), "active"))).toBe(false);
+    expect(fs.existsSync(path.resolve(process.cwd(), "packages/relay/results"))).toBe(false);
+    expect(fs.existsSync(path.resolve(process.cwd(), "packages/relay/active"))).toBe(false);
   });
 
   it("handles ping/pong", async () => {
@@ -559,31 +571,47 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
   });
 
   it("Item 5: only trusts x-forwarded-for when trustProxy is enabled", async () => {
-    // 1. trustProxy = false (default)
-    const port1 = TEST_PORT + 81;
-    const serverUntrusted = new RelayServer({
-      port: port1,
-      relayPrivateKey: RELAY_KEY,
-      contractAddress: CONTRACT,
-      rpcUrl: "http://127.0.0.1:8545",
-      publicClient: mockPublicClient,
-      trustProxy: false,
-    });
-    expect(serverUntrusted.trustProxy).toBe(false);
-    await serverUntrusted.close();
+    const tmpResUntrusted = fs.mkdtempSync(path.join(os.tmpdir(), "untrusted-res-"));
+    const tmpActUntrusted = fs.mkdtempSync(path.join(os.tmpdir(), "untrusted-act-"));
+    const tmpResTrusted = fs.mkdtempSync(path.join(os.tmpdir(), "trusted-res-"));
+    const tmpActTrusted = fs.mkdtempSync(path.join(os.tmpdir(), "trusted-act-"));
 
-    // 2. trustProxy = true
-    const port2 = TEST_PORT + 82;
-    const serverTrusted = new RelayServer({
-      port: port2,
-      relayPrivateKey: RELAY_KEY,
-      contractAddress: CONTRACT,
-      rpcUrl: "http://127.0.0.1:8545",
-      publicClient: mockPublicClient,
-      trustProxy: true,
-    });
-    expect(serverTrusted.trustProxy).toBe(true);
-    await serverTrusted.close();
+    try {
+      // 1. trustProxy = false (default)
+      const port1 = TEST_PORT + 81;
+      const serverUntrusted = new RelayServer({
+        port: port1,
+        relayPrivateKey: RELAY_KEY,
+        contractAddress: CONTRACT,
+        rpcUrl: "http://127.0.0.1:8545",
+        publicClient: mockPublicClient,
+        resultsDir: tmpResUntrusted,
+        activeDir: tmpActUntrusted,
+        trustProxy: false,
+      });
+      expect(serverUntrusted.trustProxy).toBe(false);
+      await serverUntrusted.close();
+
+      // 2. trustProxy = true
+      const port2 = TEST_PORT + 82;
+      const serverTrusted = new RelayServer({
+        port: port2,
+        relayPrivateKey: RELAY_KEY,
+        contractAddress: CONTRACT,
+        rpcUrl: "http://127.0.0.1:8545",
+        publicClient: mockPublicClient,
+        resultsDir: tmpResTrusted,
+        activeDir: tmpActTrusted,
+        trustProxy: true,
+      });
+      expect(serverTrusted.trustProxy).toBe(true);
+      await serverTrusted.close();
+    } finally {
+      try { fs.rmSync(tmpResUntrusted, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(tmpActUntrusted, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(tmpResTrusted, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(tmpActTrusted, { recursive: true, force: true }); } catch {}
+    }
   });
 
   it("Item 6: caches getRoom for 3s on join and request_result, but handleGameOver reads fresh", async () => {
@@ -602,6 +630,7 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     };
 
     const tempCachedDir = fs.mkdtempSync(path.join(os.tmpdir(), "cached-server-results-"));
+    const tempCachedActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "cached-server-active-"));
     const portCached = TEST_PORT + 83;
     const cachedServer = new RelayServer({
       port: portCached,
@@ -610,6 +639,7 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       rpcUrl: "http://127.0.0.1:8545",
       publicClient: trackingPublicClient,
       resultsDir: tempCachedDir,
+      activeDir: tempCachedActiveDir,
     });
 
     try {
@@ -698,10 +728,13 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     } finally {
       await cachedServer.close();
       try { fs.rmSync(tempCachedDir, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(tempCachedActiveDir, { recursive: true, force: true }); } catch {}
     }
   });
 
   it("Item 6: limits join_room requests per IP per minute", async () => {
+    const tmpResLimiter = fs.mkdtempSync(path.join(os.tmpdir(), "limiter-res-"));
+    const tmpActLimiter = fs.mkdtempSync(path.join(os.tmpdir(), "limiter-act-"));
     const portLimiter = TEST_PORT + 84;
     const limiterServer = new RelayServer({
       port: portLimiter,
@@ -709,6 +742,8 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       contractAddress: CONTRACT,
       rpcUrl: "http://127.0.0.1:8545",
       publicClient: mockPublicClient,
+      resultsDir: tmpResLimiter,
+      activeDir: tmpActLimiter,
       maxJoinsPerIpPerMinute: 2,
     });
 
@@ -764,10 +799,14 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       client.close();
     } finally {
       await limiterServer.close();
+      try { fs.rmSync(tmpResLimiter, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(tmpActLimiter, { recursive: true, force: true }); } catch {}
     }
   });
 
   it("Item 6: closes socket after repeated consecutive rate limit violations", async () => {
+    const tmpResDisc = fs.mkdtempSync(path.join(os.tmpdir(), "disc-res-"));
+    const tmpActDisc = fs.mkdtempSync(path.join(os.tmpdir(), "disc-act-"));
     const portDisconnect = TEST_PORT + 85;
     const disconnectServer = new RelayServer({
       port: portDisconnect,
@@ -775,6 +814,8 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       contractAddress: CONTRACT,
       rpcUrl: "http://127.0.0.1:8545",
       publicClient: mockPublicClient,
+      resultsDir: tmpResDisc,
+      activeDir: tmpActDisc,
       rateLimitPerSecond: 2,
       maxRateLimitViolations: 3,
     });
@@ -797,11 +838,14 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       expect(closeInfo.reason).toContain("Rate limit exceeded");
     } finally {
       await disconnectServer.close();
+      try { fs.rmSync(tmpResDisc, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(tmpActDisc, { recursive: true, force: true }); } catch {}
     }
   });
 
   it("Item 4: mid-game disconnection does NOT stop the clock; timeout signs loss for disconnected player", async () => {
     const tempTimeoutDir = fs.mkdtempSync(path.join(os.tmpdir(), "relay-timeout-test-"));
+    const tempTimeoutActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "relay-timeout-act-"));
     const portTimeout = TEST_PORT + 86;
     const timeoutServer = new RelayServer({
       port: portTimeout,
@@ -810,6 +854,7 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       rpcUrl: "http://127.0.0.1:8545",
       publicClient: mockPublicClient,
       resultsDir: tempTimeoutDir,
+      activeDir: tempTimeoutActiveDir,
       initialTimeMs: 600, // 600ms total clock
     });
 
@@ -846,6 +891,9 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       await timeoutServer.close();
       try {
         fs.rmSync(tempTimeoutDir, { recursive: true, force: true });
+      } catch {}
+      try {
+        fs.rmSync(tempTimeoutActiveDir, { recursive: true, force: true });
       } catch {}
     }
   });
@@ -887,6 +935,7 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
         rpcUrl: "http://127.0.0.1:8545",
         publicClient: mockPublicClient,
         resultsDir: tempActiveDir,
+        activeDir,
         chainId: CHAIN_ID,
         recoveryGraceMs: 500, // 500ms grace period representing 120s
       });
@@ -918,7 +967,69 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     }
   });
 
+  it("Item 7: active game file from previous run with different players is rejected, deleted, and NOT recovered", async () => {
+    const tempResultsDir = fs.mkdtempSync(path.join(os.tmpdir(), "mismatch-results-"));
+    const tempActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "mismatch-active-"));
+    const portMismatch = TEST_PORT + 91;
+
+    try {
+      const roomId = 870;
+      registerMockRoom(roomId, accountAlice.address, accountBob.address, true);
+
+      // Seed active game file with different players from previous run
+      const activeFile = path.join(tempActiveDir, `43113_${CONTRACT.toLowerCase()}_${roomId}.json`);
+      fs.writeFileSync(
+        activeFile,
+        JSON.stringify({
+          chainId: CHAIN_ID,
+          contractAddress: CONTRACT,
+          roomId,
+          moves: ["e2e4", "e7e5"],
+          whiteMs: 50000,
+          blackMs: 50000,
+          activeTurn: "w",
+          whiteAddress: "0x1111111111111111111111111111111111111111",
+          blackAddress: "0x2222222222222222222222222222222222222222",
+          status: "active",
+          savedAt: Date.now(),
+        })
+      );
+
+      const mismatchServer = new RelayServer({
+        port: portMismatch,
+        relayPrivateKey: RELAY_KEY,
+        contractAddress: CONTRACT,
+        rpcUrl: "http://127.0.0.1:8545",
+        publicClient: mockPublicClient,
+        resultsDir: tempResultsDir,
+        activeDir: tempActiveDir,
+        chainId: CHAIN_ID,
+      });
+
+      try {
+        const clientAlice = await createTestClient(portMismatch);
+        await authenticateAndJoin(clientAlice, accountAlice, roomId);
+        const state = await clientAlice.waitFor((m) => m.type === "room_state");
+
+        // Stale moves must NOT be recovered
+        expect(state.moves).toEqual([]);
+
+        // Stale file must be deleted from disk
+        expect(fs.existsSync(activeFile)).toBe(false);
+
+        clientAlice.close();
+      } finally {
+        await mismatchServer.close();
+      }
+    } finally {
+      try { fs.rmSync(tempResultsDir, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(tempActiveDir, { recursive: true, force: true }); } catch {}
+    }
+  });
+
   it("Item 6: Origin verification rejects disallowed origin with 403, accepts allowed origin, and enforces allowNoOrigin", async () => {
+    const tmpResOrigin = fs.mkdtempSync(path.join(os.tmpdir(), "origin-res-"));
+    const tmpActOrigin = fs.mkdtempSync(path.join(os.tmpdir(), "origin-act-"));
     const portOrigin = TEST_PORT + 88;
     const originServer = new RelayServer({
       port: portOrigin,
@@ -926,6 +1037,8 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       contractAddress: CONTRACT,
       rpcUrl: "http://127.0.0.1:8545",
       publicClient: mockPublicClient,
+      resultsDir: tmpResOrigin,
+      activeDir: tmpActOrigin,
       allowedOrigins: ["https://avaclash.app", "http://localhost:3000"],
       allowNoOrigin: false,
     });
@@ -957,10 +1070,14 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       noOriginRes.ws.close();
     } finally {
       await originServer.close();
+      try { fs.rmSync(tmpResOrigin, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(tmpActOrigin, { recursive: true, force: true }); } catch {}
     }
   });
 
   it("Item 6: TRUST_PROXY respects X-Forwarded-For taking the first IP when true, and ignores it when false", async () => {
+    const tmpResProxyTrue = fs.mkdtempSync(path.join(os.tmpdir(), "proxytrue-res-"));
+    const tmpActProxyTrue = fs.mkdtempSync(path.join(os.tmpdir(), "proxytrue-act-"));
     const portProxyTrue = TEST_PORT + 89;
     const serverProxyTrue = new RelayServer({
       port: portProxyTrue,
@@ -968,6 +1085,8 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       contractAddress: CONTRACT,
       rpcUrl: "http://127.0.0.1:8545",
       publicClient: mockPublicClient,
+      resultsDir: tmpResProxyTrue,
+      activeDir: tmpActProxyTrue,
       trustProxy: true,
       maxConnectionsPerIp: 1, // Only 1 connection per IP allowed
     });
@@ -1005,9 +1124,13 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       ws3.close();
     } finally {
       await serverProxyTrue.close();
+      try { fs.rmSync(tmpResProxyTrue, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(tmpActProxyTrue, { recursive: true, force: true }); } catch {}
     }
 
     // Now test trustProxy: false -> X-Forwarded-For is completely ignored
+    const tmpResProxyFalse = fs.mkdtempSync(path.join(os.tmpdir(), "proxyfalse-res-"));
+    const tmpActProxyFalse = fs.mkdtempSync(path.join(os.tmpdir(), "proxyfalse-act-"));
     const portProxyFalse = TEST_PORT + 90;
     const serverProxyFalse = new RelayServer({
       port: portProxyFalse,
@@ -1015,6 +1138,8 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       contractAddress: CONTRACT,
       rpcUrl: "http://127.0.0.1:8545",
       publicClient: mockPublicClient,
+      resultsDir: tmpResProxyFalse,
+      activeDir: tmpActProxyFalse,
       trustProxy: false,
       maxConnectionsPerIp: 1,
     });
@@ -1043,6 +1168,8 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       wsA.close();
     } finally {
       await serverProxyFalse.close();
+      try { fs.rmSync(tmpResProxyFalse, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(tmpActProxyFalse, { recursive: true, force: true }); } catch {}
     }
   });
 });

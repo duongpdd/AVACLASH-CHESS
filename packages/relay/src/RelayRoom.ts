@@ -23,6 +23,7 @@ export interface RelayRoomConfig {
   roomId: number;
   whiteAddress: `0x${string}`;
   blackAddress: `0x${string}`;
+  creatorIsWhite?: boolean;
   initialTimeMs?: number; // Default 5 mins (300,000 ms)
   waitingTimeoutMs?: number; // Default 10 mins (600,000 ms)
   recoveryGraceMs?: number; // Grace period after restart before clock resumes (default 120s)
@@ -41,6 +42,7 @@ export class RelayRoom {
   public readonly roomId: number;
   public readonly whiteAddress: `0x${string}`;
   public readonly blackAddress: `0x${string}`;
+  public readonly creatorIsWhite?: boolean;
   public status: "waiting" | "active" | "finished" = "waiting";
   public chess: ChessGame;
   public moves: string[] = [];
@@ -84,6 +86,7 @@ export class RelayRoom {
     this.roomId = config.roomId;
     this.whiteAddress = config.whiteAddress.toLowerCase() as `0x${string}`;
     this.blackAddress = config.blackAddress.toLowerCase() as `0x${string}`;
+    this.creatorIsWhite = config.creatorIsWhite;
     const initialTime = config.initialTimeMs ?? 5 * 60 * 1000;
     this.whiteMs = initialTime;
     this.blackMs = initialTime;
