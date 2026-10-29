@@ -38,9 +38,7 @@ export async function startAnvil(port = 8545 + Math.floor(Math.random() * 500)):
     throw new Error("Anvil binary is not available in PATH.");
   }
 
-  const anvilProc = spawn("anvil", ["--port", port.toString(), "--chain-id", "31337", "--quiet"], {
-    shell: true,
-  });
+  const anvilProc = spawn("anvil", ["--port", port.toString(), "--chain-id", "31337", "--quiet"]);
 
   const rpcUrl = `http://127.0.0.1:${port}`;
   const publicClient = createPublicClient({
