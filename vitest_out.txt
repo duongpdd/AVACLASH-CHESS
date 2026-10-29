@@ -5,16 +5,16 @@
 Scope: 4 of 5 workspace projects
 packages/shared test$ vitest run
 packages/shared test: [1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/shared[39m
-packages/shared test:  [32m✓[39m tests/types.test.ts [2m([22m[2m29 tests[22m[2m)[22m[90m 5[2mms[22m[39m
-packages/shared test:  [32m✓[39m tests/schemas.test.ts [2m([22m[2m27 tests[22m[2m)[22m[90m 12[2mms[22m[39m
-packages/shared test:  [32m✓[39m tests/replay.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 36[2mms[22m[39m
-packages/shared test:  [32m✓[39m tests/hash.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 3[2mms[22m[39m
-packages/shared test:  [32m✓[39m tests/eip712.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 4[2mms[22m[39m
-packages/shared test:  [32m✓[39m tests/cross-spec-fixture.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 31[2mms[22m[39m
+packages/shared test:  [32m✓[39m tests/types.test.ts [2m([22m[2m29 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+packages/shared test:  [32m✓[39m tests/schemas.test.ts [2m([22m[2m27 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+packages/shared test:  [32m✓[39m tests/replay.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 51[2mms[22m[39m
+packages/shared test:  [32m✓[39m tests/hash.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+packages/shared test:  [32m✓[39m tests/eip712.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+packages/shared test:  [32m✓[39m tests/cross-spec-fixture.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 51[2mms[22m[39m
 packages/shared test: [2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
 packages/shared test: [2m      Tests [22m [1m[32m95 passed[39m[22m[90m (95)[39m
-packages/shared test: [2m   Start at [22m 23:42:41
-packages/shared test: [2m   Duration [22m 785ms[2m (transform 239ms, setup 0ms, collect 1.26s, tests 91ms, environment 1ms, prepare 880ms)[22m
+packages/shared test: [2m   Start at [22m 10:57:15
+packages/shared test: [2m   Duration [22m 1.30s[2m (transform 325ms, setup 0ms, collect 2.32s, tests 143ms, environment 1ms, prepare 1.18s)[22m
 packages/shared test: Done
 packages/relay pretest$ tsx scripts/generate-abi.ts
 web test$ vitest run
@@ -25,79 +25,81 @@ packages/relay test$ vitest run
 web test: [33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
 web test: [1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/Users/Admin/Desktop/PRJ1/avaclash-chess/web[39m
 packages/relay test: [1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/relay[39m
-packages/relay test:  [32m✓[39m tests/abi.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 6[2mms[22m[39m
-web test:  [32m✓[39m src/game/__tests__/GameState.test.ts [2m([22m[2m17 tests[22m[2m)[22m[90m 27[2mms[22m[39m
+packages/relay test:  [32m✓[39m tests/abi.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+web test:  [32m✓[39m src/game/__tests__/GameState.test.ts [2m([22m[2m17 tests[22m[2m)[22m[90m 53[2mms[22m[39m
 web test: [2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
 web test: [2m      Tests [22m [1m[32m17 passed[39m[22m[90m (17)[39m
-web test: [2m   Start at [22m 23:42:42
-web test: [2m   Duration [22m 1.00s[2m (transform 239ms, setup 0ms, collect 574ms, tests 27ms, environment 0ms, prepare 182ms)[22m
+web test: [2m   Start at [22m 10:57:17
+web test: [2m   Duration [22m 1.66s[2m (transform 237ms, setup 0ms, collect 970ms, tests 53ms, environment 0ms, prepare 323ms)[22m
 web test: Done
 packages/relay test: [90mstdout[2m | tests/relay.test.ts[2m > [22m[2mRelayServer WebSocket Daemon (Turn 2c)[2m > [22m[2mhandles resignation and produces valid Relay EIP-712 co-signature with 30m deadline
 packages/relay test: [22m[39m[Relay] Removed active game file for room 103
-packages/relay test: [Relay] Saved game result for room 103 to C:\Users\Admin\AppData\Local\Temp\relay-unit-results-TIlAy6\43113_0x1234567890123456789012345678901234567890_103.json
+packages/relay test: [Relay] Saved game result for room 103 to C:\Users\Admin\AppData\Local\Temp\relay-unit-results-jtzCzx\43113_0x1234567890123456789012345678901234567890_103.json
 packages/relay test: [90mstdout[2m | tests/relay.test.ts[2m > [22m[2mRelayServer WebSocket Daemon (Turn 2c)[2m > [22m[2mdoes not co-sign result if room is no longer Active on-chain
 packages/relay test: [22m[39m[Relay] Removed active game file for room 501
-packages/relay test: [Relay] Saved game result for room 501 to C:\Users\Admin\AppData\Local\Temp\relay-unit-results-TIlAy6\43113_0x1234567890123456789012345678901234567890_501.json
+packages/relay test: [Relay] Saved game result for room 501 to C:\Users\Admin\AppData\Local\Temp\relay-unit-results-jtzCzx\43113_0x1234567890123456789012345678901234567890_501.json
 packages/relay test: [90mstderr[2m | tests/relay.test.ts[2m > [22m[2mRelayServer WebSocket Daemon (Turn 2c)[2m > [22m[2mdoes not co-sign result if room is no longer Active on-chain
 packages/relay test: [22m[39m[Relay] Room 501 is no longer Active on-chain (status=2). Refusing to sign.
-packages/relay test: (node:9592) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
-packages/relay test: (Use `node --trace-deprecation ...` to show where the warning was created)
 packages/relay test: [90mstdout[2m | tests/relay.test.ts[2m > [22m[2mRelayServer WebSocket Daemon (Turn 2c)[2m > [22m[2mItem 5: cleans up rooms in waiting state after timeout and closes socket
 packages/relay test: [22m[39m[Relay] Removed stale waiting room 701 after 10m timeout
 packages/relay test: [90mstdout[2m | tests/relay.test.ts[2m > [22m[2mRelayServer WebSocket Daemon (Turn 2c)[2m > [22m[2mItem 6: caches getRoom for 3s on join and request_result, but handleGameOver reads fresh
 packages/relay test: [22m[39m[Relay] Removed active game file for room 801
-packages/relay test: [Relay] Saved game result for room 801 to C:\Users\Admin\AppData\Local\Temp\cached-server-results-weLa2o\43113_0x1234567890123456789012345678901234567890_801.json
+packages/relay test: [Relay] Saved game result for room 801 to C:\Users\Admin\AppData\Local\Temp\cached-server-results-YhnZ6I\43113_0x1234567890123456789012345678901234567890_801.json
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mRoom 1: creatorIsWhite=true assigns White to Alice and Black to Bob
 packages/relay test: [22m[39m[Relay] Calling signalGameStarted for room 0 (attempt 1)...
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mRoom 2: creatorIsWhite=false assigns Black to Alice and White to Bob
 packages/relay test: [22m[39m[Relay] signalGameStarted tx sent for room 0: 0x1e7a5e212618cd3da15f01f4bd6eb63648f4b60440b27c74ef732aebf78dcfc5. Waiting receipt...
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mRoom 2: creatorIsWhite=false assigns Black to Alice and White to Bob
 packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 0 in tx 0x1e7a5e212618cd3da15f01f4bd6eb63648f4b60440b27c74ef732aebf78dcfc5
+packages/relay test: [90mstdout[2m | tests/relay.test.ts[2m > [22m[2mRelayServer WebSocket Daemon (Turn 2c)[2m > [22m[2mItem 4: mid-game disconnection does NOT stop the clock; timeout signs loss for disconnected player
+packages/relay test: [22m[39m[Relay] Removed active game file for room 850
+packages/relay test: [Relay] Saved game result for room 850 to C:\Users\Admin\AppData\Local\Temp\relay-timeout-test-6jboGu\43113_0x1234567890123456789012345678901234567890_850.json
+packages/relay test: [90mstdout[2m | tests/relay.test.ts[2m > [22m[2mRelayServer WebSocket Daemon (Turn 2c)[2m > [22m[2mItem 4: recovery after restart keeps clock paused until both connect or grace timeout elapses
+packages/relay test: [22m[39m[Relay] Restored active room 860 from disk (2 moves, whiteMs=1000, blackMs=1000, turn=w)
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mRoom 2: creatorIsWhite=false assigns Black to Alice and White to Bob
 packages/relay test: [22m[39m[Relay] Calling signalGameStarted for room 1 (attempt 1)...
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mRejects player joining a room that is still Open (not Active)
-packages/relay test: [22m[39m[Relay] signalGameStarted tx sent for room 1: 0x5ce326fdca895533d17a7ce56d8bdb92544aff1559fc4b60362abe6fd60c49d5. Waiting receipt...
+packages/relay test: [22m[39m[Relay] signalGameStarted tx sent for room 1: 0x4b717b41c90e3893fa9398ae57aa9ff01cc0aa5c6b3d1cb0c3bbe8c1832ccefc. Waiting receipt...
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mRejects player joining a room that is still Open (not Active)
-packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 1 in tx 0x5ce326fdca895533d17a7ce56d8bdb92544aff1559fc4b60362abe6fd60c49d5
-packages/relay test: [90mstdout[2m | tests/relay.test.ts[2m > [22m[2mRelayServer WebSocket Daemon (Turn 2c)[2m > [22m[2mItem 4: mid-game disconnection does NOT stop the clock; timeout signs loss for disconnected player
-packages/relay test: [22m[39m[Relay] Removed active game file for room 850
-packages/relay test: [Relay] Saved game result for room 850 to C:\Users\Admin\AppData\Local\Temp\relay-timeout-test-0wYHJM\43113_0x1234567890123456789012345678901234567890_850.json
-packages/relay test: [90mstdout[2m | tests/relay.test.ts[2m > [22m[2mRelayServer WebSocket Daemon (Turn 2c)[2m > [22m[2mItem 4: recovery after restart keeps clock paused until both connect or grace timeout elapses
-packages/relay test: [22m[39m[Relay] Restored active room 860 from disk (2 moves, whiteMs=1000, blackMs=1000, turn=w)
+packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 1 in tx 0x4b717b41c90e3893fa9398ae57aa9ff01cc0aa5c6b3d1cb0c3bbe8c1832ccefc
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mCo-signing end-to-end: Relay co-signs result, players sign, submitResult on anvil settles contract
 packages/relay test: [22m[39m[Relay] Calling signalGameStarted for room 3 (attempt 1)...
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mCo-signing end-to-end: Relay co-signs result, players sign, submitResult on anvil settles contract
 packages/relay test: [22m[39m[Relay] Removed active game file for room 3
-packages/relay test: [Relay] Saved game result for room 3 to C:\Users\Admin\AppData\Local\Temp\anvil-relay-default-86YqCX\31337_0xe7f1725e7734ce288f8367e1bb143e90bb3f0512_3.json
+packages/relay test: [Relay] Saved game result for room 3 to C:\Users\Admin\AppData\Local\Temp\anvil-relay-default-zZvr5W\31337_0xe7f1725e7734ce288f8367e1bb143e90bb3f0512_3.json
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mCo-signing end-to-end: Relay co-signs result, players sign, submitResult on anvil settles contract
-packages/relay test: [22m[39m[Relay] signalGameStarted tx sent for room 3: 0x5dd3d67eaa9790409fe1893e2ad2d7b5e476d1ddb5b21cff46fb728f9d2fe0f1. Waiting receipt...
+packages/relay test: [22m[39m[Relay] signalGameStarted tx sent for room 3: 0x50942c37b263a2f72021b4f42976d1ab829342f2a4a09d82a877375573263c35. Waiting receipt...
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mCo-signing end-to-end: Relay co-signs result, players sign, submitResult on anvil settles contract
-packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 3 in tx 0x5dd3d67eaa9790409fe1893e2ad2d7b5e476d1ddb5b21cff46fb728f9d2fe0f1
+packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 3 in tx 0x50942c37b263a2f72021b4f42976d1ab829342f2a4a09d82a877375573263c35
 packages/relay test: [90mstderr[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mCo-signing end-to-end: Relay co-signs result, players sign, submitResult on anvil settles contract
 packages/relay test: [22m[39m[Relay] Room 3 already has a saved result. Refusing to sign a second game.
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mRelay automatically signals gameStarted on-chain when both players join; abortRoom reverts GameAlreadyStarted
 packages/relay test: [22m[39m[Relay] Calling signalGameStarted for room 4 (attempt 1)...
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mRelay automatically signals gameStarted on-chain when both players join; abortRoom reverts GameAlreadyStarted
-packages/relay test: [22m[39m[Relay] signalGameStarted tx sent for room 4: 0x01229fb4cacf5ce51e4876b50b4c97f5d16e9eafaa721137c2031ddc84003547. Waiting receipt...
+packages/relay test: [22m[39m[Relay] signalGameStarted tx sent for room 4: 0x1054ace3045f13585a328bb84243c34077ea6692b1606cc4d0355065471d8b9e. Waiting receipt...
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mRelay automatically signals gameStarted on-chain when both players join; abortRoom reverts GameAlreadyStarted
-packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 4 in tx 0x01229fb4cacf5ce51e4876b50b4c97f5d16e9eafaa721137c2031ddc84003547
+packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 4 in tx 0x1054ace3045f13585a328bb84243c34077ea6692b1606cc4d0355065471d8b9e
+packages/relay test: [90mstderr[2m | tests/relay.test.ts[2m > [22m[2mRelayServer WebSocket Daemon (Turn 2c)[2m > [22m[2mItem 7: active game file from previous run with different players is rejected, deleted, and NOT recovered
+packages/relay test: [22m[39m[Relay] Active game file mismatch with on-chain room 870: chain=true, contract=true, room=true, status=true(1), white=false, black=false, creatorIsWhite=true. Deleting stale active file.
+packages/relay test:  [32m✓[39m tests/relay.test.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 2169[2mms[22m[39m
+packages/relay test:    [33m[2m✓[22m[39m RelayServer WebSocket Daemon (Turn 2c)[2m > [22mItem 4: mid-game disconnection does NOT stop the clock; timeout signs loss for disconnected player [33m635[2mms[22m[39m
+packages/relay test:    [33m[2m✓[22m[39m RelayServer WebSocket Daemon (Turn 2c)[2m > [22mItem 4: recovery after restart keeps clock paused until both connect or grace timeout elapses [33m686[2mms[22m[39m
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mWhen signalGameStarted is disabled, relay does not call signalGameStarted and abortRoom succeeds after 3 minutes
-packages/relay test: [22m[39m[Relay] Restored active room 5 from disk (0 moves, whiteMs=300000, blackMs=300000, turn=w)
-packages/relay test:  [32m✓[39m tests/relay.test.ts [2m([22m[2m21 tests[22m[2m)[22m[33m 1877[2mms[22m[39m
-packages/relay test:    [33m[2m✓[22m[39m RelayServer WebSocket Daemon (Turn 2c)[2m > [22mItem 4: mid-game disconnection does NOT stop the clock; timeout signs loss for disconnected player [33m618[2mms[22m[39m
-packages/relay test:    [33m[2m✓[22m[39m RelayServer WebSocket Daemon (Turn 2c)[2m > [22mItem 4: recovery after restart keeps clock paused until both connect or grace timeout elapses [33m662[2mms[22m[39m
+packages/relay test: [22m[39m[Relay] signalGameStarted disabled; skipping on-chain call for room 5
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mPersists game result to RESULTS_DIR and re-signs result upon request_result after server restart
 packages/relay test: [22m[39m[Relay] Calling signalGameStarted for room 6 (attempt 1)...
-packages/relay test: [Relay] Removed active game file for room 6
-packages/relay test: [Relay] Saved game result for room 6 to C:\Users\Admin\AppData\Local\Temp\avaclash-results-JAlPJJ\31337_0xe7f1725e7734ce288f8367e1bb143e90bb3f0512_6.json
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mPersists game result to RESULTS_DIR and re-signs result upon request_result after server restart
-packages/relay test: [22m[39m[Relay] signalGameStarted tx sent for room 6: 0x6fa040acc549c4c70351a9b4e2f0f0f77bbe53ce94f2fd3a5472837f9ceb2c8c. Waiting receipt...
+packages/relay test: [22m[39m[Relay] Removed active game file for room 6
+packages/relay test: [Relay] Saved game result for room 6 to C:\Users\Admin\AppData\Local\Temp\avaclash-results-PUY1sL\31337_0xe7f1725e7734ce288f8367e1bb143e90bb3f0512_6.json
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mPersists game result to RESULTS_DIR and re-signs result upon request_result after server restart
-packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 6 in tx 0x6fa040acc549c4c70351a9b4e2f0f0f77bbe53ce94f2fd3a5472837f9ceb2c8c
+packages/relay test: [22m[39m[Relay] signalGameStarted tx sent for room 6: 0x71a571fc6f625be22ec2a12d96ecf2577cf0ab0d399b6fd65afadeee5e731693. Waiting receipt...
+packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mPersists game result to RESULTS_DIR and re-signs result upon request_result after server restart
+packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 6 in tx 0x71a571fc6f625be22ec2a12d96ecf2577cf0ab0d399b6fd65afadeee5e731693
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 1: Resurrection attack prevented: winner and loser reconnecting after game over receive game_finished and cannot start new game, but winner can settle
 packages/relay test: [22m[39m[Relay] signalGameStarted disabled; skipping on-chain call for room 7
-packages/relay test: [Relay] Removed active game file for room 7
-packages/relay test: [Relay] Saved game result for room 7 to C:\Users\Admin\AppData\Local\Temp\resurrection-test-ZkPAKV\31337_0xe7f1725e7734ce288f8367e1bb143e90bb3f0512_7.json
+packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 1: Resurrection attack prevented: winner and loser reconnecting after game over receive game_finished and cannot start new game, but winner can settle
+packages/relay test: [22m[39m[Relay] Removed active game file for room 7
+packages/relay test: [Relay] Saved game result for room 7 to C:\Users\Admin\AppData\Local\Temp\resurrection-test-kwTUK4\31337_0xe7f1725e7734ce288f8367e1bb143e90bb3f0512_7.json
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 1: Results from other chainId or contract are ignored during load
 packages/relay test: [22m[39m[Relay] Skipping result 555.json: chainId mismatch (999 !== 31337)
 packages/relay test: [Relay] Skipping result 999_0x1111111111111111111111111111111111111111_555.json: chainId or contract mismatch in filename
@@ -105,39 +107,53 @@ packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [2
 packages/relay test: [22m[39m[Relay] Calling signalGameStarted for room 8 (attempt 1)...
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 1: Non-player address sending result_signature is rejected
 packages/relay test: [22m[39m[Relay] Removed active game file for room 8
-packages/relay test: [Relay] Saved game result for room 8 to C:\Users\Admin\AppData\Local\Temp\anvil-relay-default-86YqCX\31337_0xe7f1725e7734ce288f8367e1bb143e90bb3f0512_8.json
+packages/relay test: [Relay] Saved game result for room 8 to C:\Users\Admin\AppData\Local\Temp\anvil-relay-default-zZvr5W\31337_0xe7f1725e7734ce288f8367e1bb143e90bb3f0512_8.json
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 1: Non-player address sending result_signature is rejected
-packages/relay test: [22m[39m[Relay] signalGameStarted tx sent for room 8: 0x5749912eb4394afe96c5f60cc252ed983469b3beb434dbfe0d483d0407d1c04f. Waiting receipt...
-packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 2: Active game state persisted atomically; recovered after restart without clock downtime penalty, finishes and settles
-packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 8 in tx 0x5749912eb4394afe96c5f60cc252ed983469b3beb434dbfe0d483d0407d1c04f
+packages/relay test: [22m[39m[Relay] signalGameStarted tx sent for room 8: 0xe6d5c20a1fec710fed728c6a346fb6a9cd4b5d66adfd56ed312f663578dc48c1. Waiting receipt...
+packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 1: Non-player address sending result_signature is rejected
+packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 8 in tx 0xe6d5c20a1fec710fed728c6a346fb6a9cd4b5d66adfd56ed312f663578dc48c1
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 2: Active game state persisted atomically; recovered after restart without clock downtime penalty, finishes and settles
 packages/relay test: [22m[39m[Relay] Calling signalGameStarted for room 10 (attempt 1)...
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 2: Active game state persisted atomically; recovered after restart without clock downtime penalty, finishes and settles
-packages/relay test: [22m[39m[Relay] signalGameStarted tx sent for room 10: 0x0e4f6257f6f2f3c482ec6cdf06c53f88d00f00aad3185cff68ad64ca4d0c463a. Waiting receipt...
+packages/relay test: [22m[39m[Relay] signalGameStarted tx sent for room 10: 0xd58cd9c3e96b6d8aa8b49f4adc91899be22780b3c2ecb4399871b128bd79401b. Waiting receipt...
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 2: Active game state persisted atomically; recovered after restart without clock downtime penalty, finishes and settles
-packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 10 in tx 0x0e4f6257f6f2f3c482ec6cdf06c53f88d00f00aad3185cff68ad64ca4d0c463a
+packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 10 in tx 0xd58cd9c3e96b6d8aa8b49f4adc91899be22780b3c2ecb4399871b128bd79401b
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 2: Active game state persisted atomically; recovered after restart without clock downtime penalty, finishes and settles
-packages/relay test: [22m[39m[Relay] Restored active room 10 from disk (3 moves, whiteMs=119995, blackMs=119997, turn=b)
+packages/relay test: [22m[39m[Relay] Restored active room 10 from disk (3 moves, whiteMs=119986, blackMs=119955, turn=b)
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 2: Active game state persisted atomically; recovered after restart without clock downtime penalty, finishes and settles
 packages/relay test: [22m[39m[Relay] Removed active game file for room 10
-packages/relay test: [Relay] Saved game result for room 10 to C:\Users\Admin\AppData\Local\Temp\active-games-test-ptjqqv\31337_0xe7f1725e7734ce288f8367e1bb143e90bb3f0512_10.json
+packages/relay test: [Relay] Saved game result for room 10 to C:\Users\Admin\AppData\Local\Temp\active-games-test-24VP1l\31337_0xe7f1725e7734ce288f8367e1bb143e90bb3f0512_10.json
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 5: handleGameOver saves result before RPC/signing; RPC error at game over still allows subsequent request_result and on-chain settlement
 packages/relay test: [22m[39m[Relay] Calling signalGameStarted for room 11 (attempt 1)...
 packages/relay test: [90mstderr[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 5: handleGameOver saves result before RPC/signing; RPC error at game over still allows subsequent request_result and on-chain settlement
 packages/relay test: [22m[39m[Relay] Failed to query on-chain room 11 (Simulated RPC Network Glitch (503 Service Unavailable)). Retrying in 1000ms...
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 5: handleGameOver saves result before RPC/signing; RPC error at game over still allows subsequent request_result and on-chain settlement
 packages/relay test: [22m[39m[Relay] Removed active game file for room 11
-packages/relay test: [Relay] Saved game result for room 11 to C:\Users\Admin\AppData\Local\Temp\rpc-error-test-sXhy87\31337_0xe7f1725e7734ce288f8367e1bb143e90bb3f0512_11.json
-packages/relay test: [Relay] signalGameStarted tx sent for room 11: 0x9c1c5cd644bd02564063ffbef249a0200d095253f0bc5a7c6fa6718d5acaeee9. Waiting receipt...
+packages/relay test: [Relay] Saved game result for room 11 to C:\Users\Admin\AppData\Local\Temp\rpc-error-test-PiR9kX\31337_0xe7f1725e7734ce288f8367e1bb143e90bb3f0512_11.json
+packages/relay test: [Relay] signalGameStarted tx sent for room 11: 0x205e571029cce05d0ee2621e040801b6ba30cd68e9fe11a5e777f0430ec5767a. Waiting receipt...
 packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b Item 5: handleGameOver saves result before RPC/signing; RPC error at game over still allows subsequent request_result and on-chain settlement
-packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 11 in tx 0x9c1c5cd644bd02564063ffbef249a0200d095253f0bc5a7c6fa6718d5acaeee9
-packages/relay test:  [32m✓[39m tests/anvil-integration.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 7189[2mms[22m[39m
-packages/relay test:    [33m[2m✓[22m[39m RelayServer Anvil End-to-End Integration[2m > [22mWhen signalGameStarted is disabled, relay does not call signalGameStarted and abortRoom succeeds after 3 minutes [33m491[2mms[22m[39m
-packages/relay test:    [33m[2m✓[22m[39m RelayServer Anvil End-to-End Integration[2m > [22mPersists game result to RESULTS_DIR and re-signs result upon request_result after server restart [33m3319[2mms[22m[39m
-packages/relay test:    [33m[2m✓[22m[39m RelayServer Anvil End-to-End Integration[2m > [22mTurn 3b Item 2: Active game state persisted atomically; recovered after restart without clock downtime penalty, finishes and settles [33m711[2mms[22m[39m
-packages/relay test:    [33m[2m✓[22m[39m RelayServer Anvil End-to-End Integration[2m > [22mTurn 3b Item 5: handleGameOver saves result before RPC/signing; RPC error at game over still allows subsequent request_result and on-chain settlement [33m702[2mms[22m[39m
+packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 11 in tx 0x205e571029cce05d0ee2621e040801b6ba30cd68e9fe11a5e777f0430ec5767a
+packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b-verify Item 8: save-before-read-chain ensures result file exists on disk within 200ms when readContract always throws, then settles after RPC recovery
+packages/relay test: [22m[39m[Relay] Calling signalGameStarted for room 12 (attempt 1)...
+packages/relay test: [90mstderr[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b-verify Item 8: save-before-read-chain ensures result file exists on disk within 200ms when readContract always throws, then settles after RPC recovery
+packages/relay test: [22m[39m[Relay] Failed to query on-chain room 12 (RPC Failure: readContract always throws). Retrying in 1000ms...
+packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b-verify Item 8: save-before-read-chain ensures result file exists on disk within 200ms when readContract always throws, then settles after RPC recovery
+packages/relay test: [22m[39m[Relay] Removed active game file for room 12
+packages/relay test: [Relay] Saved game result for room 12 to C:\Users\Admin\AppData\Local\Temp\item8-results-KOc2BW\31337_0xe7f1725e7734ce288f8367e1bb143e90bb3f0512_12.json
+packages/relay test: [Relay] signalGameStarted tx sent for room 12: 0x1988015b08b42f666a8bf0d58748da6096c1b37eeb21a4085db73bc4c71c9a7d. Waiting receipt...
+packages/relay test: [90mstdout[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b-verify Item 8: save-before-read-chain ensures result file exists on disk within 200ms when readContract always throws, then settles after RPC recovery
+packages/relay test: [22m[39m[Relay] signalGameStarted confirmed on-chain for room 12 in tx 0x1988015b08b42f666a8bf0d58748da6096c1b37eeb21a4085db73bc4c71c9a7d
+packages/relay test: [90mstderr[2m | tests/anvil-integration.test.ts[2m > [22m[2mRelayServer Anvil End-to-End Integration[2m > [22m[2mTurn 3b-verify Item 8: save-before-read-chain ensures result file exists on disk within 200ms when readContract always throws, then settles after RPC recovery
+packages/relay test: [22m[39m[Relay] Room 11 is no longer Active on-chain (status=2). Refusing to sign.
+packages/relay test:  [32m✓[39m tests/anvil-integration.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 8405[2mms[22m[39m
+packages/relay test:    [33m[2m✓[22m[39m RelayServer Anvil End-to-End Integration[2m > [22mWhen signalGameStarted is disabled, relay does not call signalGameStarted and abortRoom succeeds after 3 minutes [33m577[2mms[22m[39m
+packages/relay test:    [33m[2m✓[22m[39m RelayServer Anvil End-to-End Integration[2m > [22mPersists game result to RESULTS_DIR and re-signs result upon request_result after server restart [33m3379[2mms[22m[39m
+packages/relay test:    [33m[2m✓[22m[39m RelayServer Anvil End-to-End Integration[2m > [22mTurn 3b Item 1: Non-player address sending result_signature is rejected [33m311[2mms[22m[39m
+packages/relay test:    [33m[2m✓[22m[39m RelayServer Anvil End-to-End Integration[2m > [22mTurn 3b Item 2: Active game state persisted atomically; recovered after restart without clock downtime penalty, finishes and settles [33m847[2mms[22m[39m
+packages/relay test:    [33m[2m✓[22m[39m RelayServer Anvil End-to-End Integration[2m > [22mTurn 3b Item 5: handleGameOver saves result before RPC/signing; RPC error at game over still allows subsequent request_result and on-chain settlement [33m787[2mms[22m[39m
+packages/relay test:    [33m[2m✓[22m[39m RelayServer Anvil End-to-End Integration[2m > [22mTurn 3b-verify Item 8: save-before-read-chain ensures result file exists on disk within 200ms when readContract always throws, then settles after RPC recovery [33m468[2mms[22m[39m
 packages/relay test: [2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
-packages/relay test: [2m      Tests [22m [1m[32m36 passed[39m[22m[90m (36)[39m
-packages/relay test: [2m   Start at [22m 23:42:42
-packages/relay test: [2m   Duration [22m 8.39s[2m (transform 249ms, setup 0ms, collect 1.42s, tests 9.07s, environment 0ms, prepare 467ms)[22m
+packages/relay test: [2m      Tests [22m [1m[32m38 passed[39m[22m[90m (38)[39m
+packages/relay test: [2m   Start at [22m 10:57:18
+packages/relay test: [2m   Duration [22m 10.63s[2m (transform 455ms, setup 0ms, collect 2.63s, tests 10.58s, environment 1ms, prepare 894ms)[22m
 packages/relay test: Done

@@ -1,21 +1,5 @@
 No files changed, compilation skipped
 
-Ran 13 tests for test/ChessEscrowMetaTryCatch.t.sol:ChessEscrowMetaTryCatchTest
-[PASS] test_AbortRoom_SuccessWhenMetaReverts() (gas: 401080)
-[PASS] test_ClaimSpectatorRefund_After7DaysOfJoinedAt() (gas: 1973711)
-[PASS] test_FallbackCancelPrediction_ConservesAllFundsAndSpectatorsRefunded() (gas: 2734605)
-[PASS] test_FallbackCancelPrediction_Timelock() (gas: 599075)
-[PASS] test_FinalizeSingleSigned_SuccessWhenMetaReverts() (gas: 831089)
-[PASS] test_JoinRoom_RevertsWhenMetaRegisterMatchFails() (gas: 278583)
-[PASS] test_RefundOnTimeout_SuccessWhenMetaReverts() (gas: 361234)
-[PASS] test_ResolveChallenge_SuccessWhenMetaReverts() (gas: 974051)
-[PASS] test_ResolveDefaultChallenge_SuccessWhenMetaReverts() (gas: 906705)
-[PASS] test_RetryResolvePrediction_SuccessAndFailure() (gas: 666592)
-[PASS] test_SignalGameStarted_EmitsMetaCallFailedWhenMetaLockBettingFails() (gas: 419796)
-[PASS] test_SubmitResult_DrawSuccessWhenMetaReverts() (gas: 506186)
-[PASS] test_SubmitResult_SettleSuccessWhenMetaReverts() (gas: 552055)
-Suite result: ok. 13 passed; 0 failed; 0 skipped; finished in 26.16ms (26.16ms CPU time)
-
 Ran 24 tests for test/AvaClashMeta.t.sol:AvaClashMetaTest
 [PASS] test_AntiWinTradingDeltaReduction() (gas: 223092)
 [PASS] test_BetOnMatch_FeeSplit() (gas: 242492)
@@ -41,14 +25,54 @@ Ran 24 tests for test/AvaClashMeta.t.sol:AvaClashMetaTest
 [PASS] test_SpectatorReward_GrossFeeConservationMultipleBettors() (gas: 470366)
 [PASS] test_UpdateEloOnSettle() (gas: 117128)
 [PASS] test_UpdateElo_revert_notEscrow() (gas: 39462)
-Suite result: ok. 24 passed; 0 failed; 0 skipped; finished in 79.65ms (38.84ms CPU time)
+Suite result: ok. 24 passed; 0 failed; 0 skipped; finished in 8.36ms (16.23ms CPU time)
+
+Ran 13 tests for test/ChessEscrowMetaTryCatch.t.sol:ChessEscrowMetaTryCatchTest
+[PASS] test_AbortRoom_SuccessWhenMetaReverts() (gas: 401080)
+[PASS] test_ClaimSpectatorRefund_After7DaysOfJoinedAt() (gas: 1973711)
+[PASS] test_FallbackCancelPrediction_ConservesAllFundsAndSpectatorsRefunded() (gas: 2734605)
+[PASS] test_FallbackCancelPrediction_Timelock() (gas: 599075)
+[PASS] test_FinalizeSingleSigned_SuccessWhenMetaReverts() (gas: 831089)
+[PASS] test_JoinRoom_RevertsWhenMetaRegisterMatchFails() (gas: 278583)
+[PASS] test_RefundOnTimeout_SuccessWhenMetaReverts() (gas: 361234)
+[PASS] test_ResolveChallenge_SuccessWhenMetaReverts() (gas: 974051)
+[PASS] test_ResolveDefaultChallenge_SuccessWhenMetaReverts() (gas: 906705)
+[PASS] test_RetryResolvePrediction_SuccessAndFailure() (gas: 666592)
+[PASS] test_SignalGameStarted_EmitsMetaCallFailedWhenMetaLockBettingFails() (gas: 419796)
+[PASS] test_SubmitResult_DrawSuccessWhenMetaReverts() (gas: 506186)
+[PASS] test_SubmitResult_SettleSuccessWhenMetaReverts() (gas: 552055)
+Suite result: ok. 13 passed; 0 failed; 0 skipped; finished in 189.61ms (16.57ms CPU time)
+
+Ran 21 tests for test/ChessEscrowMetaIntegration.t.sol:ChessEscrowMetaIntegrationTest
+[PASS] test_AbortRoom_CancelsPredictionAndRefundsSpectators() (gas: 645235)
+[PASS] test_DrawMatchFlow_EloAndSpectatorDrawOption() (gas: 857345)
+[PASS] test_FinalizeSingleSigned_MetaResolution_MovesGE20() (gas: 1342096)
+[PASS] test_FinalizeSingleSigned_MetaResolution_MovesLT20() (gas: 1311659)
+[PASS] test_FullMatchFlow_EloAndSpectatorPayout() (gas: 1089028)
+[PASS] test_FullMatchFlow_MovesUnder20_CancelsSpectatorPool() (gas: 848620)
+[PASS] test_Matrix_CreatorBlack_BlackWin_MovesGE20() (gas: 1129171)
+[PASS] test_Matrix_CreatorBlack_BlackWin_MovesLT20() (gas: 1243781)
+[PASS] test_Matrix_CreatorBlack_Draw_MovesGE20() (gas: 1053251)
+[PASS] test_Matrix_CreatorBlack_Draw_MovesLT20() (gas: 1167107)
+[PASS] test_Matrix_CreatorBlack_WhiteWin_MovesGE20() (gas: 1129061)
+[PASS] test_Matrix_CreatorBlack_WhiteWin_MovesLT20() (gas: 1242988)
+[PASS] test_Matrix_CreatorWhite_BlackWin_MovesGE20() (gas: 1132011)
+[PASS] test_Matrix_CreatorWhite_BlackWin_MovesLT20() (gas: 1246179)
+[PASS] test_Matrix_CreatorWhite_Draw_MovesGE20() (gas: 1055853)
+[PASS] test_Matrix_CreatorWhite_Draw_MovesLT20() (gas: 1170429)
+[PASS] test_Matrix_CreatorWhite_WhiteWin_MovesGE20() (gas: 1131527)
+[PASS] test_Matrix_CreatorWhite_WhiteWin_MovesLT20() (gas: 1246105)
+[PASS] test_ResolveChallenge_ArbiterDeclaresDraw_MovesGE20() (gas: 1413821)
+[PASS] test_ResolveChallenge_ArbiterDeclaresWinner_MovesGE20() (gas: 1492323)
+[PASS] test_ResolveChallenge_ArbiterDeclaresWinner_MovesLT20() (gas: 1462188)
+Suite result: ok. 21 passed; 0 failed; 0 skipped; finished in 4.24s (105.99ms CPU time)
 
 Ran 94 tests for test/ChessEscrow.t.sol:ChessEscrowTest
-[PASS] testFuzz_challengeBond(uint256) (runs: 256, μ: 17271, ~: 17287)
-[PASS] testFuzz_createRoom_stakeRange(uint256) (runs: 256, μ: 182939, ~: 182956)
-[PASS] testFuzz_refundTimeout_warpAmount(uint256) (runs: 256, μ: 378216, ~: 378316)
-[PASS] testFuzz_submitResult_invalidOutcomesAndWinners(uint8,address,uint8,uint16,uint256) (runs: 256, μ: 318669, ~: 318656)
-[PASS] testFuzz_submitResult_validOutcomesAndWinners(uint8,uint8,uint16,uint256,uint256) (runs: 256, μ: 432463, ~: 430919)
+[PASS] testFuzz_challengeBond(uint256) (runs: 256, μ: 17277, ~: 17287)
+[PASS] testFuzz_createRoom_stakeRange(uint256) (runs: 256, μ: 182945, ~: 182956)
+[PASS] testFuzz_refundTimeout_warpAmount(uint256) (runs: 256, μ: 378220, ~: 378316)
+[PASS] testFuzz_submitResult_invalidOutcomesAndWinners(uint8,address,uint8,uint16,uint256) (runs: 256, μ: 318682, ~: 318710)
+[PASS] testFuzz_submitResult_validOutcomesAndWinners(uint8,uint8,uint16,uint256,uint256) (runs: 256, μ: 432234, ~: 430905)
 [PASS] test_EIP712_DomainSeparator_Matches_V2_Spec() (gas: 8401)
 [PASS] test_G1_payoffComparison_loserSignsVsChallengeWithSilentArbiter() (gas: 1269860)
 [PASS] test_G1_payoffComparison_symmetric_loserSubmitsSingleSigned() (gas: 784287)
@@ -138,76 +162,115 @@ Ran 94 tests for test/ChessEscrow.t.sol:ChessEscrowTest
 [PASS] test_withdrawProtocolFees() (gas: 462474)
 [PASS] test_withdraw_emitsEvent() (gas: 244330)
 [PASS] test_withdraw_revert_nothingToWithdraw() (gas: 41384)
-Suite result: ok. 94 passed; 0 failed; 0 skipped; finished in 79.58ms (402.68ms CPU time)
-
-Ran 21 tests for test/ChessEscrowMetaIntegration.t.sol:ChessEscrowMetaIntegrationTest
-[PASS] test_AbortRoom_CancelsPredictionAndRefundsSpectators() (gas: 645235)
-[PASS] test_DrawMatchFlow_EloAndSpectatorDrawOption() (gas: 857345)
-[PASS] test_FinalizeSingleSigned_MetaResolution_MovesGE20() (gas: 1342096)
-[PASS] test_FinalizeSingleSigned_MetaResolution_MovesLT20() (gas: 1311659)
-[PASS] test_FullMatchFlow_EloAndSpectatorPayout() (gas: 1089028)
-[PASS] test_FullMatchFlow_MovesUnder20_CancelsSpectatorPool() (gas: 848620)
-[PASS] test_Matrix_CreatorBlack_BlackWin_MovesGE20() (gas: 1129171)
-[PASS] test_Matrix_CreatorBlack_BlackWin_MovesLT20() (gas: 1243781)
-[PASS] test_Matrix_CreatorBlack_Draw_MovesGE20() (gas: 1053251)
-[PASS] test_Matrix_CreatorBlack_Draw_MovesLT20() (gas: 1167107)
-[PASS] test_Matrix_CreatorBlack_WhiteWin_MovesGE20() (gas: 1129061)
-[PASS] test_Matrix_CreatorBlack_WhiteWin_MovesLT20() (gas: 1242988)
-[PASS] test_Matrix_CreatorWhite_BlackWin_MovesGE20() (gas: 1132011)
-[PASS] test_Matrix_CreatorWhite_BlackWin_MovesLT20() (gas: 1246179)
-[PASS] test_Matrix_CreatorWhite_Draw_MovesGE20() (gas: 1055853)
-[PASS] test_Matrix_CreatorWhite_Draw_MovesLT20() (gas: 1170429)
-[PASS] test_Matrix_CreatorWhite_WhiteWin_MovesGE20() (gas: 1131527)
-[PASS] test_Matrix_CreatorWhite_WhiteWin_MovesLT20() (gas: 1246105)
-[PASS] test_ResolveChallenge_ArbiterDeclaresDraw_MovesGE20() (gas: 1413821)
-[PASS] test_ResolveChallenge_ArbiterDeclaresWinner_MovesGE20() (gas: 1492323)
-[PASS] test_ResolveChallenge_ArbiterDeclaresWinner_MovesLT20() (gas: 1462188)
-Suite result: ok. 21 passed; 0 failed; 0 skipped; finished in 1.24s (55.86ms CPU time)
+Suite result: ok. 94 passed; 0 failed; 0 skipped; finished in 4.23s (781.31ms CPU time)
 
 Ran 2 tests for test/invariants/ChessEscrowInvariant.t.sol:ChessEscrowInvariantTest
-[PASS] invariant_solvencyConservation() (runs: 1, calls: 3800, reverts: 1)
+[PASS] invariant_solvencyConservation() (runs: 20, calls: 10000, reverts: 0)
 
 ╭--------------------+-------------------------------+-------+---------+----------╮
 | Contract           | Selector                      | Calls | Reverts | Discards |
 +=================================================================================+
-| ChessEscrowHandler | abortRoom                     | 208   | 0       | 0        |
+| ChessEscrowHandler | abortRoom                     | 561   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | cancelRoom                    | 235   | 0       | 0        |
+| ChessEscrowHandler | cancelRoom                    | 578   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | challengeAction               | 242   | 0       | 0        |
+| ChessEscrowHandler | challengeAction               | 502   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | createRoom                    | 190   | 0       | 0        |
+| ChessEscrowHandler | createRoom                    | 568   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | finalizeSingleSignedAction    | 202   | 0       | 0        |
+| ChessEscrowHandler | finalizeSingleSignedAction    | 585   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | joinRoom                      | 201   | 0       | 0        |
+| ChessEscrowHandler | joinRoom                      | 560   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | pauseAction                   | 185   | 0       | 0        |
+| ChessEscrowHandler | pauseAction                   | 539   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | refundOnTimeoutAction         | 218   | 0       | 0        |
+| ChessEscrowHandler | refundOnTimeoutAction         | 581   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | resolveChallengeAction        | 208   | 0       | 0        |
+| ChessEscrowHandler | resolveChallengeAction        | 551   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | resolveDefaultChallengeAction | 219   | 0       | 0        |
+| ChessEscrowHandler | resolveDefaultChallengeAction | 545   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | setSingleSignedEnabledAction  | 214   | 0       | 0        |
+| ChessEscrowHandler | setSingleSignedEnabledAction  | 603   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | signalGameStartedAction       | 206   | 0       | 0        |
+| ChessEscrowHandler | signalGameStartedAction       | 576   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | submitResultDual              | 212   | 0       | 0        |
+| ChessEscrowHandler | submitResultDual              | 563   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | submitResultRelay             | 224   | 0       | 0        |
+| ChessEscrowHandler | submitResultRelay             | 538   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | submitSingleSignedAction      | 201   | 1       | 0        |
+| ChessEscrowHandler | submitSingleSignedAction      | 539   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | unpauseAction                 | 196   | 0       | 0        |
+| ChessEscrowHandler | unpauseAction                 | 528   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | withdraw                      | 198   | 0       | 0        |
+| ChessEscrowHandler | withdraw                      | 521   | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | withdrawProtocolFees          | 241   | 0       | 0        |
+| ChessEscrowHandler | withdrawProtocolFees          | 562   | 0       | 0        |
 ╰--------------------+-------------------------------+-------+---------+----------╯
 
-[PASS] test_scriptedScenarioCoverage() (gas: 536257452)
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 11.21s (12.42s CPU time)
+Logs:
+  --- INVARIANT FUZZ CAMPAIGN SUMMARY ---
+  ================================================================================
+                  CHESS ESCROW INVARIANT GHOST COUNTERS SUMMARY                   
+  ================================================================================
+  Total Invariant Calls Executed : 501
+  --------------------------------------------------------------------------------
+  createRoom                     : 29
+  joinRoom                       : 19
+  signalGameStarted              : 9
+  cancelRoom                     : 6
+  abortRoom                      : 2
+  submitResult (Dual Player Sigs): 5
+  submitResult (Player + Relay)  : 1
+  submitSingleSigned (Bond Sub)  : 89
+  challenge (Bond Challenge)     : 59
+  resolveChallenge (Arbiter Bond): 28
+  resolveDefaultChallenge (Bond) : 31
+  finalizeSingleSigned (Bond Payout): 28
+  refundOnTimeout                : 2
+  withdraw (Pull Payment)        : 23
+  withdrawProtocolFees           : 19
+  pause                          : 9
+  unpause                        : 9
+  setSingleSignedEnabled         : 30
+  invariant (Challenged sampled) : 145
+  ================================================================================
+  --- ACCUMULATED CAMPAIGN TOTALS (Runs: 21 ) ---
+  Campaign submitSingleSigned        : 1591
+  Campaign challenge                 : 1031
+  Campaign resolveChallenge          : 511
+  Campaign resolveDefaultChallenge   : 510
+  Campaign finalizeSingleSigned      : 550
+  Campaign invariantChallengedSampled: 4195
 
-Ran 5 test suites in 11.21s (12.63s CPU time): 154 tests passed, 0 failed, 0 skipped (154 total tests)
+[PASS] test_scriptedScenarioCoverage() (gas: 537055439)
+Logs:
+  --- SCRIPTED SCENARIO SUMMARY ---
+  ================================================================================
+                  CHESS ESCROW INVARIANT GHOST COUNTERS SUMMARY                   
+  ================================================================================
+  Total Invariant Calls Executed : 2960
+  --------------------------------------------------------------------------------
+  createRoom                     : 542
+  joinRoom                       : 528
+  signalGameStarted              : 440
+  cancelRoom                     : 14
+  abortRoom                      : 38
+  submitResult (Dual Player Sigs): 55
+  submitResult (Player + Relay)  : 55
+  submitSingleSigned (Bond Sub)  : 330
+  challenge (Bond Challenge)     : 220
+  resolveChallenge (Arbiter Bond): 110
+  resolveDefaultChallenge (Bond) : 110
+  finalizeSingleSigned (Bond Payout): 110
+  refundOnTimeout                : 50
+  withdraw (Pull Payment)        : 50
+  withdrawProtocolFees           : 1
+  pause                          : 36
+  unpause                        : 36
+  setSingleSignedEnabled         : 50
+  invariant (Challenged sampled) : 220
+  ================================================================================
+
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 25.59s (29.78s CPU time)
+
+Ran 5 test suites in 25.60s (34.26s CPU time): 154 tests passed, 0 failed, 0 skipped (154 total tests)
