@@ -5,9 +5,9 @@
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "generate-abi": "tsx scripts/generate-abi.ts",
-    "pretest": "tsx scripts/generate-abi.ts",
-    "prebuild": "tsx scripts/generate-abi.ts",
+    "generate-abi": "node ../shared/scripts/generate-abi.mjs",
+    "pretest": "node ../shared/scripts/generate-abi.mjs",
+    "prebuild": "node ../shared/scripts/generate-abi.mjs",
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "test": "vitest run"

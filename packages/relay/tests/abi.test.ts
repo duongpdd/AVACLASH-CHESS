@@ -2,8 +2,7 @@ import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { CHESS_ESCROW_ABI } from "../src/abi/ChessEscrow.js";
-import { AVA_CLASH_META_ABI } from "../src/abi/AvaClashMeta.js";
+import { CHESS_ESCROW_ABI, AVA_CLASH_META_ABI } from "@avaclash/shared";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

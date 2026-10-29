@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "generate-abi": "node ../packages/shared/scripts/generate-abi.mjs",
+    "prebuild": "node ../packages/shared/scripts/generate-abi.mjs",
+    "pretest": "node ../packages/shared/scripts/generate-abi.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

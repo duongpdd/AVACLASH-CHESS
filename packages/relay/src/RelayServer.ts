@@ -30,7 +30,7 @@ import {
   type EndReason,
 } from "@avaclash/shared";
 import { RelayRoom } from "./RelayRoom.js";
-import { CHESS_ESCROW_ABI } from "./abi/ChessEscrow.js";
+import { CHESS_ESCROW_ABI } from "@avaclash/shared";
 
 export const ESCROW_ABI = CHESS_ESCROW_ABI;
 

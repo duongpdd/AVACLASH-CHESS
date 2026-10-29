@@ -12,7 +12,10 @@
     }
   },
   "scripts": {
+    "generate-abi": "node scripts/generate-abi.mjs",
+    "prebuild": "node scripts/generate-abi.mjs",
     "build": "tsc",
+    "pretest": "node scripts/generate-abi.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

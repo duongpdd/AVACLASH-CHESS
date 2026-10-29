@@ -19,6 +19,10 @@ export {
   buildJoinTypedData,
 } from "./eip712.js";
 
+// Contract ABIs
+export { CHESS_ESCROW_ABI } from "./abi/ChessEscrow.js";
+export { AVA_CLASH_META_ABI } from "./abi/AvaClashMeta.js";
+
 // Zod schemas
 export {
   authChallengeSchema,
