@@ -137,7 +137,7 @@ contract ChessEscrowHandler is Test {
 
         address joiner = players[actorIdx % 3];
         if (joiner == r.playerA) {
-            joiner = players[(actorIdx + 1) % 3];
+            joiner = players[(actorIdx % 3 + 1) % 3];
         }
 
         vm.prank(joiner);
@@ -334,7 +334,7 @@ contract ChessEscrowHandler is Test {
             roomId = activeRooms[roomSeed % activeRooms.length];
         } else {
             address creator = players[outcomeSeed % 3];
-            address joiner = players[(outcomeSeed + 1) % 3];
+            address joiner = players[(uint256(outcomeSeed) % 3 + 1) % 3];
             vm.prank(creator);
             roomId = escrow.createRoom{ value: 0.1 ether }(true);
             allRoomIds.push(roomId);
@@ -623,7 +623,7 @@ contract ChessEscrowHandler is Test {
         }
 
         address creator = players[seed % 3];
-        address joiner = players[(seed + 1) % 3];
+        address joiner = players[(seed % 3 + 1) % 3];
         vm.prank(creator);
         roomId = escrow.createRoom{ value: 0.1 ether }(true);
         allRoomIds.push(roomId);
