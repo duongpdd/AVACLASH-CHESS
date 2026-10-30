@@ -8,6 +8,7 @@
     "pretest": "node ../packages/shared/scripts/generate-abi.mjs",
     "dev": "next dev",
     "build": "next build --webpack",
+    "check:build": "node scripts/check-build.mjs",
     "start": "next start",
     "test": "vitest run",
     "lint": "eslint"

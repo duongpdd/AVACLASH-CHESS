@@ -1,4 +1,7 @@
-import Phaser from "phaser";
+import * as PhaserNS from "phaser";
+
+const phaserAny = PhaserNS as Record<string, any>;
+const Phaser = (phaserAny["default"] ?? phaserAny) as typeof PhaserNS;
 import { GameState } from "./GameState";
 import { BoardSyncController } from "./BoardSyncController";
 import type { PlayerColor, GameOutcome, EndReason } from "@avaclash/shared";
