@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { Web3Provider } from "@/providers/Web3Provider";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
+const inter = {
+  variable: "font-sans",
+};
 
 export const metadata: Metadata = {
   title: "AvaClash Chess — 1v1 Chess with AVAX Wagering",
