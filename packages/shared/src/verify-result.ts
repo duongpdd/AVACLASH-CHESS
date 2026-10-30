@@ -3,7 +3,6 @@ import { replay } from "./replay.js";
 import {
   OutcomeCode,
   ReasonCode,
-  outcomeToCode,
   reasonToCode,
   codeToReason,
 } from "./types.js";
