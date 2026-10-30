@@ -8,6 +8,11 @@ export default defineConfig({
     hookTimeout: 30000,
     testTimeout: 30000,
     pool: "forks",
+    poolOptions: {
+      forks: {
+        execArgv: ["--max-old-space-size=8192"],
+      },
+    },
   },
   resolve: {
     alias: {

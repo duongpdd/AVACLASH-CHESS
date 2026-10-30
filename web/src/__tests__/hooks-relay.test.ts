@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { OutcomeCode, ReasonCode, computeMovesHash } from "@avaclash/shared";
+import { OutcomeCode, ReasonCode, computeMovesHash, RelayClient } from "@avaclash/shared";
 
 const mocks = vi.hoisted(() => {
   let address = "0x1111111111111111111111111111111111111111" as `0x${string}`;
@@ -252,6 +252,28 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3 & Turn 3c-2-fix Item 2)", () => {
       const { result } = renderHook(() => useRelaySession(50));
       expect(result.current.connectionStatus).toBeDefined();
       expect(typeof result.current.sendMove).toBe("function");
+    });
+
+    it("does not re-instantiate RelayClient or reconnect when signTypedDataAsync identity changes across re-renders (Turn 3c-4 Item 5)", () => {
+      const connectSpy = vi.spyOn(RelayClient.prototype, "connect").mockImplementation(() => {});
+      const disconnectSpy = vi.spyOn(RelayClient.prototype, "disconnect").mockImplementation(() => {});
+
+      mocks.signTypedDataAsync = vi.fn();
+      const { rerender } = renderHook(() => useRelaySession(50));
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+
+      // Re-render multiple times with new function identities for signTypedDataAsync
+      mocks.signTypedDataAsync = vi.fn();
+      rerender();
+      mocks.signTypedDataAsync = vi.fn();
+      rerender();
+      mocks.signTypedDataAsync = vi.fn();
+      rerender();
+
+      // Before fix: effect re-ran every time, calling connect 4 times and disconnect 3 times
+      // With signTypedDataAsync in ref: connect is called exactly 1 time
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+      expect(disconnectSpy).toHaveBeenCalledTimes(0);
     });
   });
 });
