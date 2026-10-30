@@ -56,7 +56,7 @@ export async function startAnvil(port = 8545 + Math.floor(Math.random() * 500)):
   // Wait for anvil to be responsive
   let ready = false;
   const start = Date.now();
-  while (Date.now() - start < 10000) {
+  while (Date.now() - start < 20000) {
     try {
       await publicClient.getBlockNumber();
       ready = true;
@@ -68,7 +68,7 @@ export async function startAnvil(port = 8545 + Math.floor(Math.random() * 500)):
 
   if (!ready) {
     stopProcess(anvilProc);
-    throw new Error(`Anvil failed to start within 10s on port ${port}`);
+    throw new Error(`Anvil failed to start within 20s on port ${port}`);
   }
 
   return {
