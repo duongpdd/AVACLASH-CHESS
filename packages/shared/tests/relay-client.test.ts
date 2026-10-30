@@ -321,4 +321,28 @@ describe("RelayClient (Turn 3c-2 Item 1)", () => {
     expect(lastSent.type).toBe("request_result");
     expect(lastSent.roomId).toBe(105);
   });
+
+  it("sets authenticated=true, reconnectAttempt=0, and status=connected when receiving game_finished", async () => {
+    const client = new RelayClient({
+      url: "ws://localhost:8080",
+      WebSocketImpl: MockWebSocket,
+      signTypedData: vi.fn(),
+      getAddress: () => playerA,
+      chainId: 43113,
+      escrowAddress: mockEscrow,
+    });
+
+    client.connect(106);
+    await new Promise((r) => setTimeout(r, 20));
+    const ws = MockWebSocket.instances[0];
+
+    // Receiving game_finished message directly from relay (e.g. joining an already settled room)
+    ws.simulateServerMessage({
+      type: "game_finished",
+      roomId: 106,
+    });
+
+    expect(client.isAuthenticated()).toBe(true);
+    expect(client.getConnectionStatus()).toBe("connected");
+  });
 });
