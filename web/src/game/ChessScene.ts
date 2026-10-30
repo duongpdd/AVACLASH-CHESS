@@ -133,6 +133,11 @@ export class ChessScene extends Phaser.Scene {
   public syncMoves(moves: string[]) {
     this.controller.syncMoves(moves);
 
+    // Call destroy() on old GameState instance to stop active intervals and prevent memory leak
+    if (this.gameState) {
+      this.gameState.destroy();
+    }
+
     // Replay moves into this.gameState so getGameState().getMaterialStats() stays in sync
     this.gameState = new GameState(5 * 60 * 1000);
     for (const m of moves) {
