@@ -426,12 +426,16 @@ export class RelayClient {
         this.authenticated = true;
         this.reconnectAttempt = 0;
         this.setStatus("connected");
+        if (msg.moves && Array.isArray(msg.moves)) {
+          this.moves = [...msg.moves];
+        }
         this.finishedInfo = {
           roomId: msg.roomId,
           outcome: msg.outcome,
           reason: msg.reason,
           winner: msg.winner as `0x${string}` | undefined,
           moveCount: msg.moveCount,
+          moves: msg.moves,
         };
         const r = typeof msg.reason === "string" ? msg.reason.toLowerCase() : "";
         if (r === "resign" || msg.reason === ReasonCode.Resign) {

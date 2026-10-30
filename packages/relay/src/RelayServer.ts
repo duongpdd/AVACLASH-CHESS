@@ -784,6 +784,7 @@ export class RelayServer {
         reason: existingResult.reason,
         winner: existingResult.winner,
         moveCount: existingResult.moves.length,
+        moves: existingResult.moves,
       });
       return;
     }
@@ -1033,6 +1034,7 @@ export class RelayServer {
         reason,
         winner: winnerAddress,
         moveCount: room.moves.length,
+        moves: room.moves,
       };
       room.broadcast(gameFinishedMsg);
     } catch (err) {

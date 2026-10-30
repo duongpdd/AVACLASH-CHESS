@@ -289,4 +289,62 @@ describe("Relay Session Hydration on Reload (Turn 3c-3 Item 2)", () => {
     expect(submitResult.current.step).toBe("confirmed");
     expect(submitResult.current.isSuccess).toBe(true);
   });
+
+  it("populates moves and seenEvents from game_finished on reload without room_state", async () => {
+    const finishedMoves = ["e2e4", "e7e5", "g1f3"];
+    const movesHash = computeMovesHash(finishedMoves);
+    const deadline = Math.floor(Date.now() / 1000) + 3600;
+
+    const { result: sessionResult } = renderHook(() => useRelaySession(roomId));
+
+    act(() => {
+      mockRelayClientInstance.finishedInfo = {
+        roomId,
+        outcome: OutcomeCode.WhiteWin,
+        reason: ReasonCode.Resign,
+        winner: white,
+        moveCount: finishedMoves.length,
+        moves: finishedMoves,
+      };
+      mockRelayClientInstance.emit("gameFinished", {
+        type: "game_finished",
+        roomId,
+        outcome: OutcomeCode.WhiteWin,
+        reason: ReasonCode.Resign,
+        winner: white,
+        moveCount: finishedMoves.length,
+        moves: finishedMoves,
+      });
+    });
+
+    expect(sessionResult.current.moves).toEqual(finishedMoves);
+    expect(sessionResult.current.seenEvents.resignSeen).toBe(true);
+
+    const { result: submitResult } = renderHook(() => useSubmitResult(roomId));
+    const proposal = {
+      type: "result_proposal" as const,
+      roomId,
+      winner: white,
+      outcome: OutcomeCode.WhiteWin,
+      reason: ReasonCode.Resign,
+      moveCount: finishedMoves.length,
+      movesHash,
+      nonce: 1,
+      deadline,
+    };
+
+    await act(async () => {
+      await submitResult.current.submit({
+        proposal,
+        relaySignature: relaySig,
+        moves: sessionResult.current.moves,
+        white,
+        black,
+        seenEvents: sessionResult.current.seenEvents,
+      });
+    });
+
+    expect(submitResult.current.step).toBe("confirmed");
+    expect(submitResult.current.isSuccess).toBe(true);
+  });
 });

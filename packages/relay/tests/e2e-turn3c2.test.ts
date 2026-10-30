@@ -952,7 +952,7 @@ describe("Turn 3c-2 End-to-End RelayClient & Settlement Integration", () => {
 
     const verification = verifyResultProposal({
       proposal,
-      moves: ["e2e4"],
+      moves: clientA2.getMoves(),
       whiteAddress: playerAAccount.address,
       blackAddress: playerBAccount.address,
       roomId,
@@ -1065,7 +1065,7 @@ describe("Turn 3c-2 End-to-End RelayClient & Settlement Integration", () => {
 
     const verification = verifyResultProposal({
       proposal,
-      moves: ["e2e4"],
+      moves: clientA2.getMoves(),
       whiteAddress: playerAAccount.address,
       blackAddress: playerBAccount.address,
       roomId,
@@ -1197,7 +1197,7 @@ describe("Turn 3c-2 End-to-End RelayClient & Settlement Integration", () => {
 
       const verification = verifyResultProposal({
         proposal,
-        moves: ["e2e4"],
+        moves: clientA2.getMoves(),
         whiteAddress: playerAAccount.address,
         blackAddress: playerBAccount.address,
         roomId,

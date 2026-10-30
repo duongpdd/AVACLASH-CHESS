@@ -171,6 +171,7 @@ export const gameFinishedSchema = z.object({
   reason: z.union([z.string(), z.number()]).optional(),
   winner: addressSchema.optional(),
   moveCount: z.number().int().nonnegative().optional(),
+  moves: z.array(z.string()).optional(),
 });
 
 /**

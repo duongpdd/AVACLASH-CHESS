@@ -110,6 +110,15 @@ export function useRelaySession(
       const finished = gameFinishedMsg || client.getFinishedInfo?.();
       const currentRoomState = customRoomState || client.getRoomState?.();
 
+      if (finished?.moves && Array.isArray(finished.moves)) {
+        setMoves((prev) => (prev.length === 0 ? finished.moves : prev));
+      } else if (typeof (client as any).getMoves === "function") {
+        const clientMoves = (client as any).getMoves();
+        if (clientMoves && clientMoves.length > 0) {
+          setMoves((prev) => (prev.length === 0 ? clientMoves : prev));
+        }
+      }
+
       setSeenEvents((prev) => {
         const merged: SeenTerminalEvents = { ...prev, ...clientSeen };
         if (finished) {
@@ -231,6 +240,9 @@ export function useRelaySession(
 
       client.on("gameFinished", (msg) => {
         setGameFinished(true);
+        if (msg.moves && Array.isArray(msg.moves)) {
+          setMoves(msg.moves);
+        }
         syncSeenFromClient(undefined, msg);
       }),
 
