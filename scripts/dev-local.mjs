@@ -137,6 +137,8 @@ CHAIN_ID=31337
 RPC_URL=http://127.0.0.1:8545
 RELAY_PORT=8080
 RELAY_SIGNER_ADDRESS=${relaySigner}
+ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+ALLOW_NO_ORIGIN=true
 `;
     fs.writeFileSync(path.join(rootDir, "packages", "relay", ".env.local"), relayEnvContent, "utf8");
     console.log("   ✓ Written to packages/relay/.env.local\n");
@@ -155,3 +157,4 @@ RELAY_SIGNER_ADDRESS=${relaySigner}
     console.log("\nAnvil đang chạy ở chế độ nền. Nhấn Ctrl+C để dừng.");
   });
 }
+
