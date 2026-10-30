@@ -7,6 +7,9 @@ import type { ChessScene as ChessSceneType } from "@/game/ChessScene";
 interface PhaserGameProps {
   boardSize?: number;
   flipBoard?: boolean;
+  moves?: string[];
+  playerColor?: "w" | "b" | "spectator";
+  canMove?: boolean;
   onMove?: (uci: string, san: string) => void;
   onGameOver?: (outcome: GameOutcome, reason: EndReason) => void;
   onClockTick?: (whiteMs: number, blackMs: number) => void;
@@ -17,6 +20,9 @@ interface PhaserGameProps {
 export default function PhaserGame({
   boardSize = 464,
   flipBoard = false,
+  moves,
+  playerColor = "spectator",
+  canMove = false,
   onMove,
   onGameOver,
   onClockTick,
@@ -25,12 +31,34 @@ export default function PhaserGame({
 }: PhaserGameProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
+  const activeSceneRef = useRef<ChessSceneType | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Store callbacks in refs to avoid re-creating Phaser game
   const callbacksRef = useRef({ onMove, onGameOver, onClockTick, onTurnChange, onSceneReady });
   callbacksRef.current = { onMove, onGameOver, onClockTick, onTurnChange, onSceneReady };
+
+  // Sync moves to active Phaser scene
+  useEffect(() => {
+    if (activeSceneRef.current && moves) {
+      activeSceneRef.current.syncMoves(moves);
+    }
+  }, [moves]);
+
+  // Sync canMove to active Phaser scene
+  useEffect(() => {
+    if (activeSceneRef.current && canMove !== undefined) {
+      activeSceneRef.current.setCanMove(canMove);
+    }
+  }, [canMove]);
+
+  // Sync playerColor to active Phaser scene
+  useEffect(() => {
+    if (activeSceneRef.current && playerColor) {
+      activeSceneRef.current.setPlayerColor(playerColor);
+    }
+  }, [playerColor]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -51,6 +79,9 @@ export default function PhaserGame({
             super.init({
               boardSize,
               flipBoard,
+              moves,
+              playerColor,
+              canMove,
               onMove: (uci: string, san: string) => callbacksRef.current.onMove?.(uci, san),
               onGameOver: (outcome: GameOutcome, reason: EndReason) =>
                 callbacksRef.current.onGameOver?.(outcome, reason),
@@ -63,6 +94,7 @@ export default function PhaserGame({
 
           create() {
             super.create();
+            activeSceneRef.current = this;
             setLoading(false);
             callbacksRef.current.onSceneReady?.(this);
           }
@@ -98,6 +130,7 @@ export default function PhaserGame({
 
     return () => {
       isCancelled = true;
+      activeSceneRef.current = null;
       if (gameRef.current) {
         gameRef.current.destroy(true);
         gameRef.current = null;

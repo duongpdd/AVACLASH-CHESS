@@ -197,6 +197,7 @@ function GameContent() {
   // When relay sends moves, keep board synchronized
   useEffect(() => {
     if (sceneRef.current && relaySession.moves.length > 0) {
+      sceneRef.current.syncMoves(relaySession.moves);
       // Update material stats
       setMaterialStats(sceneRef.current.getGameState().getMaterialStats());
     }
@@ -385,6 +386,13 @@ function GameContent() {
             <PhaserGame
               boardSize={464}
               flipBoard={relaySession.myColor === "b"}
+              moves={relaySession.moves}
+              playerColor={relaySession.myColor ?? "spectator"}
+              canMove={
+                relaySession.isMyTurn &&
+                relaySession.roomState?.status === "active" &&
+                relaySession.connectionStatus === "connected"
+              }
               onMove={handleBoardMove}
               onSceneReady={handleSceneReady}
             />

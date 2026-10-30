@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { GameState } from "./GameState";
+import { BoardSyncController } from "./BoardSyncController";
 import type { PlayerColor, GameOutcome, EndReason } from "@avaclash/shared";
 
 // Solid glyphs for both sides to allow stroke + color differentiation
@@ -27,6 +28,9 @@ const BOARD_THEME = {
 export interface ChessSceneConfig {
   boardSize: number;
   flipBoard: boolean;
+  moves?: string[];
+  playerColor?: "w" | "b" | "spectator";
+  canMove?: boolean;
   onMove?: (uci: string, san: string) => void;
   onGameOver?: (outcome: GameOutcome, reason: EndReason) => void;
   onClockTick?: (whiteMs: number, blackMs: number) => void;
@@ -34,6 +38,7 @@ export interface ChessSceneConfig {
 }
 
 export class ChessScene extends Phaser.Scene {
+  private controller!: BoardSyncController;
   private gameState!: GameState;
   private config_!: ChessSceneConfig;
   private tileSize = 0;
@@ -63,6 +68,22 @@ export class ChessScene extends Phaser.Scene {
 
   init(data: ChessSceneConfig) {
     this.config_ = data;
+    this.controller = new BoardSyncController({
+      playerColor: data.playerColor,
+      canMove: data.canMove,
+      onMove: (uci, san) => {
+        this.config_.onMove?.(uci, san);
+      },
+    });
+
+    if (data.moves && data.moves.length > 0) {
+      this.controller.syncMoves(data.moves);
+      const last = this.controller.getLastMove();
+      if (last) {
+        this.lastMoveFrom = last.from;
+        this.lastMoveTo = last.to;
+      }
+    }
   }
 
   create() {
@@ -71,62 +92,101 @@ export class ChessScene extends Phaser.Scene {
     this.offsetX = Math.floor((this.scale.width - size) / 2);
     this.offsetY = Math.floor((this.scale.height - size) / 2);
 
-    // Create game state
+    // Create gameState synchronized with controller moves
     this.gameState = new GameState(5 * 60 * 1000, {
-      onMove: (uci, san, _fen) => {
-        this.lastMoveFrom = uci.slice(0, 2);
-        this.lastMoveTo = uci.slice(2, 4);
-        this.checkSquare = null;
-        this.selectedSquare = null;
-        this.legalTargets = [];
-        this.drawBoard();
-        this.drawPieces();
-        this.config_.onMove?.(uci, san);
-      },
       onGameOver: (outcome, reason) => {
-        this.gameState.stopClock();
         this.config_.onGameOver?.(outcome, reason);
       },
       onTurnChange: (turn) => {
         this.config_.onTurnChange?.(turn);
-      },
-      onCheck: (_color) => {
-        // Find the king in check
-        const turn = this.gameState.currentTurn();
-        const board = this.gameState.getBoard();
-        for (let r = 0; r < 8; r++) {
-          for (let c = 0; c < 8; c++) {
-            const piece = board[r]?.[c];
-            if (piece && piece.type === "k" && piece.color === (turn === "white" ? "w" : "b")) {
-              const file = String.fromCharCode(97 + c);
-              const rank = String(8 - r);
-              this.checkSquare = file + rank;
-            }
-          }
-        }
-        this.drawBoard();
       },
       onClockTick: (whiteMs, blackMs) => {
         this.config_.onClockTick?.(whiteMs, blackMs);
       },
     });
 
+    if (this.config_.moves) {
+      for (const m of this.config_.moves) {
+        this.gameState.tryMove(m.slice(0, 2), m.slice(2, 4), m.slice(4) || undefined);
+      }
+    }
+
     // Graphics layers
     this.boardGraphics = this.add.graphics().setDepth(1);
     this.highlightGraphics = this.add.graphics().setDepth(2);
 
+    this.updateCheckSquare();
     this.drawBoard();
     this.drawCoordinatesInsideBoard();
     this.drawPieces();
-
-    // Start clock
-    this.gameState.startClock();
 
     // Input handling
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (this.showPromotionDialog) return;
       this.handleClick(pointer.worldX, pointer.worldY);
     });
+  }
+
+  public syncMoves(moves: string[]) {
+    this.controller.syncMoves(moves);
+
+    // Replay moves into this.gameState so getGameState().getMaterialStats() stays in sync
+    this.gameState = new GameState(5 * 60 * 1000);
+    for (const m of moves) {
+      this.gameState.tryMove(m.slice(0, 2), m.slice(2, 4), m.slice(4) || undefined);
+    }
+
+    const last = this.controller.getLastMove();
+    if (last) {
+      this.lastMoveFrom = last.from;
+      this.lastMoveTo = last.to;
+    } else {
+      this.lastMoveFrom = null;
+      this.lastMoveTo = null;
+    }
+
+    this.selectedSquare = null;
+    this.legalTargets = [];
+    this.updateCheckSquare();
+    this.drawBoard();
+    this.drawPieces();
+  }
+
+  public setCanMove(canMove: boolean) {
+    this.config_.canMove = canMove;
+    this.controller.setCanMove(canMove);
+    if (!canMove) {
+      this.selectedSquare = null;
+      this.legalTargets = [];
+      this.drawBoard();
+    }
+  }
+
+  public setPlayerColor(color: "w" | "b" | "spectator") {
+    this.config_.playerColor = color;
+    this.controller.setPlayerColor(color);
+    this.selectedSquare = null;
+    this.legalTargets = [];
+    this.drawBoard();
+  }
+
+  private updateCheckSquare() {
+    if (this.controller.isCheck() || this.controller.isCheckmate()) {
+      const turn = this.controller.turn();
+      const board = this.controller.getBoard();
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const piece = board[r]?.[c];
+          if (piece && piece.type === "k" && piece.color === turn) {
+            const file = String.fromCharCode(97 + c);
+            const rank = String(8 - r);
+            this.checkSquare = file + rank;
+          }
+        }
+      }
+    } else {
+      this.checkSquare = null;
+    }
   }
 
   private handleClick(x: number, y: number) {
@@ -137,12 +197,16 @@ export class ChessScene extends Phaser.Scene {
       // A piece is already selected — try to move
       if (this.legalTargets.includes(square)) {
         // Check if promotion needed
-        if (this.gameState.needsPromotion(this.selectedSquare, square)) {
+        if (this.needsPromotion(this.selectedSquare, square)) {
           this.showPromotionChoice(this.selectedSquare, square);
           return;
         }
-        this.gameState.tryMove(this.selectedSquare, square);
-      } else if (this.gameState.canSelectSquare(square)) {
+        // User attempted legal move:
+        // Do NOT execute optimistic move on board!
+        // handleUserMoveAttempt triggers onMove(uci, san) and keeps board state until relay confirms
+        this.controller.handleUserMoveAttempt(this.selectedSquare, square);
+        this.deselectSquare();
+      } else if (this.controller.canSelectSquare(square)) {
         // Click on own piece — select it instead
         this.selectSquare(square);
       } else {
@@ -151,7 +215,7 @@ export class ChessScene extends Phaser.Scene {
       }
     } else {
       // No piece selected — try to select
-      if (this.gameState.canSelectSquare(square)) {
+      if (this.controller.canSelectSquare(square)) {
         this.selectSquare(square);
       }
     }
@@ -159,7 +223,7 @@ export class ChessScene extends Phaser.Scene {
 
   private selectSquare(square: string) {
     this.selectedSquare = square;
-    this.legalTargets = this.gameState.getLegalMovesFrom(square);
+    this.legalTargets = this.controller.getLegalTargets(square);
     this.drawBoard();
   }
 
@@ -169,13 +233,20 @@ export class ChessScene extends Phaser.Scene {
     this.drawBoard();
   }
 
+  private needsPromotion(from: string, to: string): boolean {
+    const piece = this.controller.getPieceAt(from);
+    if (!piece || piece.type !== "p") return false;
+    const rank = to[1];
+    return (piece.color === "w" && rank === "8") || (piece.color === "b" && rank === "1");
+  }
+
   private showPromotionChoice(from: string, to: string) {
     this.showPromotionDialog = true;
     this.pendingPromoFrom = from;
     this.pendingPromoTo = to;
 
-    const turn = this.gameState.currentTurn();
-    const isWhite = turn === "white";
+    const turn = this.controller.turn();
+    const isWhite = turn === "w";
     const pieces = ["q", "r", "b", "n"];
 
     const { px, py } = this.squareToPixel(to);
@@ -211,8 +282,9 @@ export class ChessScene extends Phaser.Scene {
       btn.setDepth(21);
       btn.setInteractive({ useHandCursor: true });
       btn.on("pointerdown", () => {
-        this.gameState.tryMove(from, to, piece);
+        this.controller.handleUserMoveAttempt(from, to, piece);
         this.clearPromotionDialog();
+        this.deselectSquare();
       });
       btn.on("pointerover", () => btn.setBackgroundColor("#334155"));
       btn.on("pointerout", () => btn.setBackgroundColor("#1e293b"));
@@ -270,7 +342,7 @@ export class ChessScene extends Phaser.Scene {
 
         // Legal move indicators
         if (this.legalTargets.includes(square)) {
-          const hasPiece = this.gameState.getBoardPiece(square) !== null;
+          const hasPiece = this.controller.getPieceAt(square) !== null;
           const centerX = x + this.tileSize / 2;
           const centerY = y + this.tileSize / 2;
 
@@ -353,7 +425,7 @@ export class ChessScene extends Phaser.Scene {
     this.pieceTexts.forEach((text) => text.destroy());
     this.pieceTexts.clear();
 
-    const board = this.gameState.getBoard();
+    const board = this.controller.getBoard();
 
     for (let row = 0; row < 8; row++) {
       for (let col = 0; col < 8; col++) {
@@ -450,5 +522,4 @@ export class ChessScene extends Phaser.Scene {
     this.coordTexts.forEach((t) => t.destroy());
     this.coordTexts = [];
   }
-
 }
