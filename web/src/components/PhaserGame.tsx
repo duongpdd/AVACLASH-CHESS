@@ -39,6 +39,14 @@ export default function PhaserGame({
   const callbacksRef = useRef({ onMove, onGameOver, onClockTick, onTurnChange, onSceneReady });
   callbacksRef.current = { onMove, onGameOver, onClockTick, onTurnChange, onSceneReady };
 
+  // Store latest prop values in refs to guard against async initialization race conditions
+  const movesRef = useRef(moves);
+  movesRef.current = moves;
+  const canMoveRef = useRef(canMove);
+  canMoveRef.current = canMove;
+  const playerColorRef = useRef(playerColor);
+  playerColorRef.current = playerColor;
+
   // Sync moves to active Phaser scene
   useEffect(() => {
     if (activeSceneRef.current && moves) {
@@ -95,6 +103,18 @@ export default function PhaserGame({
           create() {
             super.create();
             activeSceneRef.current = this;
+
+            // Apply latest prop values from refs in case they changed during async scene initialization
+            if (movesRef.current && movesRef.current.length > 0) {
+              this.syncMoves(movesRef.current);
+            }
+            if (canMoveRef.current !== undefined) {
+              this.setCanMove(canMoveRef.current);
+            }
+            if (playerColorRef.current) {
+              this.setPlayerColor(playerColorRef.current);
+            }
+
             setLoading(false);
             callbacksRef.current.onSceneReady?.(this);
           }
