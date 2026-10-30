@@ -403,6 +403,9 @@ export class RelayClient {
 
       case "game_finished": {
         if (this.roomId !== null && msg.roomId !== this.roomId) return;
+        this.authenticated = true;
+        this.reconnectAttempt = 0;
+        this.setStatus("connected");
         if (this.roomState) {
           this.roomState.status = "finished";
         }

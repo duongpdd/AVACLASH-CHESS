@@ -1,4 +1,5 @@
 import { Chess, type Move } from "chess.js";
+import type { GameOutcome, EndReason } from "./types.js";
 
 /**
  * Wrapper around chess.js providing a clean API for game operations.
@@ -68,6 +69,31 @@ export class ChessGame {
     // chess.js halfMoves >= 100 means 50 full moves without pawn move or capture
     return this.game.fen().split(" ")[4] !== undefined &&
       Number(this.game.fen().split(" ")[4]) >= 100;
+  }
+
+  /**
+   * Get game outcome based on board state.
+   */
+  getOutcome(): GameOutcome {
+    if (this.game.isCheckmate()) {
+      return this.game.turn() === "w" ? "black" : "white";
+    }
+    if (this.game.isDraw() || this.isDrawByFiftyMoves()) {
+      return "draw";
+    }
+    return "ongoing";
+  }
+
+  /**
+   * Get specific end reason if game is over.
+   */
+  getEndReason(): EndReason | undefined {
+    if (this.game.isCheckmate()) return "checkmate";
+    if (this.game.isStalemate()) return "stalemate";
+    if (this.game.isThreefoldRepetition()) return "repetition";
+    if (this.game.isInsufficientMaterial()) return "insufficient";
+    if (this.isDrawByFiftyMoves()) return "fifty";
+    return undefined;
   }
 
   isCheck(): boolean {

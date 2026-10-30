@@ -270,7 +270,7 @@ contract ChessEscrowInvariantTest is Test {
         console.log("Campaign invariantChallengedSampled:", c_samp);
         console.log("Campaign nonExistentRoomRevert     :", c_nonEx);
 
-        if (runCount >= 2 || (c_sub >= 20 && c_chal >= 20 && c_resC >= 20 && c_resD >= 20 && c_fin >= 20)) {
+        if (runCount >= 2 || (c_sub >= 20 && c_chal >= 20 && c_resC >= 20 && c_resD >= 20 && c_fin >= 20 && c_nonEx >= 20)) {
             assertGe(c_sub, 20, "campaign ghost_submitSingleSigned < 20");
             assertGe(c_chal, 20, "campaign ghost_challenge < 20");
             assertGe(c_resC, 20, "campaign ghost_resolveChallenge < 20");
