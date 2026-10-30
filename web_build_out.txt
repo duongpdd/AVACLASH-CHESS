@@ -9,22 +9,22 @@
 > next build
 
 ▲ Next.js 16.4.0 (Turbopack)
-✓ Running next.config.ts took 46ms
+✓ Running next.config.ts took 26ms
 - Cache Components enabled
 - Partial Prefetching enabled
 
   Creating an optimized production build ...
-✓ Compiled successfully in 506ms
+✓ Compiled successfully in 436ms
   Running TypeScript ...
 ⚠ Your version of Next.js is affected by a known security vulnerability. This command is continuing after the upgrade reminder.
 Reference: https://registry.npmjs.org/-/npm/v1/security/advisories/bulk
-  Finished TypeScript in 4.3s ...
+  Finished TypeScript in 3.5s ...
   Collecting page data using 6 workers ...
   Generating static pages using 6 workers (0/5) ...
   Generating static pages using 6 workers (1/5) 
   Generating static pages using 6 workers (2/5) 
   Generating static pages using 6 workers (3/5) 
-✓ Generating static pages using 6 workers (5/5) in 1402ms
+✓ Generating static pages using 6 workers (5/5) in 821ms
   Finalizing page optimization ...
 
 Route (app)
