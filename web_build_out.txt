@@ -10,103 +10,20 @@
 
 ▲ Next.js 16.4.3 (webpack)
 - Environments: .env.local
-✓ Running next.config.ts took 134ms
+✓ Running next.config.ts took 53ms
 - Cache Components enabled
 - Partial Prefetching enabled
 
   Creating an optimized production build ...
-⚠ Compiled with warnings in 2.1s
-
-./src/game/ChessScene.ts
-Attempted import error: 'phaser' does not contain a default export (imported as 'Phaser').
-
-Import trace for requested module:
-./src/game/ChessScene.ts
-./src/components/PhaserGame.tsx
-./src/app/game/page.tsx
-
-⚠ Compiled with warnings in 1834ms
-
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/baseAccount.js
-Module not found: Can't resolve '@base-org/account' in 'C:\Users\Admin\Desktop\PRJ1\avaclash-chess\node_modules\.pnpm\@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi\node_modules\@wagmi\connectors\dist\esm'
-
-Import trace for requested module:
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/baseAccount.js
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/exports/index.js
-../node_modules/.pnpm/wagmi@3.7.9_@tanstack+query-core@5.105.0_@tanstack+react-query@5.105.0_@types+react@19.3.0_re_ksjhvkxg6fcorbj57xf6gkcshi/node_modules/wagmi/dist/esm/exports/connectors.js
-./src/config/wagmi.ts
-./src/providers/Web3Provider.tsx
-
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/coinbaseWallet.js
-Module not found: Can't resolve '@coinbase/wallet-sdk' in 'C:\Users\Admin\Desktop\PRJ1\avaclash-chess\node_modules\.pnpm\@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi\node_modules\@wagmi\connectors\dist\esm'
-
-Import trace for requested module:
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/coinbaseWallet.js
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/exports/index.js
-../node_modules/.pnpm/wagmi@3.7.9_@tanstack+query-core@5.105.0_@tanstack+react-query@5.105.0_@types+react@19.3.0_re_ksjhvkxg6fcorbj57xf6gkcshi/node_modules/wagmi/dist/esm/exports/connectors.js
-./src/config/wagmi.ts
-./src/providers/Web3Provider.tsx
-
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/metaMask.js
-Module not found: Can't resolve '@metamask/connect-evm' in 'C:\Users\Admin\Desktop\PRJ1\avaclash-chess\node_modules\.pnpm\@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi\node_modules\@wagmi\connectors\dist\esm'
-
-Import trace for requested module:
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/metaMask.js
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/exports/index.js
-../node_modules/.pnpm/wagmi@3.7.9_@tanstack+query-core@5.105.0_@tanstack+react-query@5.105.0_@types+react@19.3.0_re_ksjhvkxg6fcorbj57xf6gkcshi/node_modules/wagmi/dist/esm/exports/connectors.js
-./src/config/wagmi.ts
-./src/providers/Web3Provider.tsx
-
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/safe.js
-Module not found: Can't resolve '@safe-global/safe-apps-sdk' in 'C:\Users\Admin\Desktop\PRJ1\avaclash-chess\node_modules\.pnpm\@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi\node_modules\@wagmi\connectors\dist\esm'
-
-Import trace for requested module:
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/safe.js
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/exports/index.js
-../node_modules/.pnpm/wagmi@3.7.9_@tanstack+query-core@5.105.0_@tanstack+react-query@5.105.0_@types+react@19.3.0_re_ksjhvkxg6fcorbj57xf6gkcshi/node_modules/wagmi/dist/esm/exports/connectors.js
-./src/config/wagmi.ts
-./src/providers/Web3Provider.tsx
-
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/safe.js
-Module not found: Can't resolve '@safe-global/safe-apps-provider' in 'C:\Users\Admin\Desktop\PRJ1\avaclash-chess\node_modules\.pnpm\@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi\node_modules\@wagmi\connectors\dist\esm'
-
-Import trace for requested module:
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/safe.js
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/exports/index.js
-../node_modules/.pnpm/wagmi@3.7.9_@tanstack+query-core@5.105.0_@tanstack+react-query@5.105.0_@types+react@19.3.0_re_ksjhvkxg6fcorbj57xf6gkcshi/node_modules/wagmi/dist/esm/exports/connectors.js
-./src/config/wagmi.ts
-./src/providers/Web3Provider.tsx
-
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/walletConnect.js
-Module not found: Can't resolve '@walletconnect/ethereum-provider' in 'C:\Users\Admin\Desktop\PRJ1\avaclash-chess\node_modules\.pnpm\@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi\node_modules\@wagmi\connectors\dist\esm'
-
-Import trace for requested module:
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/walletConnect.js
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/exports/index.js
-../node_modules/.pnpm/wagmi@3.7.9_@tanstack+query-core@5.105.0_@tanstack+react-query@5.105.0_@types+react@19.3.0_re_ksjhvkxg6fcorbj57xf6gkcshi/node_modules/wagmi/dist/esm/exports/connectors.js
-./src/config/wagmi.ts
-./src/providers/Web3Provider.tsx
-
-../node_modules/.pnpm/@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_react@19.3.0_typescript@5._xh7eey5hpvyuhx3laqd2pxoo7q/node_modules/@wagmi/core/dist/esm/tempo/Connectors.js
-Module not found: Can't resolve 'accounts' in 'C:\Users\Admin\Desktop\PRJ1\avaclash-chess\node_modules\.pnpm\@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_react@19.3.0_typescript@5._xh7eey5hpvyuhx3laqd2pxoo7q\node_modules\@wagmi\core\dist\esm\tempo'
-
-Import trace for requested module:
-../node_modules/.pnpm/@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_react@19.3.0_typescript@5._xh7eey5hpvyuhx3laqd2pxoo7q/node_modules/@wagmi/core/dist/esm/tempo/Connectors.js
-../node_modules/.pnpm/@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_react@19.3.0_typescript@5._xh7eey5hpvyuhx3laqd2pxoo7q/node_modules/@wagmi/core/dist/esm/exports/tempo.js
-../node_modules/.pnpm/@wagmi+connectors@8.2.2_@wagmi+core@3.6.7_@tanstack+query-core@5.105.0_@types+react@19.3.0_re_2tc3witz5wp6hdqcdu4xzf4lmi/node_modules/@wagmi/connectors/dist/esm/exports/index.js
-../node_modules/.pnpm/wagmi@3.7.9_@tanstack+query-core@5.105.0_@tanstack+react-query@5.105.0_@types+react@19.3.0_re_ksjhvkxg6fcorbj57xf6gkcshi/node_modules/wagmi/dist/esm/exports/connectors.js
-./src/config/wagmi.ts
-./src/providers/Web3Provider.tsx
-
-✓ Compiled successfully in 4.1s
+✓ Compiled successfully in 14.2s
   Running TypeScript ...
-  Finished TypeScript in 5.6s ...
+  Finished TypeScript in 10.0s ...
   Collecting page data using 6 workers ...
   Generating static pages using 6 workers (0/5) ...
   Generating static pages using 6 workers (1/5) 
   Generating static pages using 6 workers (2/5) 
   Generating static pages using 6 workers (3/5) 
-✓ Generating static pages using 6 workers (5/5) in 1381ms
+✓ Generating static pages using 6 workers (5/5) in 2.1s
   Finalizing page optimization ...
   Collecting build traces ...
 

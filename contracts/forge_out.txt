@@ -14,14 +14,14 @@ Ran 13 tests for test/ChessEscrowMetaTryCatch.t.sol:ChessEscrowMetaTryCatchTest
 [PASS] test_SignalGameStarted_EmitsMetaCallFailedWhenMetaLockBettingFails() (gas: 424079)
 [PASS] test_SubmitResult_DrawSuccessWhenMetaReverts() (gas: 510571)
 [PASS] test_SubmitResult_SettleSuccessWhenMetaReverts() (gas: 556507)
-Suite result: ok. 13 passed; 0 failed; 0 skipped; finished in 65.76ms (26.43ms CPU time)
+Suite result: ok. 13 passed; 0 failed; 0 skipped; finished in 55.21ms (29.11ms CPU time)
 
 Ran 102 tests for test/ChessEscrow.t.sol:ChessEscrowTest
-[PASS] testFuzz_challengeBond(uint256) (runs: 256, μ: 17502, ~: 17532)
-[PASS] testFuzz_createRoom_stakeRange(uint256) (runs: 256, μ: 183170, ~: 183197)
-[PASS] testFuzz_refundTimeout_warpAmount(uint256) (runs: 256, μ: 382496, ~: 382610)
-[PASS] testFuzz_submitResult_invalidOutcomesAndWinners(uint8,address,uint8,uint16,uint256) (runs: 256, μ: 323115, ~: 323127)
-[PASS] testFuzz_submitResult_validOutcomesAndWinners(uint8,uint8,uint16,uint256,uint256) (runs: 256, μ: 436958, ~: 435407)
+[PASS] testFuzz_challengeBond(uint256) (runs: 256, μ: 17498, ~: 17507)
+[PASS] testFuzz_createRoom_stakeRange(uint256) (runs: 256, μ: 183167, ~: 183176)
+[PASS] testFuzz_refundTimeout_warpAmount(uint256) (runs: 256, μ: 382508, ~: 382610)
+[PASS] testFuzz_submitResult_invalidOutcomesAndWinners(uint8,address,uint8,uint16,uint256) (runs: 256, μ: 323106, ~: 323121)
+[PASS] testFuzz_submitResult_validOutcomesAndWinners(uint8,uint8,uint16,uint256,uint256) (runs: 256, μ: 436897, ~: 435403)
 [PASS] test_EIP712_DomainSeparator_Matches_V2_Spec() (gas: 8555)
 [PASS] test_G1_payoffComparison_loserSignsVsChallengeWithSilentArbiter() (gas: 1285102)
 [PASS] test_G1_payoffComparison_symmetric_loserSubmitsSingleSigned() (gas: 793029)
@@ -119,7 +119,7 @@ Ran 102 tests for test/ChessEscrow.t.sol:ChessEscrowTest
 [PASS] test_withdrawProtocolFees() (gas: 466940)
 [PASS] test_withdraw_emitsEvent() (gas: 246499)
 [PASS] test_withdraw_revert_nothingToWithdraw() (gas: 41560)
-Suite result: ok. 102 passed; 0 failed; 0 skipped; finished in 66.08ms (273.20ms CPU time)
+Suite result: ok. 102 passed; 0 failed; 0 skipped; finished in 67.34ms (269.49ms CPU time)
 
 Ran 24 tests for test/AvaClashMeta.t.sol:AvaClashMetaTest
 [PASS] test_AntiWinTradingDeltaReduction() (gas: 223092)
@@ -146,7 +146,7 @@ Ran 24 tests for test/AvaClashMeta.t.sol:AvaClashMetaTest
 [PASS] test_SpectatorReward_GrossFeeConservationMultipleBettors() (gas: 470366)
 [PASS] test_UpdateEloOnSettle() (gas: 117128)
 [PASS] test_UpdateElo_revert_notEscrow() (gas: 39462)
-Suite result: ok. 24 passed; 0 failed; 0 skipped; finished in 66.26ms (51.24ms CPU time)
+Suite result: ok. 24 passed; 0 failed; 0 skipped; finished in 67.69ms (56.48ms CPU time)
 
 Ran 23 tests for test/ChessEscrowMetaIntegration.t.sol:ChessEscrowMetaIntegrationTest
 [PASS] test_AbortRoom_CancelsPredictionAndRefundsSpectators() (gas: 649507)
@@ -172,7 +172,7 @@ Ran 23 tests for test/ChessEscrowMetaIntegration.t.sol:ChessEscrowMetaIntegratio
 [PASS] test_ResolveChallenge_ArbiterDeclaresDraw_MovesGE20() (gas: 1424578)
 [PASS] test_ResolveChallenge_ArbiterDeclaresWinner_MovesGE20() (gas: 1503168)
 [PASS] test_ResolveChallenge_ArbiterDeclaresWinner_MovesLT20() (gas: 1395365)
-Suite result: ok. 23 passed; 0 failed; 0 skipped; finished in 66.26ms (60.44ms CPU time)
+Suite result: ok. 23 passed; 0 failed; 0 skipped; finished in 67.56ms (72.20ms CPU time)
 
 Ran 2 tests for test/invariants/ChessEscrowInvariant.t.sol:ChessEscrowInvariantTest
 [PASS] invariant_solvencyConservation() (runs: 1, calls: 1500, reverts: 0)
@@ -180,43 +180,43 @@ Ran 2 tests for test/invariants/ChessEscrowInvariant.t.sol:ChessEscrowInvariantT
 ╭--------------------+-------------------------------+-------+---------+----------╮
 | Contract           | Selector                      | Calls | Reverts | Discards |
 +=================================================================================+
-| ChessEscrowHandler | abortRoom                     | 76    | 0       | 0        |
+| ChessEscrowHandler | abortRoom                     | 83    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
 | ChessEscrowHandler | cancelRoom                    | 82    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | challengeAction               | 79    | 0       | 0        |
+| ChessEscrowHandler | challengeAction               | 89    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | createRoom                    | 86    | 0       | 0        |
+| ChessEscrowHandler | createRoom                    | 73    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | finalizeSingleSignedAction    | 78    | 0       | 0        |
+| ChessEscrowHandler | finalizeSingleSignedAction    | 79    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | joinRoom                      | 85    | 0       | 0        |
+| ChessEscrowHandler | joinRoom                      | 88    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | pauseAction                   | 73    | 0       | 0        |
+| ChessEscrowHandler | pauseAction                   | 71    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | refundOnTimeoutAction         | 77    | 0       | 0        |
+| ChessEscrowHandler | refundOnTimeoutAction         | 72    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | resolveChallengeAction        | 72    | 0       | 0        |
+| ChessEscrowHandler | resolveChallengeAction        | 97    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | resolveDefaultChallengeAction | 92    | 0       | 0        |
+| ChessEscrowHandler | resolveDefaultChallengeAction | 73    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | setSingleSignedEnabledAction  | 85    | 0       | 0        |
+| ChessEscrowHandler | setSingleSignedEnabledAction  | 74    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | signalGameStartedAction       | 84    | 0       | 0        |
+| ChessEscrowHandler | signalGameStartedAction       | 73    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | submitResultDual              | 84    | 0       | 0        |
+| ChessEscrowHandler | submitResultDual              | 71    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | submitResultRelay             | 64    | 0       | 0        |
+| ChessEscrowHandler | submitResultRelay             | 79    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | submitSingleSignedAction      | 91    | 0       | 0        |
+| ChessEscrowHandler | submitSingleSignedAction      | 75    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | tryNonExistentRoomActions     | 51    | 0       | 0        |
+| ChessEscrowHandler | tryNonExistentRoomActions     | 97    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | unpauseAction                 | 64    | 0       | 0        |
+| ChessEscrowHandler | unpauseAction                 | 81    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | withdraw                      | 92    | 0       | 0        |
+| ChessEscrowHandler | withdraw                      | 67    | 0       | 0        |
 |--------------------+-------------------------------+-------+---------+----------|
-| ChessEscrowHandler | withdrawProtocolFees          | 85    | 0       | 0        |
+| ChessEscrowHandler | withdrawProtocolFees          | 76    | 0       | 0        |
 ╰--------------------+-------------------------------+-------+---------+----------╯
 
 Logs:
@@ -226,26 +226,26 @@ Logs:
   ================================================================================
   Total Invariant Calls Executed : 1501
   --------------------------------------------------------------------------------
-  createRoom                     : 75
-  joinRoom                       : 42
-  signalGameStarted              : 78
+  createRoom                     : 65
+  joinRoom                       : 40
+  signalGameStarted              : 68
   cancelRoom                     : 71
-  abortRoom                      : 67
-  submitResult (Dual Player Sigs): 77
-  submitResult (Player + Relay)  : 59
-  submitSingleSigned (Bond Sub)  : 218
-  challenge (Bond Challenge)     : 152
-  resolveChallenge (Arbiter Bond): 66
-  resolveDefaultChallenge (Bond) : 85
-  finalizeSingleSigned (Bond Payout): 65
-  refundOnTimeout                : 67
-  withdraw (Pull Payment)        : 81
-  withdrawProtocolFees           : 57
-  pause                          : 37
-  unpause                        : 37
-  setSingleSignedEnabled         : 95
-  invariant (Challenged sampled) : 551
-  nonExistentRoomRevert          : 45
+  abortRoom                      : 73
+  submitResult (Dual Player Sigs): 66
+  submitResult (Player + Relay)  : 76
+  submitSingleSigned (Bond Sub)  : 220
+  challenge (Bond Challenge)     : 153
+  resolveChallenge (Arbiter Bond): 91
+  resolveDefaultChallenge (Bond) : 62
+  finalizeSingleSigned (Bond Payout): 67
+  refundOnTimeout                : 64
+  withdraw (Pull Payment)        : 65
+  withdrawProtocolFees           : 52
+  pause                          : 42
+  unpause                        : 42
+  setSingleSignedEnabled         : 86
+  invariant (Challenged sampled) : 609
+  nonExistentRoomRevert          : 89
   ================================================================================
 
 [PASS] test_scriptedScenarioCoverage() (gas: 568753393)
@@ -278,6 +278,6 @@ Logs:
   nonExistentRoomRevert          : 330
   ================================================================================
 
-Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 13.73s (15.74s CPU time)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 13.64s (15.38s CPU time)
 
-Ran 5 test suites in 13.74s (13.99s CPU time): 164 tests passed, 0 failed, 0 skipped (164 total tests)
+Ran 5 test suites in 13.64s (13.89s CPU time): 164 tests passed, 0 failed, 0 skipped (164 total tests)
