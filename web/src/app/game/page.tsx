@@ -162,6 +162,18 @@ function GameContent() {
   const [showResignConfirm, setShowResignConfirm] = useState(false);
   const [showDrawOfferModal, setShowDrawOfferModal] = useState(false);
   const [focusAlert, setFocusAlert] = useState<string | null>(null);
+  const [relayErrorToast, setRelayErrorToast] = useState<string | null>(null);
+
+  // Auto-dismissing notification for relay errors ("Đến lượt đối thủ", "Nước đi không hợp lệ", ...)
+  useEffect(() => {
+    if (relaySession.error) {
+      setRelayErrorToast(relaySession.error);
+      const timer = setTimeout(() => {
+        setRelayErrorToast(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [relaySession.error]);
 
   const sceneRef = useRef<ChessScene | null>(null);
   const [materialStats, setMaterialStats] = useState<MaterialStats>({
@@ -324,6 +336,27 @@ function GameContent() {
         <div className="rounded-xl border border-orange-500/40 bg-orange-500/20 px-4 py-2 text-orange-200 text-xs flex items-center gap-2">
           <span>👀</span>
           <span>{focusAlert}</span>
+        </div>
+      )}
+
+      {/* Relay Error Toast Notification */}
+      {relayErrorToast && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="rounded-xl border border-rose-500/50 bg-rose-950/80 px-4 py-2.5 text-rose-200 text-xs sm:text-sm flex items-center justify-between gap-3 shadow-lg shadow-rose-950/40 animate-fade-in"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">⚠️</span>
+            <span className="font-medium">{relayErrorToast}</span>
+          </div>
+          <button
+            onClick={() => setRelayErrorToast(null)}
+            className="text-rose-400 hover:text-rose-100 text-xs font-bold px-1.5 py-0.5 rounded border border-rose-500/30 hover:border-rose-400 transition-colors"
+            title="Đóng thông báo"
+          >
+            ✕
+          </button>
         </div>
       )}
 

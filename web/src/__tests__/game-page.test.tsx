@@ -417,5 +417,42 @@ describe("GamePage Online Mode Component Tests (Turn 3c-2-fix Item 5)", () => {
 
       expect(relay.sendFocusWarning).toHaveBeenCalled();
     });
+
+    it("displays relay errors as auto-dismissing notifications on game page", () => {
+      vi.useFakeTimers();
+      try {
+        setMockRoomData({
+          playerA: "0x1111111111111111111111111111111111111111",
+          playerB: "0x2222222222222222222222222222222222222222",
+          stake: BigInt("100000000000000000"),
+          status: 1, // Active
+          creatorIsWhite: true,
+          gameStarted: true,
+        });
+
+        mockSearchParams.set("room", "10");
+        render(<GamePage />);
+
+        const relay = getMockRelayClientInstance();
+        act(() => {
+          relay.emit("error", {
+            type: "error",
+            message: "Nước đi không hợp lệ",
+          });
+        });
+
+        const errorToast = screen.getByText("Nước đi không hợp lệ");
+        expect(errorToast).toBeDefined();
+
+        // Fast forward 4 seconds
+        act(() => {
+          vi.advanceTimersByTime(4000);
+        });
+
+        expect(screen.queryByText("Nước đi không hợp lệ")).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });
