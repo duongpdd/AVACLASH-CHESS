@@ -32,6 +32,16 @@ export {
   type RelayClientEventMap,
 } from "./relay-client.js";
 
+// Proposal Verification
+export {
+  verifyResultProposal,
+  type SeenTerminalEvents,
+  type VerifyResultParams,
+  type VerifyResultSuccess,
+  type VerifyResultFailure,
+  type VerifyResultOutcome,
+} from "./verify-result.js";
+
 // Zod schemas
 export {
   authChallengeSchema,
