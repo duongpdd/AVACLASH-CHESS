@@ -398,5 +398,22 @@ Ba tệp kết xuất thô đã được sinh ra đầy đủ tại thư mục g
 
 ---
 
-## 5. Mục Chưa Làm / Khác Dự Kiến
-- **Không có.** Toàn bộ 7 mục (từ Mục 0 đến Mục 6 và Mục 7) đều được thực hiện đầy đủ, chính xác theo đúng yêu cầu đặc tả của Lượt 3c-2-fix.
+## 5. Mục Chưa Làm / Khác Dự Kiến: Giải Trình Về Kiểm Thử Thủ Công Bằng Hai Trình Duyệt
+
+### Hiện trạng thực tế:
+- **Ở Lượt 3c-2 ban đầu:** Yêu cầu Mục 5 đề ra là *thử thủ công bằng hai trình duyệt (một thường, một ẩn danh) hoặc hai hồ sơ*. Tuy nhiên, agent ở Lượt 3c-2 đã **thay thế mục này bằng tệp kiểm thử tự động toàn diện qua Node.js** ([`packages/relay/tests/e2e-turn3c2.test.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/relay/tests/e2e-turn3c2.test.ts) gồm 9 kịch bản end-to-end với Anvil và RelayServer thật) và **chưa thực sự mở hai cửa sổ trình duyệt GUI** ngoài đời thực. Việc không ghi rõ điều này vào mục "Chưa làm / khác dự kiến" của `REPORT_LUOT3C2.md` là một thiếu sót.
+
+### Các điểm nghẽn kỹ thuật khi thử nghiệm thực tế trên hai trình duyệt (và giải pháp đã bổ sung):
+1. **Lỗi WebSocket 403 Forbidden (Origin Header):**
+   - *Hiện tượng:* Khi mở web trên trình duyệt (`http://localhost:3000`), trình duyệt tự động gửi header `Origin: http://localhost:3000` khi khởi tạo WebSocket đến Relay (`ws://localhost:8080`). Nếu Relay không được cấu hình biến môi trường `ALLOWED_ORIGINS`, hàm `verifyClient` trong [`RelayServer.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/relay/src/RelayServer.ts) sẽ lập tức từ chối kết nối với mã lỗi HTTP `403 Forbidden: Origin not allowed`.
+   - *Khắc phục:* Đã bổ sung `ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000` và `ALLOW_NO_ORIGIN=true` vào cấu hình mẫu trong [`scripts/dev-local.mjs`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/scripts/dev-local.mjs).
+2. **Trình duyệt Ẩn danh (Incognito / InPrivate) bị thiếu Extension Ví:**
+   - *Hiện tượng:* Trình duyệt Chromium mặc định vô hiệu hóa tất cả các extension (bao gồm MetaMask / Rabby / Core) khi mở tab Ẩn danh. Do đó, tab ẩn danh hoàn toàn không có `window.ethereum`, Wagmi kích hoạt giao diện chặn *"Yêu cầu kết nối ví"* và không thể ký hay chơi cờ.
+   - *Cách xử lý đúng:* Phải mở 2 hồ sơ người dùng riêng biệt (Profile 1 và Profile 2 của Edge hoặc Chrome), hoặc vào cài đặt extension bật tùy chọn *"Allow in InPrivate / Cho phép trong tab ẩn danh"*.
+3. **Hai tài khoản Anvil riêng biệt cho hai bên:**
+   - Người chơi Trắng cần dùng Anvil Account 4 (`0x15d...`), người chơi Đen cần dùng Anvil Account 5 (`0x996...`). Cả hai tài khoản phải được nạp mạng RPC `http://127.0.0.1:8545` (Chain ID 31337).
+4. **Trình tự ký ví trên UI:**
+   - Khi vào phòng: Ví popup yêu cầu ký EIP-712 `Join`.
+   - Khi ván kết thúc: Ví popup yêu cầu ký EIP-712 `Result` (2-trong-3), sau đó popup tiếp giao dịch on-chain `submitResult` lên Anvil. Sau khi giao dịch được đào vào block, số dư `pendingWithdrawals` hiện lên và cho phép ấn nút "Rút tiền".
+
+
