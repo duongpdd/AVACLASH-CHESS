@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import WebSocket from "ws";
 import fs from "node:fs";
 import path from "node:path";
@@ -23,6 +23,7 @@ import {
 import {
   RelayClient,
   verifyResultProposal,
+  submitResultFlow,
   buildResultTypedData,
   ZERO_ADDRESS,
   OutcomeCode,
@@ -870,6 +871,29 @@ describe("Turn 3c-2 End-to-End RelayClient & Settlement Integration", () => {
     if (!verification.valid) {
       expect(verification.error).toContain("Replay indicates black checkmated opponent");
     }
+
+    // Client/hook level test: proposal tampered -> submit flow rejects, signTypedData and writeContract are NOT called
+    const signTypedDataMock = vi.fn();
+    const writeContractMock = vi.fn();
+
+    const flowResult = await submitResultFlow({
+      proposal: tamperedProposal,
+      relaySignature: ("0x" + "bb".repeat(65)) as Hex,
+      moves: clientB.getMoves(),
+      whiteAddress: playerAAccount.address,
+      blackAddress: playerBAccount.address,
+      roomId,
+      chainId: 31337,
+      escrowAddress,
+      now: Math.floor(Date.now() / 1000),
+      signTypedData: signTypedDataMock,
+      writeContract: writeContractMock,
+    });
+
+    expect(flowResult.success).toBe(false);
+    expect(flowResult.error).toContain("Replay indicates black checkmated opponent");
+    expect(signTypedDataMock).toHaveBeenCalledTimes(0);
+    expect(writeContractMock).toHaveBeenCalledTimes(0);
 
     // Client refuses to sign or submit -> on-chain room remains Active (status = 1)
     const roomOnChain: any = await anvil!.publicClient.readContract({

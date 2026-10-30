@@ -32,7 +32,7 @@ export {
   type RelayClientEventMap,
 } from "./relay-client.js";
 
-// Proposal Verification
+// Proposal Verification & Submit Flow
 export {
   verifyResultProposal,
   type SeenTerminalEvents,
@@ -41,6 +41,12 @@ export {
   type VerifyResultFailure,
   type VerifyResultOutcome,
 } from "./verify-result.js";
+
+export {
+  submitResultFlow,
+  type SubmitResultFlowParams,
+  type SubmitResultFlowResult,
+} from "./submit-flow.js";
 
 // Zod schemas
 export {
