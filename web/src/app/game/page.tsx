@@ -1,16 +1,22 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import type { GameOutcome, EndReason, PlayerColor } from "@avaclash/shared";
+import { useAccount, useChainId } from "wagmi";
+import { formatEther } from "viem";
+import type { GameOutcome, EndReason } from "@avaclash/shared";
 import type { ChessScene } from "@/game/ChessScene";
 import type { CapturedPiece, MaterialStats } from "@/game/GameState";
-import VictoryModal from "@/components/VictoryModal";
-import SpectatorPoolWidget from "@/components/SpectatorPoolWidget";
 import FujiTestnetBanner from "@/components/FujiTestnetBanner";
 import WalletBar from "@/components/WalletBar";
-import { useFairPlayGuard } from "@/hooks/useFairPlayGuard";
+import AbortRefundWidget from "@/components/AbortRefundWidget";
+import { useRoom, ROOM_STATUS_TEXT } from "@/hooks/useRoom";
+import { useRelaySession } from "@/hooks/useRelaySession";
+import { useSubmitResult } from "@/hooks/useSubmitResult";
+import { useWithdraw } from "@/hooks/useWithdraw";
+import { CHAIN_ID } from "@/config/env";
 
 // Dynamic import — no SSR for Phaser
 const PhaserGame = dynamic(() => import("@/components/PhaserGame"), {
@@ -19,7 +25,7 @@ const PhaserGame = dynamic(() => import("@/components/PhaserGame"), {
     <div className="w-[464px] h-[464px] bg-slate-950/80 rounded-lg flex items-center justify-center">
       <div className="flex items-center gap-2 text-slate-400 text-sm animate-pulse">
         <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
-        Initializing chess engine...
+        Đang khởi động bàn cờ Phaser...
       </div>
     </div>
   ),
@@ -35,45 +41,43 @@ function formatTime(ms: number): string {
 function getOutcomeMessage(outcome: GameOutcome, reason: EndReason | string): string {
   if (outcome === "draw") {
     const reasonMap: Record<string, string> = {
-      stalemate: "Stalemate",
-      repetition: "Threefold Repetition",
-      fifty: "Fifty-Move Rule",
-      insufficient: "Insufficient Material",
-      draw_agreed: "Draw Agreed",
+      stalemate: "Hòa do hết nước đi (Stalemate)",
+      repetition: "Hòa do lặp lại thế cờ 3 lần",
+      fifty: "Hòa theo quy tắc 50 nước",
+      insufficient: "Hòa do thiếu lực lượng bắt buộc",
+      draw_agreed: "Hòa theo thỏa thuận hai bên",
     };
-    return `Draw — ${reasonMap[reason] ?? reason}`;
+    return `Hòa — ${reasonMap[reason] ?? reason}`;
   }
-  const winner = outcome === "white" ? "White" : "Black";
+  const winner = outcome === "white" ? "Trắng" : "Đen";
   const reasonMap: Record<string, string> = {
-    checkmate: "Checkmate",
-    resign: "Resignation",
-    timeout: "Time Out",
+    checkmate: "Chiếu hết đối thủ",
+    resign: "Đối thủ đầu hàng",
+    timeout: "Đối thủ hết thời gian",
   };
-  return `${winner} Wins — ${reasonMap[reason] ?? reason}`;
+  return `${winner} Thắng — ${reasonMap[reason] ?? reason}`;
 }
 
 interface PlayerClockCardProps {
   name: string;
   color: "w" | "b";
-  elo?: number;
-  warnings?: number;
+  addressText: string;
   timeFormatted: string;
   isActive: boolean;
-  isLowTime?: boolean;
-  capturedPieces?: CapturedPiece[];
+  isMe: boolean;
   materialAdvantage?: number;
+  capturedPieces?: CapturedPiece[];
 }
 
 function PlayerClockCard({
   name,
   color,
-  elo = 1200,
-  warnings = 0,
+  addressText,
   timeFormatted,
   isActive,
-  isLowTime = false,
-  capturedPieces = [],
+  isMe,
   materialAdvantage = 0,
+  capturedPieces = [],
 }: PlayerClockCardProps) {
   return (
     <div
@@ -85,7 +89,6 @@ function PlayerClockCard({
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* Icon đại diện phe Trắng / Đen */}
           <div
             className={`flex h-8 w-8 items-center justify-center rounded-lg border text-xl shadow-inner ${
               color === "w"
@@ -98,37 +101,24 @@ function PlayerClockCard({
           <div>
             <div className="flex items-center gap-2">
               <span className="font-bold text-sm text-slate-100">{name}</span>
-              {/* Huy hiệu On-Chain ELO */}
-              <span className="inline-flex items-center rounded-md bg-amber-400/20 px-1.5 py-0.5 text-[10px] font-bold font-mono text-amber-300 border border-amber-400/30 shadow-sm">
-                {elo} ELO
-              </span>
-              {isActive && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping" />
-                  Turn
+              {isMe && (
+                <span className="rounded bg-amber-400/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-300 border border-amber-400/30">
+                  BẠN
                 </span>
               )}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-[11px] text-slate-400">
-                {color === "w" ? "White Pieces" : "Black Pieces"}
+              <span className="text-[11px] font-mono text-slate-400 truncate max-w-[120px] sm:max-w-[180px]">
+                {addressText}
               </span>
-              {warnings > 0 && (
-                <span className="text-[10px] font-semibold text-rose-400 bg-rose-500/15 border border-rose-500/30 px-1.5 py-0.2 rounded">
-                  ⚠️ {warnings}/3 Violations
-                </span>
-              )}
             </div>
           </div>
         </div>
 
-        {/* Đồng hồ đếm ngược */}
         <div
           className={`rounded-lg px-3 py-1 font-mono text-lg font-bold tabular-nums tracking-tight transition-colors ${
             isActive
-              ? isLowTime
-                ? "bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/50 animate-pulse"
-                : "bg-amber-400 text-slate-950 shadow-sm"
+              ? "bg-amber-400/20 text-amber-300 ring-1 ring-amber-400/40"
               : "bg-slate-950/60 text-slate-400"
           }`}
         >
@@ -136,16 +126,11 @@ function PlayerClockCard({
         </div>
       </div>
 
-      {/* Hiển thị quân đã bắt và lợi thế vật chất */}
       <div className="mt-1 flex items-center justify-between gap-2 text-xs min-h-[18px]">
-        <div className="flex flex-wrap items-center gap-0.5" aria-label="Captured pieces">
-          {capturedPieces.map((piece, index) => (
-            <span
-              key={`${piece.type}-${index}`}
-              title={piece.type}
-              className={`text-sm leading-none ${color === "w" ? "text-slate-400" : "text-amber-100"}`}
-            >
-              {piece.symbol}
+        <div className="flex flex-wrap items-center gap-0.5">
+          {capturedPieces.map((p, i) => (
+            <span key={i} className="text-sm leading-none opacity-80">
+              {p.symbol}
             </span>
           ))}
         </div>
@@ -160,53 +145,46 @@ function PlayerClockCard({
   );
 }
 
-export default function GamePage() {
-  const [moves, setMoves] = useState<{ san: string; uci: string }[]>([]);
-  const [whiteMs, setWhiteMs] = useState(5 * 60 * 1000);
-  const [blackMs, setBlackMs] = useState(5 * 60 * 1000);
-  const [currentTurn, setCurrentTurn] = useState<PlayerColor>("white");
-  const [gameResult, setGameResult] = useState<{ outcome: GameOutcome; reason: EndReason | string } | null>(null);
-  const [showDrawConfirm, setShowDrawConfirm] = useState(false);
-  const [showVictoryModal, setShowVictoryModal] = useState(false);
+function GameContent() {
+  const searchParams = useSearchParams();
+  const roomParam = searchParams.get("room");
+  const roomId = roomParam ? Number(roomParam) : undefined;
+
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+
+  const { room, refetch: refetchRoom } = useRoom(roomId);
+  const relaySession = useRelaySession(roomId);
+  const submitResultHook = useSubmitResult(roomId);
+  const { pendingBalance, withdraw, step: withdrawStep } = useWithdraw();
+  const isWithdrawing = withdrawStep === "waiting_wallet" || withdrawStep === "confirming";
+
+  const [showResignConfirm, setShowResignConfirm] = useState(false);
+  const [showDrawOfferModal, setShowDrawOfferModal] = useState(false);
+  const [focusAlert, setFocusAlert] = useState<string | null>(null);
+
+  const sceneRef = useRef<ChessScene | null>(null);
   const [materialStats, setMaterialStats] = useState<MaterialStats>({
     white: { captured: [], advantage: 0 },
     black: { captured: [], advantage: 0 },
   });
 
-  // Fair-play anti-cheat state
-  const [whiteWarnings, setWhiteWarnings] = useState(0);
-  const [blackWarnings, setBlackWarnings] = useState(0);
-  const [fairPlayAlert, setFairPlayAlert] = useState(false);
-  const [fairPlayNotice, setFairPlayNotice] = useState<{ text: string; type: "warning" | "forfeit" } | null>(null);
+  // Track client focus warning (advisory only, no clock penalty)
+  useEffect(() => {
+    const handleBlur = () => {
+      setFocusAlert("Bạn đang rời khỏi màn hình trận đấu. Hãy tập trung để tránh bị tính giờ cờ chớp!");
+    };
+    const handleFocus = () => {
+      // Keep alert visible for 3 seconds then clear
+      setTimeout(() => setFocusAlert(null), 3000);
+    };
 
-  const sceneRef = useRef<ChessScene | null>(null);
-  const movesEndRef = useRef<HTMLDivElement>(null);
-
-  const handleMove = useCallback((uci: string, san: string) => {
-    setMoves((prev) => [...prev, { san, uci }]);
-    setTimeout(() => {
-      movesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      if (sceneRef.current) {
-        setMaterialStats(sceneRef.current.getGameState().getMaterialStats());
-      }
-    }, 50);
-  }, []);
-
-  const handleGameOver = useCallback((outcome: GameOutcome, reason: EndReason | string) => {
-    setGameResult({ outcome, reason });
-    setShowVictoryModal(true);
-    if (sceneRef.current) {
-      setMaterialStats(sceneRef.current.getGameState().getMaterialStats());
-    }
-  }, []);
-
-  const handleClockTick = useCallback((wMs: number, bMs: number) => {
-    setWhiteMs(wMs);
-    setBlackMs(bMs);
-  }, []);
-
-  const handleTurnChange = useCallback((turn: PlayerColor) => {
-    setCurrentTurn(turn);
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   const handleSceneReady = useCallback((scene: unknown) => {
@@ -216,109 +194,485 @@ export default function GamePage() {
     }
   }, []);
 
-  const handleResign = useCallback(() => {
-    if (sceneRef.current && !gameResult) {
-      sceneRef.current.resign(currentTurn);
+  // When relay sends moves, keep board synchronized
+  useEffect(() => {
+    if (sceneRef.current && relaySession.moves.length > 0) {
+      // Update material stats
+      setMaterialStats(sceneRef.current.getGameState().getMaterialStats());
     }
-  }, [currentTurn, gameResult]);
+  }, [relaySession.moves]);
 
-  const handleDrawOffer = useCallback(() => {
-    if (!gameResult) {
-      setShowDrawConfirm(true);
-    }
-  }, [gameResult]);
+  // Handle board move from user interaction
+  const handleBoardMove = useCallback(
+    (uci: string, _san: string) => {
+      if (!relaySession.isMyTurn) {
+        return;
+      }
+      try {
+        relaySession.sendMove(uci);
+      } catch (err: any) {
+        console.error("[Game] Error sending move to relay:", err);
+      }
+    },
+    [relaySession]
+  );
 
-  const handleDrawAccept = useCallback(() => {
-    setShowDrawConfirm(false);
-    if (sceneRef.current && !gameResult) {
-      sceneRef.current.offerDraw();
-    }
-  }, [gameResult]);
-
-  // Fair-Play Violation Handler
-  const handleFairPlayViolation = useCallback((warningCount: number, awayMs: number) => {
-    if (gameResult) return;
-    const violator = currentTurn;
-    const penaltyMs = 10000; // 10s penalty
-    const awaySeconds = (awayMs / 1000).toFixed(1);
-
-    // Penalize clock
-    if (sceneRef.current) {
-      sceneRef.current.deductTime(violator, penaltyMs);
-    }
-
-    if (violator === "white") {
-      setWhiteWarnings((prev) => {
-        const next = prev + 1;
-        if (next >= 3) {
-          // 3rd violation: Forfeit by Fair-Play Violation
-          if (sceneRef.current) {
-            sceneRef.current.forfeit("white", "timeout");
-          }
-          setGameResult({ outcome: "black", reason: "Fair-Play Violation (3 Tab Switches)" });
-          setShowVictoryModal(true);
-          setFairPlayNotice({
-            text: `🚨 White accumulated 3 fair-play violations: Technical Forfeit!`,
-            type: "forfeit",
-          });
-        } else {
-          setFairPlayNotice({
-            text: `⚠️ Tab Switch Detected: White away for ${awaySeconds}s (-10s penalty applied, Violation ${next}/3)`,
-            type: "warning",
-          });
-        }
-        return next;
-      });
-    } else {
-      setBlackWarnings((prev) => {
-        const next = prev + 1;
-        if (next >= 3) {
-          // 3rd violation: Forfeit by Fair-Play Violation
-          if (sceneRef.current) {
-            sceneRef.current.forfeit("black", "timeout");
-          }
-          setGameResult({ outcome: "white", reason: "Fair-Play Violation (3 Tab Switches)" });
-          setShowVictoryModal(true);
-          setFairPlayNotice({
-            text: `🚨 Black accumulated 3 fair-play violations: Technical Forfeit!`,
-            type: "forfeit",
-          });
-        } else {
-          setFairPlayNotice({
-            text: `⚠️ Tab Switch Detected: Black away for ${awaySeconds}s (-10s penalty applied, Violation ${next}/3)`,
-            type: "warning",
-          });
-        }
-        return next;
-      });
-    }
-
-    setFairPlayAlert(true);
-    setTimeout(() => {
-      setFairPlayAlert(false);
-    }, 6000);
-  }, [currentTurn, gameResult]);
-
-  // Activate FairPlay Guard when game is ongoing
-  useFairPlayGuard(!gameResult && moves.length > 0, handleFairPlayViolation);
-
-  // Nhóm các nước đi thành cặp (1. e4 e5)
-  const movePairs: { moveNumber: number; white: string; black?: string }[] = [];
-  for (let i = 0; i < moves.length; i += 2) {
-    movePairs.push({
-      moveNumber: Math.floor(i / 2) + 1,
-      white: moves[i]!.san,
-      black: moves[i + 1]?.san,
-    });
+  // If room parameter is missing
+  if (roomId === undefined || isNaN(roomId)) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto space-y-4">
+        <div className="text-4xl">♟️</div>
+        <h2 className="text-xl font-bold text-slate-100">Chưa chọn phòng thi đấu</h2>
+        <p className="text-sm text-slate-400">
+          Vui lòng chọn một phòng từ Sảnh Đấu (Lobby) hoặc truy cập với đường dẫn hợp lệ:{" "}
+          <code className="text-amber-400 font-mono">/game?room=&lt;id&gt;</code>.
+        </p>
+        <Link
+          href="/"
+          className="rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 shadow-lg shadow-amber-500/20 transition-all"
+        >
+          Quay lại Sảnh Đấu
+        </Link>
+      </div>
+    );
   }
 
-  const isWhiteTurn = currentTurn === "white";
-  const currentMoveNumber = Math.floor(moves.length / 2) + 1;
+  // If wallet not connected
+  if (!isConnected) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto space-y-4">
+        <div className="text-4xl">🦊</div>
+        <h2 className="text-xl font-bold text-slate-100">Yêu cầu kết nối ví</h2>
+        <p className="text-sm text-slate-400">
+          Bạn cần kết nối ví Web3 để xác thực phiên chơi và ký các nước đi / kết quả thi đấu qua máy chủ relay.
+        </p>
+        <WalletBar />
+      </div>
+    );
+  }
+
+  // If wrong network
+  if (chainId !== CHAIN_ID) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto space-y-4">
+        <div className="text-4xl">⚠️</div>
+        <h2 className="text-xl font-bold text-rose-400">Sai mạng kết nối</h2>
+        <p className="text-sm text-slate-400">
+          Ví của bạn đang kết nối vào Chain ID: <span className="font-mono text-white">{chainId}</span>. Vui lòng
+          chuyển ví sang mạng mục tiêu (<span className="font-mono text-amber-400">{CHAIN_ID}</span>).
+        </p>
+      </div>
+    );
+  }
+
+  const whiteAddress =
+    room?.creatorIsWhite ? room.playerA : room?.playerB;
+  const blackAddress =
+    room?.creatorIsWhite ? room?.playerB : room?.playerA;
+
+  const isWhiteMe =
+    address && whiteAddress && address.toLowerCase() === whiteAddress.toLowerCase();
+  const isBlackMe =
+    address && blackAddress && address.toLowerCase() === blackAddress.toLowerCase();
+
+  const isGameOver =
+    relaySession.gameFinished ||
+    relaySession.roomState?.status === "finished" ||
+    (room && room.status >= 2);
+
+  const whiteName = isWhiteMe ? "Bạn (Trắng)" : "Người chơi Trắng";
+  const blackName = isBlackMe ? "Bạn (Đen)" : "Người chơi Đen";
+
+  const topPlayer = relaySession.myColor === "b" ? "w" : "b";
+  const bottomPlayer = relaySession.myColor === "b" ? "b" : "w";
 
   return (
-    <div className="h-dvh w-full overflow-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-indigo-950 text-slate-100 flex flex-col select-none">
+    <div className="flex flex-col gap-4 max-w-5xl w-full mx-auto">
+      {/* Reconnection Banner */}
+      {relaySession.isReconnecting && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/20 px-4 py-2 text-amber-300 text-xs font-semibold flex items-center justify-between animate-pulse">
+          <div className="flex items-center gap-2">
+            <span>🔄</span>
+            <span>
+              Đang kết nối lại với máy chủ relay... Đồng hồ vẫn tiếp tục tính giờ theo dữ liệu mới nhất.
+            </span>
+          </div>
+          <button
+            onClick={relaySession.reconnect}
+            className="rounded bg-amber-400 text-slate-950 font-bold px-2 py-0.5 text-[11px] hover:bg-amber-300"
+          >
+            Thử lại ngay
+          </button>
+        </div>
+      )}
+
+      {/* Focus Alert Banner */}
+      {focusAlert && (
+        <div className="rounded-xl border border-orange-500/40 bg-orange-500/20 px-4 py-2 text-orange-200 text-xs flex items-center gap-2">
+          <span>👀</span>
+          <span>{focusAlert}</span>
+        </div>
+      )}
+
+      {/* Incoming Draw Offer Modal / Banner */}
+      {relaySession.incomingDrawOffer && !isGameOver && (
+        <div className="rounded-xl border border-blue-500/40 bg-blue-500/20 p-3 text-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <span>🤝</span>
+            <span>Đối thủ vừa gửi lời đề nghị HÒA. Bạn có đồng ý kết thúc hòa không?</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={relaySession.sendDrawAccept}
+              className="rounded-lg bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow"
+            >
+              Chấp nhận hòa
+            </button>
+            <button
+              onClick={relaySession.sendDrawDecline}
+              className="rounded-lg bg-slate-700 hover:bg-slate-600 px-3 py-1.5 text-xs font-bold text-slate-200"
+            >
+              Từ chối
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Abort / Refund Guard when room is Active but game not started */}
+      {room && (
+        <AbortRefundWidget
+          roomId={roomId}
+          room={room}
+          onSuccess={() => refetchRoom()}
+        />
+      )}
+
+      {/* Main Game Arena */}
+      <div className="flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-5 w-full">
+        {/* Left: Clock Cards & Board */}
+        <div className="flex flex-col justify-between gap-2 w-full max-w-[480px] shrink-0">
+          {/* Top Clock Card */}
+          <PlayerClockCard
+            name={topPlayer === "w" ? whiteName : blackName}
+            color={topPlayer}
+            addressText={
+              (topPlayer === "w" ? whiteAddress : blackAddress) || "Đang chờ..."
+            }
+            timeFormatted={formatTime(
+              topPlayer === "w" ? relaySession.whiteMs : relaySession.blackMs
+            )}
+            isActive={
+              relaySession.roomState?.status === "active" &&
+              (topPlayer === "w"
+                ? relaySession.moves.length % 2 === 0
+                : relaySession.moves.length % 2 === 1)
+            }
+            isMe={topPlayer === "w" ? !!isWhiteMe : !!isBlackMe}
+            materialAdvantage={
+              topPlayer === "w"
+                ? materialStats.white.advantage
+                : materialStats.black.advantage
+            }
+            capturedPieces={
+              topPlayer === "w"
+                ? materialStats.white.captured
+                : materialStats.black.captured
+            }
+          />
+
+          {/* Phaser Board Container */}
+          <div className="relative aspect-square w-full max-w-[480px] rounded-xl p-2 bg-slate-900/90 border border-white/15 shadow-2xl flex items-center justify-center overflow-hidden">
+            <PhaserGame
+              boardSize={464}
+              flipBoard={relaySession.myColor === "b"}
+              onMove={handleBoardMove}
+              onSceneReady={handleSceneReady}
+            />
+
+            {!relaySession.isConnected && !isGameOver && (
+              <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-center z-10">
+                <span className="h-3 w-3 rounded-full bg-amber-400 animate-ping mb-3" />
+                <p className="text-sm font-semibold text-amber-200">
+                  {relaySession.connectionStatus === "connecting"
+                    ? "Đang kết nối tới máy chủ Relay..."
+                    : "Mất kết nối với Relay. Vui lòng kết nối lại để tiếp tục."}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Clock Card */}
+          <PlayerClockCard
+            name={bottomPlayer === "w" ? whiteName : blackName}
+            color={bottomPlayer}
+            addressText={
+              (bottomPlayer === "w" ? whiteAddress : blackAddress) || "Đang chờ..."
+            }
+            timeFormatted={formatTime(
+              bottomPlayer === "w" ? relaySession.whiteMs : relaySession.blackMs
+            )}
+            isActive={
+              relaySession.roomState?.status === "active" &&
+              (bottomPlayer === "w"
+                ? relaySession.moves.length % 2 === 0
+                : relaySession.moves.length % 2 === 1)
+            }
+            isMe={bottomPlayer === "w" ? !!isWhiteMe : !!isBlackMe}
+            materialAdvantage={
+              bottomPlayer === "w"
+                ? materialStats.white.advantage
+                : materialStats.black.advantage
+            }
+            capturedPieces={
+              bottomPlayer === "w"
+                ? materialStats.white.captured
+                : materialStats.black.captured
+            }
+          />
+        </div>
+
+        {/* Right: Room Status, Controls & Settlement */}
+        <div className="flex flex-col gap-4 w-full max-w-[480px] lg:max-w-[360px]">
+          {/* Room Header Info */}
+          <div className="rounded-xl border border-white/10 bg-slate-900/70 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">Phòng #{roomId}</span>
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full border font-bold ${
+                  room?.status !== undefined
+                    ? ROOM_STATUS_TEXT[room.status]?.color
+                    : "text-slate-400 border-white/10"
+                }`}
+              >
+                {room?.status !== undefined
+                  ? ROOM_STATUS_TEXT[room.status]?.label
+                  : "Đang tải..."}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-300">
+              <span>Mức cược phòng:</span>
+              <span className="font-mono font-bold text-amber-300">
+                {room?.stake ? formatEther(room.stake) : "0"} AVAX
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-300">
+              <span>Quân của bạn:</span>
+              <span className="font-bold text-slate-100">
+                {relaySession.myColor === "w"
+                  ? "Trắng (White)"
+                  : relaySession.myColor === "b"
+                  ? "Đen (Black)"
+                  : "Khán giả (Spectator)"}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-300">
+              <span>Lượt đi:</span>
+              <span className="font-bold">
+                {relaySession.moves.length % 2 === 0 ? "Trắng" : "Đen"}{" "}
+                {relaySession.isMyTurn && (
+                  <span className="text-amber-400">(Lượt của bạn)</span>
+                )}
+              </span>
+            </div>
+          </div>
+
+          {/* Action Buttons (Active Game) */}
+          {!isGameOver && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setShowResignConfirm(true)}
+                disabled={!relaySession.isConnected}
+                className="py-2 px-3 rounded-lg bg-rose-600/80 hover:bg-rose-600 text-white font-bold text-xs shadow transition-all disabled:opacity-50"
+              >
+                🏳️ Đầu hàng (Resign)
+              </button>
+
+              <button
+                onClick={() => setShowDrawOfferModal(true)}
+                disabled={!relaySession.isConnected}
+                className="py-2 px-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 font-bold text-xs shadow transition-all disabled:opacity-50"
+              >
+                🤝 Xin hòa (Offer Draw)
+              </button>
+            </div>
+          )}
+
+          {/* Game Over & Submit Result Section */}
+          {isGameOver && (
+            <div className="rounded-xl border border-amber-500/40 bg-gradient-to-br from-slate-900 to-amber-950/40 p-4 space-y-3 shadow-xl">
+              <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                <span>🏆</span>
+                <span>Ván Đã Kết Thúc</span>
+              </div>
+
+              <p className="text-xs text-slate-300">
+                {relaySession.resultProposal
+                  ? `Người thắng: ${relaySession.resultProposal.winner}`
+                  : "Ván đấu đã hoàn thành. Hãy xác nhận và nộp kết quả 2-of-3 lên hợp đồng."}
+              </p>
+
+              {/* Submit Result Action */}
+              {relaySession.resultProposal && relaySession.relaySignature ? (
+                <div className="space-y-2 pt-1">
+                  <button
+                    onClick={() => {
+                      submitResultHook.submit({
+                        proposal: relaySession.resultProposal!,
+                        relaySignature: relaySession.relaySignature!,
+                        moves: relaySession.moves,
+                        white: (whiteAddress || "0x0") as `0x${string}`,
+                        black: (blackAddress || "0x0") as `0x${string}`,
+                        seenEvents: relaySession.seenEvents,
+                        onRequestNewResult: relaySession.requestResult,
+                      });
+                    }}
+                    disabled={
+                      submitResultHook.isSubmitting ||
+                      submitResultHook.isSuccess ||
+                      room?.status === 2
+                    }
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold text-xs shadow-lg transition-all disabled:opacity-50"
+                  >
+                    {room?.status === 2
+                      ? "Phòng đã Settled"
+                      : submitResultHook.isSubmitting
+                      ? "Đang xác thực & nộp..."
+                      : "Ký & Nộp kết quả (2-trong-3)"}
+                  </button>
+
+                  {submitResultHook.needsNewProposal && (
+                    <button
+                      onClick={relaySession.requestResult}
+                      className="w-full py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold"
+                    >
+                      Xin chữ ký mới từ Relay (request_result)
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={relaySession.requestResult}
+                  className="w-full py-2 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs border border-amber-500/40"
+                >
+                  Lấy chữ ký kết quả từ Relay
+                </button>
+              )}
+
+              {submitResultHook.error && (
+                <div className="rounded-lg bg-rose-500/20 border border-rose-500/40 p-2 text-rose-300 text-xs">
+                  ⚠️ {submitResultHook.error}
+                </div>
+              )}
+
+              {/* Withdrawal info when settled */}
+              <div className="border-t border-white/10 pt-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400">Số dư khả dụng (pending):</span>
+                  <span className="font-mono font-bold text-emerald-400">
+                    {formatEther(pendingBalance)} AVAX
+                  </span>
+                </div>
+                {pendingBalance > BigInt(0) && (
+                  <button
+                    onClick={() => withdraw()}
+                    disabled={isWithdrawing}
+                    className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow"
+                  >
+                    {isWithdrawing ? "Đang rút..." : "Rút tiền về ví (Withdraw)"}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Moves List History */}
+          <div className="rounded-xl border border-white/10 bg-slate-900/70 p-4 flex-1 flex flex-col min-h-[160px] max-h-[260px] overflow-hidden">
+            <span className="text-xs font-bold text-slate-300 mb-2">
+              Lịch Sử Nước Đi ({relaySession.moves.length})
+            </span>
+            <div className="flex-1 overflow-y-auto font-mono text-xs text-slate-400 space-y-1 pr-1">
+              {relaySession.moves.map((m, i) => (
+                <div key={i} className="flex items-center justify-between py-0.5 border-b border-white/5">
+                  <span className="text-slate-500">#{i + 1}</span>
+                  <span className="text-slate-200">{m}</span>
+                </div>
+              ))}
+              {relaySession.moves.length === 0 && (
+                <div className="text-slate-600 text-center py-6">Chưa có nước đi nào</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Resign Confirm Dialog */}
+      {showResignConfirm && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="rounded-2xl border border-rose-500/40 bg-slate-900 p-6 max-w-sm w-full space-y-4 shadow-2xl">
+            <h3 className="text-base font-bold text-rose-300">Xác nhận đầu hàng</h3>
+            <p className="text-xs text-slate-300">
+              Bạn có chắc chắn muốn đầu hàng ván đấu này không? Đối thủ sẽ được công nhận chiến thắng và nhận toàn bộ tiền cược.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowResignConfirm(false)}
+                className="py-1.5 px-3 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={() => {
+                  setShowResignConfirm(false);
+                  relaySession.sendResign();
+                }}
+                className="py-1.5 px-3 rounded-lg bg-rose-600 text-white text-xs font-bold"
+              >
+                Đồng ý đầu hàng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Offer Draw Modal */}
+      {showDrawOfferModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="rounded-2xl border border-white/10 bg-slate-900 p-6 max-w-sm w-full space-y-4 shadow-2xl">
+            <h3 className="text-base font-bold text-slate-100">Gửi đề nghị hòa</h3>
+            <p className="text-xs text-slate-300">
+              Bạn có muốn gửi lời mời hòa cờ tới đối thủ không? Nếu đối thủ chấp nhận, ván đấu sẽ kết thúc hòa và tiền cược được hoàn lại cho cả hai người.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowDrawOfferModal(false)}
+                className="py-1.5 px-3 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold"
+              >
+                Đóng
+              </button>
+              <button
+                onClick={() => {
+                  setShowDrawOfferModal(false);
+                  relaySession.sendDrawOffer();
+                }}
+                className="py-1.5 px-3 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold"
+              >
+                Gửi đề nghị hòa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function GamePage() {
+  return (
+    <div className="min-h-dvh w-full bg-gradient-to-br from-gray-950 via-gray-900 to-indigo-950 text-slate-100 flex flex-col select-none">
       <FujiTestnetBanner />
-      {/* Header */}
       <header className="h-14 shrink-0 border-b border-white/10 bg-slate-950/60 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between z-10 gap-2">
         <Link href="/" className="flex items-center gap-2.5 group">
           <span className="text-2xl text-amber-400 transition-transform group-hover:scale-110">
@@ -328,258 +682,22 @@ export default function GamePage() {
             AvaClash Chess
           </span>
         </Link>
-
         <div className="flex items-center gap-3">
           <WalletBar />
         </div>
       </header>
 
-      {/* Thông báo vi phạm Fair-Play nếu có */}
-      {fairPlayNotice && (
-        <div
-          className={`shrink-0 px-4 py-2 text-center text-xs font-semibold flex items-center justify-center gap-3 transition-all ${
-            fairPlayNotice.type === "forfeit"
-              ? "bg-rose-600/90 text-white shadow-lg"
-              : "bg-amber-500/20 border-b border-amber-500/40 text-amber-200"
-          }`}
+      <main className="flex-1 min-h-0 flex items-center justify-center p-3 lg:p-4 overflow-y-auto">
+        <Suspense
+          fallback={
+            <div className="text-sm text-slate-400 animate-pulse">
+              Đang tải thông tin ván đấu...
+            </div>
+          }
         >
-          <span>{fairPlayNotice.text}</span>
-          <button
-            type="button"
-            onClick={() => setFairPlayNotice(null)}
-            className="text-slate-400 hover:text-white text-sm"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      {/* Khu vực bàn cờ & bảng điều khiển */}
-      <main className="flex-1 min-h-0 flex items-center justify-center p-3 lg:p-4 overflow-y-auto lg:overflow-hidden">
-        <div className="flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-5 max-w-5xl w-full">
-          {/* Cột trái: đồng hồ Đen + bàn cờ Phaser + đồng hồ Trắng */}
-          <div className="flex flex-col justify-between gap-2 w-full max-w-[480px] shrink-0">
-            <PlayerClockCard
-              name="Black Player"
-              color="b"
-              elo={1200}
-              warnings={blackWarnings}
-              timeFormatted={formatTime(blackMs)}
-              isActive={!isWhiteTurn && !gameResult}
-              isLowTime={blackMs < 30000}
-              capturedPieces={materialStats.black.captured}
-              materialAdvantage={materialStats.black.advantage}
-            />
-
-            {/* Khung chứa Phaser Canvas */}
-            <div className="relative aspect-square w-full max-w-[480px] rounded-xl p-2 bg-slate-900/90 border border-white/15 shadow-2xl flex items-center justify-center overflow-hidden">
-              <PhaserGame
-                boardSize={464}
-                flipBoard={false}
-                onMove={handleMove}
-                onGameOver={handleGameOver}
-                onClockTick={handleClockTick}
-                onTurnChange={handleTurnChange}
-                onSceneReady={handleSceneReady}
-              />
-            </div>
-
-            <PlayerClockCard
-              name="White Player"
-              color="w"
-              elo={1200}
-              warnings={whiteWarnings}
-              timeFormatted={formatTime(whiteMs)}
-              isActive={isWhiteTurn && !gameResult}
-              isLowTime={whiteMs < 30000}
-              capturedPieces={materialStats.white.captured}
-              materialAdvantage={materialStats.white.advantage}
-            />
-          </div>
-
-          {/* Cột phải: trạng thái, lịch sử nước đi, widget Spectator Pool và nút thao tác */}
-          <aside className="w-full max-w-[480px] lg:w-84 flex flex-col justify-between rounded-2xl border border-white/10 bg-slate-900/75 backdrop-blur-xl p-4 shadow-2xl h-full max-h-[640px] overflow-y-auto custom-scrollbar">
-            {/* Banner trạng thái / kết quả */}
-            {gameResult ? (
-              <div className="mb-3 p-3 rounded-xl bg-gradient-to-r from-amber-600/20 to-orange-600/20 border border-amber-500/30 text-center animate-fade-in">
-                <p className="text-base font-bold text-amber-300">
-                  {getOutcomeMessage(gameResult.outcome, gameResult.reason)}
-                </p>
-                <div className="mt-2.5 flex gap-2">
-                  <button
-                    onClick={() => setShowVictoryModal(true)}
-                    className="flex-1 py-1.5 rounded-lg bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 text-xs font-bold border border-amber-400/30 transition-all active:scale-[0.98]"
-                  >
-                    View Trophy
-                  </button>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="flex-1 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-all shadow-md active:scale-[0.98]"
-                  >
-                    Play Again
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="mb-2.5 flex items-center justify-between rounded-xl bg-slate-800/80 border border-white/10 px-3.5 py-2">
-                <div className="flex items-center gap-2.5">
-                  <span
-                    className={`h-3 w-3 rounded-full transition-all ${
-                      isWhiteTurn
-                        ? "bg-white shadow-[0_0_8px_#fff]"
-                        : "bg-slate-950 border border-slate-400 shadow-[0_0_8px_rgba(0,0,0,0.8)]"
-                    }`}
-                  />
-                  <span className="text-sm font-bold text-slate-100">
-                    {isWhiteTurn ? "White to move" : "Black to move"}
-                  </span>
-                </div>
-                <span className="text-[11px] font-medium text-amber-400">
-                  In Progress
-                </span>
-              </div>
-            )}
-
-            {/* Bảng lịch sử nước đi (SAN) với custom scrollbar */}
-            <div className="flex-1 min-h-[140px] max-h-[180px] flex flex-col rounded-xl border border-white/10 bg-slate-950/60 overflow-hidden mb-2.5">
-              <div className="grid grid-cols-7 border-b border-white/10 bg-slate-900/90 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                <span className="col-span-1">#</span>
-                <span className="col-span-3">White</span>
-                <span className="col-span-3">Black</span>
-              </div>
-
-              <div className="flex-1 overflow-y-auto divide-y divide-white/5 text-sm font-mono custom-scrollbar">
-                {movePairs.length === 0 ? (
-                  <div className="h-full min-h-[100px] flex flex-col items-center justify-center text-slate-500 p-4 text-center font-sans">
-                    <span className="text-xl mb-1 opacity-50">♟</span>
-                    <p className="text-xs">No moves yet. Click a white piece to start!</p>
-                  </div>
-                ) : (
-                  movePairs.map((pair, idx) => (
-                    <div
-                      key={pair.moveNumber}
-                      className={`grid grid-cols-7 px-3 py-1 items-center ${
-                        idx % 2 === 0 ? "bg-transparent" : "bg-white/[0.02]"
-                      }`}
-                    >
-                      <span className="col-span-1 text-xs text-slate-500">
-                        {pair.moveNumber}.
-                      </span>
-                      <span className="col-span-3 font-medium text-slate-200">
-                        {pair.white}
-                      </span>
-                      <span className="col-span-3 font-medium text-slate-400">
-                        {pair.black ?? ""}
-                      </span>
-                    </div>
-                  ))
-                )}
-                <div ref={movesEndRef} />
-              </div>
-            </div>
-
-            {/* Widget Spectator Prediction Pool */}
-            <div className="mb-2.5">
-              <SpectatorPoolWidget currentMoveNumber={currentMoveNumber} isMatchActive={moves.length > 0} />
-            </div>
-
-            {/* Hộp thoại xác nhận hòa */}
-            {showDrawConfirm && !gameResult && (
-              <div className="mb-2 p-2.5 rounded-xl bg-slate-800 border border-slate-600 animate-fade-in">
-                <p className="text-slate-200 text-xs font-medium mb-2 text-center">
-                  Both players agree to a draw?
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleDrawAccept}
-                    className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors"
-                  >
-                    Yes, Draw
-                  </button>
-                  <button
-                    onClick={() => setShowDrawConfirm(false)}
-                    className="flex-1 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-semibold transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Cụm nút điều khiển */}
-            {!gameResult && !showDrawConfirm && (
-              <div className="space-y-1.5">
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={handleResign}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/15 hover:bg-rose-500/25 active:scale-[0.98] px-3 py-1.5 text-xs font-semibold text-rose-300 transition"
-                  >
-                    <span>🏳️</span>
-                    <span>Resign</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleDrawOffer}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-600/50 bg-slate-800/80 hover:bg-slate-700/80 active:scale-[0.98] px-3 py-1.5 text-xs font-semibold text-slate-200 transition"
-                  >
-                    <span>½</span>
-                    <span>Offer Draw</span>
-                  </button>
-                </div>
-
-                <p className="text-center text-[10px] text-slate-500">
-                  Click a piece to see legal moves • Alt+Tab &gt;2s deducts 10s
-                </p>
-              </div>
-            )}
-          </aside>
-        </div>
+          <GameContent />
+        </Suspense>
       </main>
-
-      {/* Victory / Game Over Modal */}
-      <VictoryModal
-        open={showVictoryModal}
-        winner={
-          gameResult?.outcome === "white"
-            ? "White Player"
-            : gameResult?.outcome === "black"
-            ? "Black Player"
-            : "Draw"
-        }
-        method={
-          gameResult?.reason === "checkmate"
-            ? "checkmate"
-            : gameResult?.reason === "resign"
-            ? "resignation"
-            : gameResult?.reason === "timeout"
-            ? "time out"
-            : gameResult?.reason === "stalemate"
-            ? "stalemate"
-            : gameResult?.reason === "repetition"
-            ? "threefold repetition"
-            : gameResult?.reason === "fifty"
-            ? "fifty-move rule"
-            : gameResult?.reason === "insufficient"
-            ? "insufficient material"
-            : gameResult?.reason === "draw_agreed"
-            ? "mutual agreement"
-            : gameResult?.reason ?? ""
-        }
-        movesCount={Math.ceil(moves.length / 2)}
-        timeRemaining={
-          gameResult?.outcome === "white"
-            ? formatTime(whiteMs)
-            : gameResult?.outcome === "black"
-            ? formatTime(blackMs)
-            : formatTime(isWhiteTurn ? whiteMs : blackMs)
-        }
-        avaxWager="Hot-Seat"
-        transactionStatus="not-started"
-        onPlayAgain={() => window.location.reload()}
-        onClose={() => setShowVictoryModal(false)}
-      />
     </div>
   );
 }
