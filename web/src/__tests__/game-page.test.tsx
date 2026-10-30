@@ -70,6 +70,8 @@ const {
     sendDrawDecline = vi.fn();
     sendTimeout = vi.fn();
     requestResult = vi.fn();
+    sendFocusWarning = vi.fn();
+    getSeenEvents = vi.fn().mockReturnValue({});
     getFinishedInfo = vi.fn().mockReturnValue(undefined);
   }
 
@@ -323,5 +325,97 @@ describe("GamePage Online Mode Component Tests (Turn 3c-2-fix Item 5)", () => {
     expect((refundBtn as HTMLButtonElement).disabled).toBe(false);
 
     vi.useRealTimers();
+  });
+
+  describe("Turn 3c-3 Item 3 Safeguards: Cancelled/Refunded/Aborted Room States & Focus Alert", () => {
+    it("displays 'Phòng đã hủy/hoàn tiền' instead of 'Ván Đã Kết Thúc' and hides signature request button when status is Cancelled (3)", () => {
+      setMockRoomData({
+        playerA: "0x1111111111111111111111111111111111111111",
+        playerB: "0x2222222222222222222222222222222222222222",
+        stake: BigInt("100000000000000000"),
+        status: 3, // Cancelled
+        creatorIsWhite: true,
+        gameStarted: false,
+      });
+
+      mockSearchParams.set("room", "10");
+      render(<GamePage />);
+
+      expect(screen.getByText(/Phòng đã hủy\/hoàn tiền/i)).toBeDefined();
+      expect(screen.queryByText(/Ván Đã Kết Thúc/i)).toBeNull();
+      expect(screen.queryByText(/Lấy chữ ký kết quả từ Relay/i)).toBeNull();
+      expect(screen.queryByText(/Ký & Nộp kết quả/i)).toBeNull();
+    });
+
+    it("displays 'Phòng đã hủy/hoàn tiền' for Refunded (4) and Aborted (6) statuses", () => {
+      // Test status 4 (Refunded)
+      setMockRoomData({
+        playerA: "0x1111111111111111111111111111111111111111",
+        playerB: "0x2222222222222222222222222222222222222222",
+        stake: BigInt("100000000000000000"),
+        status: 4, // Refunded
+        creatorIsWhite: true,
+        gameStarted: true,
+      });
+
+      mockSearchParams.set("room", "10");
+      const { rerender } = render(<GamePage />);
+      expect(screen.getByText(/Phòng đã hủy\/hoàn tiền/i)).toBeDefined();
+      expect(screen.queryByText(/Ván Đã Kết Thúc/i)).toBeNull();
+
+      // Test status 6 (Aborted)
+      setMockRoomData({
+        playerA: "0x1111111111111111111111111111111111111111",
+        playerB: "0x2222222222222222222222222222222222222222",
+        stake: BigInt("100000000000000000"),
+        status: 6, // Aborted
+        creatorIsWhite: true,
+        gameStarted: false,
+      });
+
+      rerender(<GamePage />);
+      expect(screen.getByText(/Phòng đã hủy\/hoàn tiền/i)).toBeDefined();
+      expect(screen.queryByText(/Ván Đã Kết Thúc/i)).toBeNull();
+    });
+
+    it("updates focus alert text to fair-play warning (no clock deduction) and sends focus_warning to relay", () => {
+      setMockRoomData({
+        playerA: "0x1111111111111111111111111111111111111111",
+        playerB: "0x2222222222222222222222222222222222222222",
+        stake: BigInt("100000000000000000"),
+        status: 1, // Active
+        creatorIsWhite: true,
+        gameStarted: true,
+      });
+
+      mockSearchParams.set("room", "10");
+      render(<GamePage />);
+
+      const relay = getMockRelayClientInstance();
+      act(() => {
+        relay.emit("roomState", {
+          type: "room_state",
+          roomId: 10,
+          white: "0x1111111111111111111111111111111111111111",
+          black: "0x2222222222222222222222222222222222222222",
+          status: "active",
+          moves: [],
+          whiteMs: 300000,
+          blackMs: 300000,
+          drawOfferedBy: null,
+        });
+      });
+
+      act(() => {
+        window.dispatchEvent(new Event("blur"));
+      });
+
+      const alertElem = screen.getByText(/Cảnh báo|rời khỏi màn hình/i);
+      expect(alertElem).toBeDefined();
+      expect(alertElem.textContent).not.toMatch(/tính giờ cờ chớp/i);
+      expect(alertElem.textContent).toMatch(/fair-play|tập trung/i);
+
+      expect(relay.sendFocusWarning).toHaveBeenCalled();
+    });
   });
 });

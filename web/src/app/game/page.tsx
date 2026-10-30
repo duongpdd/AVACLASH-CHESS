@@ -169,12 +169,17 @@ function GameContent() {
     black: { captured: [], advantage: 0 },
   });
 
+  const sendFocusWarningRef = useRef(relaySession.sendFocusWarning);
+  const myColorRef = useRef(relaySession.myColor);
+  sendFocusWarningRef.current = relaySession.sendFocusWarning;
+  myColorRef.current = relaySession.myColor;
+
   // Track client focus warning (advisory only, no clock penalty)
   useEffect(() => {
     const handleBlur = () => {
       setFocusAlert("Cảnh báo fair-play: Bạn đang rời khỏi màn hình trận đấu. Hãy tập trung để duy trì tính công bằng!");
-      if (relaySession.myColor === "w" || relaySession.myColor === "b") {
-        relaySession.sendFocusWarning?.();
+      if (myColorRef.current === "w" || myColorRef.current === "b") {
+        sendFocusWarningRef.current?.();
       }
     };
     const handleFocus = () => {
