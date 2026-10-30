@@ -7,6 +7,12 @@ export default defineConfig({
     include: ["src/**/__tests__/**/*.test.{ts,tsx}"],
     hookTimeout: 30000,
     testTimeout: 30000,
+    pool: "forks",
+    poolOptions: {
+      forks: {
+        execArgv: ["--max-old-space-size=8192"],
+      },
+    },
   },
   resolve: {
     alias: {
