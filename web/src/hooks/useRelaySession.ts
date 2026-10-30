@@ -314,6 +314,14 @@ export function useRelaySession(
     clientRef.current?.sendTimeout();
   }, []);
 
+  const sendFocusWarning = useCallback((warningCount = 1) => {
+    if (!clientRef.current) return;
+    const color = myColor === "w" || myColor === "b" ? myColor : undefined;
+    if (color) {
+      clientRef.current.sendFocusWarning(color, warningCount, 0);
+    }
+  }, [myColor]);
+
   const requestResult = useCallback(() => {
     clientRef.current?.requestResult();
   }, []);
@@ -352,6 +360,7 @@ export function useRelaySession(
     sendDrawAccept,
     sendDrawDecline,
     sendTimeout,
+    sendFocusWarning,
     requestResult,
     disconnect,
     reconnect,

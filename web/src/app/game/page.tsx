@@ -172,7 +172,10 @@ function GameContent() {
   // Track client focus warning (advisory only, no clock penalty)
   useEffect(() => {
     const handleBlur = () => {
-      setFocusAlert("Bạn đang rời khỏi màn hình trận đấu. Hãy tập trung để tránh bị tính giờ cờ chớp!");
+      setFocusAlert("Cảnh báo fair-play: Bạn đang rời khỏi màn hình trận đấu. Hãy tập trung để duy trì tính công bằng!");
+      if (relaySession.myColor === "w" || relaySession.myColor === "b") {
+        relaySession.sendFocusWarning?.();
+      }
     };
     const handleFocus = () => {
       // Keep alert visible for 3 seconds then clear
@@ -276,10 +279,14 @@ function GameContent() {
   const isBlackMe =
     address && blackAddress && address.toLowerCase() === blackAddress.toLowerCase();
 
+  const isCancelledOrRefunded =
+    Boolean(room && (room.status === 3 || room.status === 4 || room.status === 6));
+
   const isGameOver =
-    relaySession.gameFinished ||
-    relaySession.roomState?.status === "finished" ||
-    (room && room.status >= 2);
+    !isCancelledOrRefunded &&
+    (relaySession.gameFinished ||
+      relaySession.roomState?.status === "finished" ||
+      (room && room.status >= 2));
 
   const whiteName = isWhiteMe ? "Bạn (Trắng)" : "Người chơi Trắng";
   const blackName = isBlackMe ? "Bạn (Đen)" : "Người chơi Đen";
@@ -505,6 +512,39 @@ function GameContent() {
               >
                 🤝 Xin hòa (Offer Draw)
               </button>
+            </div>
+          )}
+
+          {/* Cancelled / Refunded / Aborted Room Section */}
+          {isCancelledOrRefunded && (
+            <div className="rounded-xl border border-slate-700 bg-slate-900/80 p-4 space-y-3 shadow-xl">
+              <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                <span>🚫</span>
+                <span>Phòng đã hủy/hoàn tiền</span>
+              </div>
+
+              <p className="text-xs text-slate-300">
+                Phòng này đã ở trạng thái {ROOM_STATUS_TEXT[room!.status]?.label ?? "hủy/hoàn tiền"}. Tiền cược đã được hoàn về số dư khả dụng (pending) của người chơi.
+              </p>
+
+              {/* Withdrawal info when cancelled/refunded */}
+              <div className="border-t border-white/10 pt-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400">Số dư khả dụng (pending):</span>
+                  <span className="font-mono font-bold text-emerald-400">
+                    {formatEther(pendingBalance)} AVAX
+                  </span>
+                </div>
+                {pendingBalance > BigInt(0) && (
+                  <button
+                    onClick={() => withdraw()}
+                    disabled={isWithdrawing}
+                    className="w-full py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs shadow transition-all disabled:opacity-50"
+                  >
+                    {isWithdrawing ? "Đang rút tiền..." : "Rút tiền về ví (Withdraw)"}
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

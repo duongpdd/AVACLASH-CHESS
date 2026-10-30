@@ -214,7 +214,7 @@ export function useSubmitResult(roomId?: bigint | number) {
         } else if (decoded.code === "UserRejectedRequestError") {
           setError("Giao dịch đã bị từ chối từ ví.");
         } else {
-          setError(`Giao dịch submitResult thất bại: ${decoded.message}`);
+          setError(decoded.message);
         }
         setStep("error");
       }
