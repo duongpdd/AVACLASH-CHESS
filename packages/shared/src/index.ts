@@ -23,6 +23,15 @@ export {
 export { CHESS_ESCROW_ABI } from "./abi/ChessEscrow.js";
 export { AVA_CLASH_META_ABI } from "./abi/AvaClashMeta.js";
 
+// Relay Client
+export {
+  RelayClient,
+  type ConnectionStatus,
+  type RelayClientOptions,
+  type RelayClientEventType,
+  type RelayClientEventMap,
+} from "./relay-client.js";
+
 // Zod schemas
 export {
   authChallengeSchema,
