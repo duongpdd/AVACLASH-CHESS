@@ -1,4 +1,9 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
+
+try {
+  fs.rmSync(".next", { recursive: true, force: true });
+} catch {}
 
 const cmd = process.platform === "win32" ? "npx.cmd" : "npx";
 const args = ["next", "build", "--webpack"];
