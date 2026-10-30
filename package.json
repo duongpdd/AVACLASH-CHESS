@@ -5,6 +5,7 @@
   "description": "AvaClash Chess — 1v1 chess with AVAX testnet wagering on Avalanche Fuji",
   "scripts": {
     "dev": "pnpm --filter web dev",
+    "dev:local": "node scripts/dev-local.mjs",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "build": "pnpm -r build",
