@@ -30,8 +30,59 @@ export const ERROR_MESSAGES: Record<string, string> = {
   UserRejectedRequestError: "Giao dịch đã bị từ chối từ ví.",
 };
 
-export function decodeContractError(err: unknown): string {
-  if (!err) return "Đã xảy ra lỗi không xác định.";
+export type ContractErrorCode =
+  | "StakeTooLow"
+  | "StakeTooHigh"
+  | "RoomNotFound"
+  | "RoomNotOpen"
+  | "RoomNotActive"
+  | "NotCreator"
+  | "CannotJoinOwnRoom"
+  | "WrongStakeAmount"
+  | "InvalidWinner"
+  | "InvalidSignature"
+  | "NonceAlreadyUsed"
+  | "NotAPlayer"
+  | "RefundTooEarly"
+  | "AbortTooEarly"
+  | "GameAlreadyStarted"
+  | "ChallengeWindowExpired"
+  | "ChallengeWindowNotExpired"
+  | "NoPendingSingleSigned"
+  | "NothingToWithdraw"
+  | "AlreadySettled"
+  | "NotTheWinner"
+  | "DeadlineExpired"
+  | "InsufficientBond"
+  | "RoomNotChallenged"
+  | "ArbiterDeadlineNotReached"
+  | "SingleSignedDisabled"
+  | "UserRejectedRequestError";
+
+export class DecodedContractError {
+  code?: ContractErrorCode;
+  message: string;
+
+  constructor(message: string, code?: ContractErrorCode) {
+    this.message = message;
+    this.code = code;
+  }
+
+  toString(): string {
+    return this.message;
+  }
+
+  valueOf(): string {
+    return this.message;
+  }
+
+  [Symbol.toPrimitive](): string {
+    return this.message;
+  }
+}
+
+export function decodeContractError(err: unknown): DecodedContractError {
+  if (!err) return new DecodedContractError("Đã xảy ra lỗi không xác định.");
 
   if (typeof err === "object" && err !== null) {
     const errorObj = err as any;
@@ -44,7 +95,10 @@ export function decodeContractError(err: unknown): string {
         (errorObj.message.includes("User rejected") ||
           errorObj.message.includes("rejected the request")))
     ) {
-      return "Giao dịch đã bị từ chối từ ví.";
+      return new DecodedContractError(
+        "Giao dịch đã bị từ chối từ ví.",
+        "UserRejectedRequestError"
+      );
     }
 
     // Check insufficient funds
@@ -53,7 +107,9 @@ export function decodeContractError(err: unknown): string {
       (errorObj.message.includes("insufficient funds") ||
         errorObj.message.includes("exceeds balance"))
     ) {
-      return "Số dư AVAX không đủ để thanh toán tiền cược và phí gas.";
+      return new DecodedContractError(
+        "Số dư AVAX không đủ để thanh toán tiền cược và phí gas."
+      );
     }
 
     // Walk cause tree to find ContractFunctionRevertedError or custom error name
@@ -62,26 +118,35 @@ export function decodeContractError(err: unknown): string {
       if (current instanceof ContractFunctionRevertedError) {
         const errorName = current.data?.errorName;
         if (errorName && ERROR_MESSAGES[errorName]) {
-          return ERROR_MESSAGES[errorName];
+          return new DecodedContractError(
+            ERROR_MESSAGES[errorName],
+            errorName as ContractErrorCode
+          );
         }
         if (errorName) {
-          return `Lỗi hợp đồng: ${errorName}`;
+          return new DecodedContractError(
+            `Lỗi hợp đồng: ${errorName}`,
+            errorName as ContractErrorCode
+          );
         }
       }
       if (current.data?.errorName && ERROR_MESSAGES[current.data.errorName]) {
-        return ERROR_MESSAGES[current.data.errorName];
+        return new DecodedContractError(
+          ERROR_MESSAGES[current.data.errorName],
+          current.data.errorName as ContractErrorCode
+        );
       }
       if (typeof current.shortMessage === "string") {
         for (const [errName, msg] of Object.entries(ERROR_MESSAGES)) {
           if (current.shortMessage.includes(errName)) {
-            return msg;
+            return new DecodedContractError(msg, errName as ContractErrorCode);
           }
         }
       }
       if (typeof current.message === "string") {
         for (const [errName, msg] of Object.entries(ERROR_MESSAGES)) {
           if (current.message.includes(errName)) {
-            return msg;
+            return new DecodedContractError(msg, errName as ContractErrorCode);
           }
         }
       }
@@ -89,12 +154,12 @@ export function decodeContractError(err: unknown): string {
     }
 
     if (errorObj.shortMessage) {
-      return errorObj.shortMessage;
+      return new DecodedContractError(errorObj.shortMessage);
     }
     if (errorObj.message) {
-      return errorObj.message.slice(0, 150);
+      return new DecodedContractError(errorObj.message.slice(0, 150));
     }
   }
 
-  return String(err);
+  return new DecodedContractError(String(err));
 }

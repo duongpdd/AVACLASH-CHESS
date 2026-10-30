@@ -106,7 +106,7 @@ export function useCreateRoom() {
       return hash;
     } catch (err) {
       const decoded = decodeContractError(err);
-      setErrorMessage(decoded);
+      setErrorMessage(decoded.message);
       setStep("error");
       throw err;
     }

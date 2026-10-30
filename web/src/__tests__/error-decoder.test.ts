@@ -12,7 +12,9 @@ describe("Web3 Contract Error Decoder & Hook Logic", () => {
           message: `Execution reverted with reason: ${errName}()`,
           shortMessage: `The contract function reverted: ${errName}`,
         };
-        expect(decodeContractError(errorObj)).toBe(expectedMsg);
+        const decoded = decodeContractError(errorObj);
+        expect(decoded.message).toBe(expectedMsg);
+        expect(decoded.code).toBe(errName);
       }
     });
 
@@ -22,7 +24,7 @@ describe("Web3 Contract Error Decoder & Hook Logic", () => {
         code: 4001,
         message: "User rejected the request.",
       };
-      expect(decodeContractError(userRejectError)).toBe(
+      expect(decodeContractError(userRejectError).message).toBe(
         "Giao dịch đã bị từ chối từ ví."
       );
     });
@@ -32,14 +34,14 @@ describe("Web3 Contract Error Decoder & Hook Logic", () => {
         name: "EstimateGasExecutionError",
         message: "sender doesn't have enough funds to send tx or exceeds balance",
       };
-      expect(decodeContractError(fundsError)).toBe(
+      expect(decodeContractError(fundsError).message).toBe(
         "Số dư AVAX không đủ để thanh toán tiền cược và phí gas."
       );
     });
 
     it("falls back gracefully for unknown errors", () => {
-      expect(decodeContractError(null)).toBe("Đã xảy ra lỗi không xác định.");
-      expect(decodeContractError("Random network error")).toBe(
+      expect(decodeContractError(null).message).toBe("Đã xảy ra lỗi không xác định.");
+      expect(decodeContractError("Random network error").message).toBe(
         "Random network error"
       );
     });

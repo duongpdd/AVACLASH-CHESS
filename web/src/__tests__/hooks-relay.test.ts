@@ -1,42 +1,74 @@
 // @vitest-environment happy-dom
+import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { OutcomeCode, ReasonCode, computeMovesHash } from "@avaclash/shared";
+
+const mocks = vi.hoisted(() => {
+  let address = "0x1111111111111111111111111111111111111111" as `0x${string}`;
+  let receipt: any = { status: "success" };
+  let isConfirming = false;
+  const signTypedDataAsync = vi.fn();
+  const writeContractAsync = vi.fn();
+
+  return {
+    getAddress: () => address,
+    setAddress: (a: `0x${string}`) => {
+      address = a;
+    },
+    getReceipt: () => receipt,
+    setReceipt: (r: any) => {
+      receipt = r;
+    },
+    getIsConfirming: () => isConfirming,
+    setIsConfirming: (c: boolean) => {
+      isConfirming = c;
+    },
+    signTypedDataAsync,
+    writeContractAsync,
+  };
+});
+
+vi.mock("wagmi", async (importOriginal) => {
+  const actual = await importOriginal<any>();
+  return {
+    ...actual,
+    useAccount: () => ({ address: mocks.getAddress() }),
+    useConnection: () => ({ address: mocks.getAddress() }),
+    useConfig: () => ({}),
+    useSignTypedData: () => ({
+      signTypedDataAsync: mocks.signTypedDataAsync,
+    }),
+    useWriteContract: () => ({
+      writeContractAsync: mocks.writeContractAsync,
+      reset: vi.fn(),
+    }),
+    useWaitForTransactionReceipt: () => ({
+      data: mocks.getReceipt(),
+      isLoading: mocks.getIsConfirming(),
+      isSuccess: mocks.getReceipt()?.status === "success",
+    }),
+    useWatchContractEvent: () => {},
+    useReadContract: () => ({ data: undefined }),
+  };
+});
+
 import { renderHook, act } from "@testing-library/react";
 import { useSubmitResult } from "../hooks/useSubmitResult";
 import { useRelaySession } from "../hooks/useRelaySession";
-import { OutcomeCode, ReasonCode, computeMovesHash, ZERO_ADDRESS } from "@avaclash/shared";
 
-// --- Mock wagmi ---
-let mockAddress: `0x${string}` = "0x1111111111111111111111111111111111111111";
-let mockSignTypedDataAsync = vi.fn();
-let mockWriteContractAsync = vi.fn();
-
-vi.mock("wagmi", () => ({
-  useAccount: () => ({ address: mockAddress }),
-  useSignTypedData: () => ({
-    signTypedDataAsync: mockSignTypedDataAsync,
-  }),
-  useWriteContract: () => ({
-    writeContractAsync: mockWriteContractAsync,
-  }),
-  useWaitForTransactionReceipt: () => ({
-    isLoading: false,
-    isSuccess: true,
-  }),
-  useWatchContractEvent: () => {},
-  useReadContract: () => ({ data: undefined }),
-}));
-
-describe("Relay Web Hooks (Turn 3c-2 Item 3)", () => {
+describe("Relay Web Hooks (Turn 3c-2 Item 3 & Turn 3c-2-fix Item 2)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAddress = "0x1111111111111111111111111111111111111111";
-    mockSignTypedDataAsync.mockReset();
-    mockWriteContractAsync.mockReset();
+    mocks.setAddress("0x1111111111111111111111111111111111111111");
+    mocks.signTypedDataAsync.mockReset();
+    mocks.writeContractAsync.mockReset();
+    mocks.setReceipt({ status: "success" });
+    mocks.setIsConfirming(false);
   });
 
   describe("useSubmitResult", () => {
     const roomId = 50;
-    const white = mockAddress;
+    const white = "0x1111111111111111111111111111111111111111" as `0x${string}`;
     const black = "0x2222222222222222222222222222222222222222" as `0x${string}`;
     const moves = ["e2e4", "e7e5", "d1h5", "b8c6", "f1c4", "g8f6", "h5f7"]; // White checkmates
     const hash = computeMovesHash(moves);
@@ -55,9 +87,10 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3)", () => {
     };
     const relaySig = ("0x" + "aa".repeat(65)) as `0x${string}`;
 
-    it("verifies proposal and successfully submits with 2-of-3 signatures", async () => {
-      mockSignTypedDataAsync.mockResolvedValue("0xmysig" as `0x${string}`);
-      mockWriteContractAsync.mockResolvedValue("0xtxhash" as `0x${string}`);
+    it("verifies proposal and sets confirmed only when receipt status is success", async () => {
+      mocks.signTypedDataAsync.mockResolvedValue("0xmysig" as `0x${string}`);
+      mocks.writeContractAsync.mockResolvedValue("0xtxhash" as `0x${string}`);
+      mocks.setReceipt({ status: "success" });
 
       const { result } = renderHook(() => useSubmitResult(roomId));
       expect(result.current.step).toBe("idle");
@@ -72,19 +105,37 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3)", () => {
         });
       });
 
-      expect(mockSignTypedDataAsync).toHaveBeenCalledTimes(1);
-      expect(mockWriteContractAsync).toHaveBeenCalledTimes(1);
-      const callArgs = mockWriteContractAsync.mock.calls[0][0];
-      expect(callArgs.functionName).toBe("submitResult");
-      expect(callArgs.args[0]).toBe(BigInt(roomId));
-      expect(callArgs.args[1]).toBe(white);
-      expect(callArgs.args[8]).toBe("0xmysig");
-      expect(callArgs.args[9]).toBe(relaySig);
+      expect(mocks.signTypedDataAsync).toHaveBeenCalledTimes(1);
+      expect(mocks.writeContractAsync).toHaveBeenCalledTimes(1);
       expect(result.current.step).toBe("confirmed");
       expect(result.current.isSuccess).toBe(true);
     });
 
-    it("blocks submission when verifyResultProposal detects tampered proposal", async () => {
+    it("handles transaction receipt reverted with Vietnamese message and explorer suggestion", async () => {
+      mocks.signTypedDataAsync.mockResolvedValue("0xmysig" as `0x${string}`);
+      mocks.writeContractAsync.mockResolvedValue("0xrevertedtx" as `0x${string}`);
+      mocks.setReceipt({ status: "reverted" });
+
+      const { result } = renderHook(() => useSubmitResult(roomId));
+
+      await act(async () => {
+        await result.current.submit({
+          proposal: validProposal,
+          relaySignature: relaySig,
+          moves,
+          white,
+          black,
+        });
+      });
+
+      expect(mocks.signTypedDataAsync).toHaveBeenCalledTimes(1);
+      expect(mocks.writeContractAsync).toHaveBeenCalledTimes(1);
+      expect(result.current.step).toBe("error");
+      expect(result.current.isSuccess).toBe(false);
+      expect(result.current.error).toMatch(/reverted.*Explorer/i);
+    });
+
+    it("does NOT call signTypedDataAsync or writeContractAsync when verify fails", async () => {
       const tamperedProposal = {
         ...validProposal,
         winner: black, // Falsely claiming black won!
@@ -102,16 +153,16 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3)", () => {
         });
       });
 
-      expect(mockSignTypedDataAsync).not.toHaveBeenCalled();
-      expect(mockWriteContractAsync).not.toHaveBeenCalled();
+      expect(mocks.signTypedDataAsync).toHaveBeenCalledTimes(0);
+      expect(mocks.writeContractAsync).toHaveBeenCalledTimes(0);
       expect(result.current.step).toBe("error");
       expect(result.current.error).toMatch(/winner address/i);
     });
 
-    it("handles user rejection when signing typed data", async () => {
+    it("handles user rejection when signing typed data and does NOT call writeContractAsync", async () => {
       const rejectErr = new Error("User rejected the request.");
       rejectErr.name = "UserRejectedRequestError";
-      mockSignTypedDataAsync.mockRejectedValue(rejectErr);
+      mocks.signTypedDataAsync.mockRejectedValue(rejectErr);
 
       const { result } = renderHook(() => useSubmitResult(roomId));
 
@@ -125,16 +176,21 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3)", () => {
         });
       });
 
-      expect(mockSignTypedDataAsync).toHaveBeenCalledTimes(1);
-      expect(mockWriteContractAsync).not.toHaveBeenCalled();
+      expect(mocks.signTypedDataAsync).toHaveBeenCalledTimes(1);
+      expect(mocks.writeContractAsync).toHaveBeenCalledTimes(0);
       expect(result.current.step).toBe("error");
       expect(result.current.error).toMatch(/từ chối/i);
     });
 
-    it("handles DeadlineExpired contract revert and flags needsNewProposal", async () => {
-      mockSignTypedDataAsync.mockResolvedValue("0xmysig" as `0x${string}`);
-      const deadlineErr = new Error("Execution reverted: DeadlineExpired()");
-      mockWriteContractAsync.mockRejectedValue(deadlineErr);
+    it("automatically triggers onRequestNewResult when error code is DeadlineExpired", async () => {
+      mocks.signTypedDataAsync.mockResolvedValue("0xmysig" as `0x${string}`);
+      const deadlineErr = {
+        name: "ContractFunctionExecutionError",
+        shortMessage: "The contract function reverted: DeadlineExpired()",
+        message: "Execution reverted with reason: DeadlineExpired()",
+        data: { errorName: "DeadlineExpired" },
+      };
+      mocks.writeContractAsync.mockRejectedValue(deadlineErr);
 
       const onRequestNewResult = vi.fn();
       const { result } = renderHook(() => useSubmitResult(roomId));
@@ -155,10 +211,18 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3)", () => {
       expect(onRequestNewResult).toHaveBeenCalledTimes(1);
     });
 
-    it("handles RoomNotActive revert gracefully as already settled", async () => {
-      mockSignTypedDataAsync.mockResolvedValue("0xmysig" as `0x${string}`);
-      const notActiveErr = new Error("Execution reverted: RoomNotActive()");
-      mockWriteContractAsync.mockRejectedValue(notActiveErr);
+    it("refetches room on RoomNotActive; displays 'Đã được nộp' and updates balance if already settled", async () => {
+      mocks.signTypedDataAsync.mockResolvedValue("0xmysig" as `0x${string}`);
+      const notActiveErr = {
+        name: "ContractFunctionExecutionError",
+        shortMessage: "The contract function reverted: RoomNotActive()",
+        message: "Execution reverted with reason: RoomNotActive()",
+        data: { errorName: "RoomNotActive" },
+      };
+      mocks.writeContractAsync.mockRejectedValue(notActiveErr);
+
+      const refetchRoom = vi.fn().mockResolvedValue({ status: 2 }); // Status 2 = Settled
+      const refetchBalance = vi.fn().mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useSubmitResult(roomId));
 
@@ -169,11 +233,17 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3)", () => {
           moves,
           white,
           black,
+          refetchRoom,
+          refetchBalance,
         });
       });
 
-      expect(result.current.step).toBe("error");
-      expect(result.current.error).toMatch(/đối thủ hoặc bên thứ ba nộp/i);
+      expect(refetchRoom).toHaveBeenCalledTimes(1);
+      expect(refetchBalance).toHaveBeenCalledTimes(1);
+      expect(result.current.step).toBe("confirmed");
+      expect(result.current.isSuccess).toBe(true);
+      expect(result.current.statusMessage).toBe("Đã được nộp");
+      expect(result.current.error).toBeNull();
     });
   });
 

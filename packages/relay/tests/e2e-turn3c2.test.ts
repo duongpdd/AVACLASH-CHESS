@@ -81,7 +81,7 @@ describe("Turn 3c-2 End-to-End RelayClient & Settlement Integration", () => {
       transport: http(),
     });
 
-    relayPort = 9800 + Math.floor(Math.random() * 150);
+    relayPort = 11000 + Math.floor(Math.random() * 200);
     relayResultsDir = fs.mkdtempSync(path.join(os.tmpdir(), "turn3c2-results-"));
     relayActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "turn3c2-active-"));
 

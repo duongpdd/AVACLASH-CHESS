@@ -72,7 +72,7 @@ export default function AbortRefundWidget({
       });
       setPendingTx(hash);
     } catch (err: any) {
-      setActionError(decodeContractError(err));
+      setActionError(decodeContractError(err).message);
     }
   };
 
@@ -87,7 +87,7 @@ export default function AbortRefundWidget({
       });
       setPendingTx(hash);
     } catch (err: any) {
-      setActionError(decodeContractError(err));
+      setActionError(decodeContractError(err).message);
     }
   };
 

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useSignTypedData, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import {
   CHESS_ESCROW_ABI,
@@ -27,11 +27,14 @@ export interface SubmitParams {
   black: `0x${string}`;
   seenEvents?: SeenTerminalEvents;
   onRequestNewResult?: () => void;
+  refetchRoom?: () => Promise<any>;
+  refetchBalance?: () => Promise<any>;
 }
 
 export function useSubmitResult(roomId?: bigint | number) {
   const [step, setStep] = useState<SubmitResultStep>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [needsNewProposal, setNeedsNewProposal] = useState(false);
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>(undefined);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -39,14 +42,30 @@ export function useSubmitResult(roomId?: bigint | number) {
   const { signTypedDataAsync } = useSignTypedData();
   const { writeContractAsync, reset: resetWrite } = useWriteContract();
 
-  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+  const { data: receipt, isLoading: isConfirming, isSuccess: isConfirmed } =
     useWaitForTransactionReceipt({
       hash: txHash,
     });
 
+  useEffect(() => {
+    if (!txHash || !receipt) return;
+    if (receipt.status === "success") {
+      setStep("confirmed");
+      setIsSuccess(true);
+      setStatusMessage("Kết quả đã được xác nhận thành công trên blockchain.");
+    } else if (receipt.status === "reverted") {
+      setStep("error");
+      setIsSuccess(false);
+      setError(
+        "Giao dịch bị từ chối (reverted) trên mạng. Bạn có thể kiểm tra chi tiết trên Snowtrace Explorer."
+      );
+    }
+  }, [receipt, txHash]);
+
   const reset = useCallback(() => {
     setStep("idle");
     setError(null);
+    setStatusMessage(null);
     setNeedsNewProposal(false);
     setTxHash(undefined);
     setIsSuccess(false);
@@ -62,8 +81,11 @@ export function useSubmitResult(roomId?: bigint | number) {
       black,
       seenEvents,
       onRequestNewResult,
+      refetchRoom,
+      refetchBalance,
     }: SubmitParams) => {
       setError(null);
+      setStatusMessage(null);
       setNeedsNewProposal(false);
 
       const targetRoomId =
@@ -150,35 +172,49 @@ export function useSubmitResult(roomId?: bigint | number) {
         });
 
         setTxHash(hash);
-        setStep("confirmed");
-        setIsSuccess(true);
       } catch (err: any) {
-        const rawMsg = err?.message || "";
         const decoded = decodeContractError(err);
 
-        if (rawMsg.includes("DeadlineExpired") || decoded.includes("hết hạn")) {
+        if (decoded.code === "DeadlineExpired") {
           setError(
             "Chữ ký kết quả đã hết hạn (DeadlineExpired). Đang yêu cầu relay tạo chữ ký mới..."
           );
           setNeedsNewProposal(true);
           onRequestNewResult?.();
-        } else if (
-          rawMsg.includes("RoomNotActive") ||
-          decoded.includes("không còn hoạt động") ||
-          decoded.includes("chưa bắt đầu")
-        ) {
+        } else if (decoded.code === "RoomNotActive") {
+          if (refetchRoom) {
+            try {
+              const roomData = await refetchRoom();
+              if (
+                roomData &&
+                (roomData.status === 2 ||
+                  roomData.status === "Settled" ||
+                  roomData.status === 2n)
+              ) {
+                setStep("confirmed");
+                setIsSuccess(true);
+                setStatusMessage("Đã được nộp");
+                setError(null);
+                if (refetchBalance) {
+                  await refetchBalance();
+                }
+                return;
+              }
+            } catch {
+              // ignore refetch failure and proceed to error state
+            }
+          }
           setError(
             "Phòng đã được đối thủ hoặc bên thứ ba nộp kết quả thành công (RoomNotActive)."
           );
-        } else if (
-          rawMsg.includes("NonceAlreadyUsed") ||
-          decoded.includes("Nonce")
-        ) {
+        } else if (decoded.code === "NonceAlreadyUsed") {
           setError(
             "Nonce của kết quả này đã được sử dụng (NonceAlreadyUsed)."
           );
+        } else if (decoded.code === "UserRejectedRequestError") {
+          setError("Giao dịch đã bị từ chối từ ví.");
         } else {
-          setError(`Giao dịch submitResult thất bại: ${decoded || rawMsg}`);
+          setError(`Giao dịch submitResult thất bại: ${decoded.message}`);
         }
         setStep("error");
       }
@@ -188,6 +224,7 @@ export function useSubmitResult(roomId?: bigint | number) {
 
   return {
     step,
+    statusMessage,
     isSubmitting: step === "signing" || step === "submitting" || isConfirming,
     isSuccess: isSuccess || isConfirmed,
     txHash,

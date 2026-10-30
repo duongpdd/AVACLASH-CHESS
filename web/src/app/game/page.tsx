@@ -156,7 +156,7 @@ function GameContent() {
   const { room, refetch: refetchRoom } = useRoom(roomId);
   const relaySession = useRelaySession(roomId);
   const submitResultHook = useSubmitResult(roomId);
-  const { pendingBalance, withdraw, step: withdrawStep } = useWithdraw();
+  const { pendingBalance, withdraw, step: withdrawStep, refetchPending: refetchBalance } = useWithdraw();
   const isWithdrawing = withdrawStep === "waiting_wallet" || withdrawStep === "confirming";
 
   const [showResignConfirm, setShowResignConfirm] = useState(false);
@@ -527,6 +527,8 @@ function GameContent() {
                         black: (blackAddress || "0x0") as `0x${string}`,
                         seenEvents: relaySession.seenEvents,
                         onRequestNewResult: relaySession.requestResult,
+                        refetchRoom,
+                        refetchBalance,
                       });
                     }}
                     disabled={
@@ -536,8 +538,8 @@ function GameContent() {
                     }
                     className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold text-xs shadow-lg transition-all disabled:opacity-50"
                   >
-                    {room?.status === 2
-                      ? "Phòng đã Settled"
+                    {room?.status === 2 || submitResultHook.statusMessage === "Đã được nộp"
+                      ? "Đã được nộp"
                       : submitResultHook.isSubmitting
                       ? "Đang xác thực & nộp..."
                       : "Ký & Nộp kết quả (2-trong-3)"}
