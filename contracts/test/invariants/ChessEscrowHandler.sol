@@ -147,22 +147,69 @@ contract ChessEscrowHandler is Test {
         tracker.inc_joinRoom();
     }
 
+    // ──────── Room State Setup Helpers ────────
+    function _ensureOpenRoom(uint256 seed) internal returns (uint256) {
+        for (uint256 i = 0; i < openRooms.length; i++) {
+            uint256 candidate = openRooms[(seed + i) % openRooms.length];
+            if (escrow.getRoom(candidate).status == ChessEscrow.RoomStatus.Open) {
+                return candidate;
+            }
+        }
+        address creator = players[seed % 3];
+        vm.prank(creator);
+        uint256 roomId = escrow.createRoom{ value: 0.05 ether }(true);
+        allRoomIds.push(roomId);
+        openRooms.push(roomId);
+        return roomId;
+    }
+
+    function _ensureUnstartedActiveRoom(uint256 seed) internal returns (uint256) {
+        for (uint256 i = 0; i < activeRooms.length; i++) {
+            uint256 candidate = activeRooms[(seed + i) % activeRooms.length];
+            ChessEscrow.Room memory check = escrow.getRoom(candidate);
+            if (check.status == ChessEscrow.RoomStatus.Active && !check.gameStarted && check.singleSignedAt == 0) {
+                return candidate;
+            }
+        }
+        address creator = players[seed % 3];
+        address joiner = players[(seed % 3 + 1) % 3];
+        vm.prank(creator);
+        uint256 roomId = escrow.createRoom{ value: 0.05 ether }(true);
+        allRoomIds.push(roomId);
+        vm.prank(joiner);
+        escrow.joinRoom{ value: 0.05 ether }(roomId);
+        activeRooms.push(roomId);
+        return roomId;
+    }
+
+    function _ensureActiveRoom(uint256 seed) internal returns (uint256) {
+        for (uint256 i = 0; i < activeRooms.length; i++) {
+            uint256 candidate = activeRooms[(seed + i) % activeRooms.length];
+            ChessEscrow.Room memory check = escrow.getRoom(candidate);
+            if (check.status == ChessEscrow.RoomStatus.Active && check.singleSignedAt == 0) {
+                return candidate;
+            }
+        }
+        return _ensureUnstartedActiveRoom(seed);
+    }
+
     // ──────── Action 3: Signal Game Started ────────
     function signalGameStartedAction(uint256 roomSeed) external {
         tracker.incCall();
         if (_checkAutoUnpause()) return;
         if (escrow.paused()) return;
-        if (activeRooms.length == 0) return;
 
         uint256 targetId;
-        if (roomSeed < escrow.nextRoomId() && escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active) {
+        if (
+            roomSeed < escrow.nextRoomId() &&
+            escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active &&
+            !escrow.getRoom(roomSeed).gameStarted &&
+            escrow.getRoom(roomSeed).singleSignedAt == 0
+        ) {
             targetId = roomSeed;
         } else {
-            targetId = activeRooms[roomSeed % activeRooms.length];
+            targetId = _ensureUnstartedActiveRoom(roomSeed);
         }
-
-        ChessEscrow.Room memory check = escrow.getRoom(targetId);
-        if (check.status != ChessEscrow.RoomStatus.Active || check.gameStarted) return;
 
         vm.prank(relay);
         escrow.signalGameStarted(targetId);
@@ -174,22 +221,16 @@ contract ChessEscrowHandler is Test {
         tracker.incCall();
         if (_checkAutoUnpause()) return;
         if (escrow.paused()) return;
-        if (openRooms.length == 0) return;
-
-        bool isScripted = (roomSeed < escrow.nextRoomId());
-        if (!isScripted && roomSeed % 20 != 0) return;
 
         uint256 targetId;
-        if (isScripted && escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Open) {
+        if (roomSeed < escrow.nextRoomId() && escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Open) {
             targetId = roomSeed;
         } else {
-            targetId = openRooms[roomSeed % openRooms.length];
+            targetId = _ensureOpenRoom(roomSeed);
         }
 
-        ChessEscrow.Room memory check = escrow.getRoom(targetId);
-        if (check.status != ChessEscrow.RoomStatus.Open) return;
-
-        vm.prank(check.playerA);
+        ChessEscrow.Room memory checkRoom = escrow.getRoom(targetId);
+        vm.prank(checkRoom.playerA);
         escrow.cancelRoom(targetId);
         _removeFrom(openRooms, targetId);
         tracker.inc_cancelRoom();
@@ -200,22 +241,21 @@ contract ChessEscrowHandler is Test {
         tracker.incCall();
         if (_checkAutoUnpause()) return;
         if (escrow.paused()) return;
-        if (activeRooms.length == 0) return;
-
-        bool isScripted = (roomSeed < escrow.nextRoomId());
-        if (!isScripted && roomSeed % 20 != 0) return;
 
         uint256 targetId;
-        if (isScripted && escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active) {
+        if (
+            roomSeed < escrow.nextRoomId() &&
+            escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active &&
+            !escrow.getRoom(roomSeed).gameStarted &&
+            escrow.getRoom(roomSeed).singleSignedAt == 0
+        ) {
             targetId = roomSeed;
         } else {
-            targetId = activeRooms[roomSeed % activeRooms.length];
+            targetId = _ensureUnstartedActiveRoom(roomSeed);
         }
 
-        ChessEscrow.Room memory check = escrow.getRoom(targetId);
-        if (check.status != ChessEscrow.RoomStatus.Active || check.gameStarted || check.singleSignedAt != 0) return;
-
-        vm.warp(check.startedAt + escrow.ABORT_TIMEOUT() + 1);
+        ChessEscrow.Room memory checkRoom = escrow.getRoom(targetId);
+        vm.warp(checkRoom.startedAt + escrow.ABORT_TIMEOUT() + 1);
         escrow.abortRoom(targetId);
         _removeFrom(activeRooms, targetId);
         tracker.inc_abortRoom();
@@ -226,16 +266,16 @@ contract ChessEscrowHandler is Test {
         tracker.incCall();
         if (_checkAutoUnpause()) return;
         if (escrow.paused()) return;
-        if (activeRooms.length == 0) return;
-
-        bool isScripted = (roomSeed < escrow.nextRoomId());
-        if (!isScripted && roomSeed % 20 != 0) return;
 
         uint256 roomId;
-        if (isScripted && escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active) {
+        if (
+            roomSeed < escrow.nextRoomId() &&
+            escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active &&
+            escrow.getRoom(roomSeed).singleSignedAt == 0
+        ) {
             roomId = roomSeed;
         } else {
-            roomId = activeRooms[roomSeed % activeRooms.length];
+            roomId = _ensureActiveRoom(roomSeed);
         }
 
         ChessEscrow.Room memory r = escrow.getRoom(roomId);
@@ -271,16 +311,16 @@ contract ChessEscrowHandler is Test {
         tracker.incCall();
         if (_checkAutoUnpause()) return;
         if (escrow.paused()) return;
-        if (activeRooms.length == 0) return;
-
-        bool isScripted = (roomSeed < escrow.nextRoomId());
-        if (!isScripted && roomSeed % 20 != 1) return;
 
         uint256 roomId;
-        if (isScripted && escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active) {
+        if (
+            roomSeed < escrow.nextRoomId() &&
+            escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active &&
+            escrow.getRoom(roomSeed).singleSignedAt == 0
+        ) {
             roomId = roomSeed;
         } else {
-            roomId = activeRooms[roomSeed % activeRooms.length];
+            roomId = _ensureActiveRoom(roomSeed);
         }
 
         ChessEscrow.Room memory r = escrow.getRoom(roomId);
@@ -528,22 +568,22 @@ contract ChessEscrowHandler is Test {
         tracker.incCall();
         if (_checkAutoUnpause()) return;
         if (escrow.paused()) return;
-        if (activeRooms.length == 0) return;
-
-        bool isScripted = (roomSeed < escrow.nextRoomId());
-        if (!isScripted && roomSeed % 20 != 2) return;
 
         uint256 roomId;
-        if (isScripted && escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active) {
+        if (
+            roomSeed < escrow.nextRoomId() &&
+            escrow.getRoom(roomSeed).status == ChessEscrow.RoomStatus.Active &&
+            escrow.getRoom(roomSeed).singleSignedAt == 0
+        ) {
             roomId = roomSeed;
         } else {
-            roomId = activeRooms[roomSeed % activeRooms.length];
+            roomId = _ensureActiveRoom(roomSeed);
         }
 
-        ChessEscrow.Room memory check = escrow.getRoom(roomId);
-        if (check.status != ChessEscrow.RoomStatus.Active || check.singleSignedAt != 0) return;
+        ChessEscrow.Room memory checkRoom = escrow.getRoom(roomId);
+        if (checkRoom.status != ChessEscrow.RoomStatus.Active || checkRoom.singleSignedAt != 0) return;
 
-        uint256 baseTime = check.gameStartedAt > check.startedAt ? check.gameStartedAt : check.startedAt;
+        uint256 baseTime = checkRoom.gameStartedAt > checkRoom.startedAt ? checkRoom.gameStartedAt : checkRoom.startedAt;
         vm.warp(baseTime + escrow.REFUND_TIMEOUT() + 1);
         escrow.refundOnTimeout(roomId);
         _removeFrom(activeRooms, roomId);

@@ -31,20 +31,12 @@ import { GhostTracker } from "./GhostTracker.sol";
  *   forge test --match-contract ChessEscrowInvariantTest -vv
  */
 contract ChessEscrowInvariantTest is Test {
-    address internal constant TRACKER_ADDRESS = address(0x9999999999999999999999999999999999999999);
-
     ChessEscrow public escrow;
     ChessEscrowHandler public handler;
     GhostTracker public tracker;
 
     function setUp() public {
-        if (TRACKER_ADDRESS.code.length == 0) {
-            GhostTracker impl = new GhostTracker();
-            vm.etch(TRACKER_ADDRESS, address(impl).code);
-            vm.makePersistent(TRACKER_ADDRESS);
-            vm.writeFile("cache/campaign_ghost.json", "");
-        }
-        tracker = GhostTracker(TRACKER_ADDRESS);
+        tracker = new GhostTracker();
 
         address relay = vm.addr(0xDE1A4);
         address arbiter = makeAddr("arbiter");
@@ -225,59 +217,20 @@ contract ChessEscrowInvariantTest is Test {
         console.log("--- INVARIANT FUZZ CAMPAIGN SUMMARY ---");
         tracker.printSummary();
 
-        uint256 c_sub = tracker.ghost_submitSingleSigned();
-        uint256 c_chal = tracker.ghost_challenge();
-        uint256 c_resC = tracker.ghost_resolveChallenge();
-        uint256 c_resD = tracker.ghost_resolveDefaultChallenge();
-        uint256 c_fin = tracker.ghost_finalizeSingleSigned();
-        uint256 c_samp = tracker.ghost_invariantChallengedSampled();
-        uint256 c_nonEx = tracker.ghost_nonExistentRoomRevert();
-        uint256 runCount = 1;
+        // Assert at least 20 successful executions for each required branch in the CURRENT campaign
+        assertGe(tracker.ghost_abortRoom(), 20, "ghost_abortRoom < 20");
+        assertGe(tracker.ghost_refundOnTimeout(), 20, "ghost_refundOnTimeout < 20");
+        assertGe(tracker.ghost_submitResultDual(), 20, "ghost_submitResultDual < 20");
+        assertGe(tracker.ghost_submitResultRelay(), 20, "ghost_submitResultRelay < 20");
+        assertGe(tracker.ghost_signalGameStarted(), 20, "ghost_signalGameStarted < 20");
+        assertGe(tracker.ghost_cancelRoom(), 20, "ghost_cancelRoom < 20");
 
-        string memory path = "cache/campaign_ghost.json";
-        try vm.readFile(path) returns (string memory json) {
-            if (bytes(json).length > 2) {
-                c_sub += vm.parseJsonUint(json, ".ghost_submitSingleSigned");
-                c_chal += vm.parseJsonUint(json, ".ghost_challenge");
-                c_resC += vm.parseJsonUint(json, ".ghost_resolveChallenge");
-                c_resD += vm.parseJsonUint(json, ".ghost_resolveDefaultChallenge");
-                c_fin += vm.parseJsonUint(json, ".ghost_finalizeSingleSigned");
-                c_samp += vm.parseJsonUint(json, ".ghost_invariantChallengedSampled");
-                try vm.parseJsonUint(json, ".ghost_nonExistentRoomRevert") returns (uint256 val) {
-                    c_nonEx += val;
-                } catch {}
-                runCount += vm.parseJsonUint(json, ".runCount");
-            }
-        } catch {}
-
-        string memory obj = "campaign";
-        vm.serializeUint(obj, "ghost_submitSingleSigned", c_sub);
-        vm.serializeUint(obj, "ghost_challenge", c_chal);
-        vm.serializeUint(obj, "ghost_resolveChallenge", c_resC);
-        vm.serializeUint(obj, "ghost_resolveDefaultChallenge", c_resD);
-        vm.serializeUint(obj, "ghost_finalizeSingleSigned", c_fin);
-        vm.serializeUint(obj, "ghost_invariantChallengedSampled", c_samp);
-        vm.serializeUint(obj, "ghost_nonExistentRoomRevert", c_nonEx);
-        string memory finalJson = vm.serializeUint(obj, "runCount", runCount);
-        vm.writeFile(path, finalJson);
-
-        console.log("--- ACCUMULATED CAMPAIGN TOTALS (Runs:", runCount, ") ---");
-        console.log("Campaign submitSingleSigned        :", c_sub);
-        console.log("Campaign challenge                 :", c_chal);
-        console.log("Campaign resolveChallenge          :", c_resC);
-        console.log("Campaign resolveDefaultChallenge   :", c_resD);
-        console.log("Campaign finalizeSingleSigned      :", c_fin);
-        console.log("Campaign invariantChallengedSampled:", c_samp);
-        console.log("Campaign nonExistentRoomRevert     :", c_nonEx);
-
-        if (runCount >= 2 || (c_sub >= 20 && c_chal >= 20 && c_resC >= 20 && c_resD >= 20 && c_fin >= 20 && c_nonEx >= 20)) {
-            assertGe(c_sub, 20, "campaign ghost_submitSingleSigned < 20");
-            assertGe(c_chal, 20, "campaign ghost_challenge < 20");
-            assertGe(c_resC, 20, "campaign ghost_resolveChallenge < 20");
-            assertGe(c_resD, 20, "campaign ghost_resolveDefaultChallenge < 20");
-            assertGe(c_fin, 20, "campaign ghost_finalizeSingleSigned < 20");
-            assertGe(c_samp, 20, "campaign ghost_invariantChallengedSampled < 20");
-            assertGe(c_nonEx, 20, "campaign ghost_nonExistentRoomRevert < 20");
-        }
+        assertGe(tracker.ghost_submitSingleSigned(), 20, "ghost_submitSingleSigned < 20");
+        assertGe(tracker.ghost_challenge(), 20, "ghost_challenge < 20");
+        assertGe(tracker.ghost_resolveChallenge(), 20, "ghost_resolveChallenge < 20");
+        assertGe(tracker.ghost_resolveDefaultChallenge(), 20, "ghost_resolveDefaultChallenge < 20");
+        assertGe(tracker.ghost_finalizeSingleSigned(), 20, "ghost_finalizeSingleSigned < 20");
+        assertGe(tracker.ghost_invariantChallengedSampled(), 20, "ghost_invariantChallengedSampled < 20");
+        assertGe(tracker.ghost_nonExistentRoomRevert(), 20, "ghost_nonExistentRoomRevert < 20");
     }
 }
