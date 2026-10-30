@@ -774,9 +774,16 @@ export class RelayServer {
         this.sendError(ws, "Address is not a player of this room.");
         return;
       }
+      const outcomeCode = typeof existingResult.outcome === "number"
+        ? existingResult.outcome
+        : outcomeToCode(existingResult.outcome);
       this.send(ws, {
         type: "game_finished",
         roomId: msg.roomId,
+        outcome: outcomeCode,
+        reason: existingResult.reason,
+        winner: existingResult.winner,
+        moveCount: existingResult.moves.length,
       });
       return;
     }
@@ -1017,6 +1024,17 @@ export class RelayServer {
         signature: relaySignature,
       };
       room.broadcast(signatureMsg);
+
+      // 4. Broadcast game_finished
+      const gameFinishedMsg: ServerMessage = {
+        type: "game_finished",
+        roomId: room.roomId,
+        outcome: outcomeCode,
+        reason,
+        winner: winnerAddress,
+        moveCount: room.moves.length,
+      };
+      room.broadcast(gameFinishedMsg);
     } catch (err) {
       console.error(`[Relay] Error in handleGameOver for room ${room.roomId}:`, err);
     } finally {

@@ -419,4 +419,102 @@ describe("verifyResultProposal (Turn 3c-2 Item 2)", () => {
     expect(res.shouldRequestNewProposal).toBe(true);
     expect(res.error).toMatch(/120 seconds/i);
   });
+  it("rejects resignation when winner is the resigning player (Turn 3c-2-fix Item 1)", () => {
+    const ongoingMoves = ["e2e4", "e7e5"];
+    const hash = computeMovesHash(ongoingMoves);
+
+    const res = verifyResultProposal({
+      proposal: {
+        type: "result_proposal",
+        roomId,
+        winner: white,
+        outcome: OutcomeCode.WhiteWin,
+        reason: ReasonCode.Resign,
+        moveCount: ongoingMoves.length,
+        movesHash: hash,
+        nonce: 1,
+        deadline: validDeadline,
+      },
+      moves: ongoingMoves,
+      whiteAddress: white,
+      blackAddress: black,
+      roomId,
+      chainId,
+      escrowAddress: escrow,
+      now: baseNow,
+      seenEvents: {
+        resignSeen: true,
+        resignerColor: "w",
+      },
+    });
+
+    expect(res.valid).toBe(false);
+    expect(res.error).toMatch(/resigning player|cannot win/i);
+  });
+
+  it("rejects timeout when winner is the timed out player (Turn 3c-2-fix Item 1)", () => {
+    const ongoingMoves = ["e2e4"];
+    const hash = computeMovesHash(ongoingMoves);
+
+    const res = verifyResultProposal({
+      proposal: {
+        type: "result_proposal",
+        roomId,
+        winner: white,
+        outcome: OutcomeCode.WhiteWin,
+        reason: ReasonCode.Timeout,
+        moveCount: ongoingMoves.length,
+        movesHash: hash,
+        nonce: 1,
+        deadline: validDeadline,
+      },
+      moves: ongoingMoves,
+      whiteAddress: white,
+      blackAddress: black,
+      roomId,
+      chainId,
+      escrowAddress: escrow,
+      now: baseNow,
+      seenEvents: {
+        timeoutSeen: true,
+        timeoutPlayer: "w",
+      },
+    });
+
+    expect(res.valid).toBe(false);
+    expect(res.error).toMatch(/timed out player|cannot win/i);
+  });
+
+  it("rejects timeout when clock_sync shows loser still had time (Turn 3c-2-fix Item 1)", () => {
+    const ongoingMoves = ["e2e4"];
+    const hash = computeMovesHash(ongoingMoves);
+
+    const res = verifyResultProposal({
+      proposal: {
+        type: "result_proposal",
+        roomId,
+        winner: white,
+        outcome: OutcomeCode.WhiteWin,
+        reason: ReasonCode.Timeout,
+        moveCount: ongoingMoves.length,
+        movesHash: hash,
+        nonce: 1,
+        deadline: validDeadline,
+      },
+      moves: ongoingMoves,
+      whiteAddress: white,
+      blackAddress: black,
+      roomId,
+      chainId,
+      escrowAddress: escrow,
+      now: baseNow,
+      seenEvents: {
+        timeoutSeen: true,
+        lastClockSync: { whiteMs: 290000, blackMs: 60000 },
+      },
+    });
+
+    expect(res.valid).toBe(false);
+    expect(res.error).toMatch(/clock|time remaining/i);
+  });
 });

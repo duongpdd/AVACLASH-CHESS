@@ -15,6 +15,16 @@ import {
   type FocusWarningMessage,
 } from "./schemas.js";
 import { buildJoinTypedData } from "./eip712.js";
+import { ReasonCode } from "./types.js";
+import type { SeenTerminalEvents } from "./verify-result.js";
+
+export interface FinishedInfo {
+  roomId: number;
+  outcome?: number | string;
+  reason?: string | number;
+  winner?: `0x${string}`;
+  moveCount?: number;
+}
 
 export type ConnectionStatus =
   | "idle"
@@ -80,6 +90,9 @@ export class RelayClient {
   private myAddress: `0x${string}` | null = null;
   private roomState?: RoomStateMessage;
   private moves: string[] = [];
+  private finishedInfo: FinishedInfo | null = null;
+  private seenTerminalEvents: SeenTerminalEvents = {};
+  private lastClockSync: { whiteMs: number; blackMs: number } | null = null;
 
   private listeners: {
     [K in keyof RelayClientEventMap]?: RelayClientEventMap[K][];
@@ -351,6 +364,8 @@ export class RelayClient {
 
       case "clock_sync": {
         if (this.roomId !== null && msg.roomId !== this.roomId) return;
+        this.lastClockSync = { whiteMs: msg.whiteMs, blackMs: msg.blackMs };
+        this.seenTerminalEvents.lastClockSync = this.lastClockSync;
         if (this.roomState) {
           this.roomState.whiteMs = msg.whiteMs;
           this.roomState.blackMs = msg.blackMs;
@@ -361,6 +376,8 @@ export class RelayClient {
 
       case "resign": {
         if (this.roomId !== null && msg.roomId !== this.roomId) return;
+        this.seenTerminalEvents.resignSeen = true;
+        if (msg.player) this.seenTerminalEvents.resignerColor = msg.player;
         this.emit("resign", msg);
         break;
       }
@@ -373,6 +390,7 @@ export class RelayClient {
 
       case "draw_accept": {
         if (this.roomId !== null && msg.roomId !== this.roomId) return;
+        this.seenTerminalEvents.drawAcceptSeen = true;
         this.emit("drawAccept", msg);
         break;
       }
@@ -385,6 +403,8 @@ export class RelayClient {
 
       case "timeout": {
         if (this.roomId !== null && msg.roomId !== this.roomId) return;
+        this.seenTerminalEvents.timeoutSeen = true;
+        if (msg.player) this.seenTerminalEvents.timeoutPlayer = msg.player;
         this.emit("timeout", msg);
         break;
       }
@@ -406,6 +426,25 @@ export class RelayClient {
         this.authenticated = true;
         this.reconnectAttempt = 0;
         this.setStatus("connected");
+        this.finishedInfo = {
+          roomId: msg.roomId,
+          outcome: msg.outcome,
+          reason: msg.reason,
+          winner: msg.winner as `0x${string}` | undefined,
+          moveCount: msg.moveCount,
+        };
+        const r = typeof msg.reason === "string" ? msg.reason.toLowerCase() : "";
+        if (r === "resign" || msg.reason === ReasonCode.Resign) {
+          this.seenTerminalEvents.resignSeen = true;
+        } else if (r === "timeout" || msg.reason === ReasonCode.Timeout) {
+          this.seenTerminalEvents.timeoutSeen = true;
+        } else if (
+          r === "agreement" ||
+          r === "draw_agreed" ||
+          msg.reason === ReasonCode.Agreement
+        ) {
+          this.seenTerminalEvents.drawAcceptSeen = true;
+        }
         if (this.roomState) {
           this.roomState.status = "finished";
         }
@@ -555,5 +594,17 @@ export class RelayClient {
       type: "request_result",
       roomId: targetRoomId,
     });
+  }
+
+  public getFinishedInfo(): FinishedInfo | null {
+    return this.finishedInfo;
+  }
+
+  public getSeenTerminalEvents(): SeenTerminalEvents {
+    return { ...this.seenTerminalEvents };
+  }
+
+  public getLastClockSync(): { whiteMs: number; blackMs: number } | null {
+    return this.lastClockSync ? { ...this.lastClockSync } : null;
   }
 }

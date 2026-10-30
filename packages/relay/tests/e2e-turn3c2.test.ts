@@ -883,4 +883,360 @@ describe("Turn 3c-2 End-to-End RelayClient & Settlement Integration", () => {
     clientA.disconnect();
     clientB.disconnect();
   }, 30000);
+  it("7. Page reload after Resign: opponent resigns -> winner closes client, opens new client, requests result, verifies with inferred resignSeen, signs, submits, settles", async () => {
+    const roomId = await createOnChainRoom(playerAWallet, true, "0.1");
+    await joinOnChainRoom(playerBWallet, roomId, "0.1");
+
+    const clientA = createClientForAccount(playerAAccount);
+    const clientB = createClientForAccount(playerBAccount);
+
+    const aReady = waitForEvent(clientA, "roomState");
+    const bReady = waitForEvent(clientB, "roomState");
+    clientA.connect(roomId);
+    clientB.connect(roomId);
+    await Promise.all([aReady, bReady]);
+
+    const move1A = waitForEvent(clientA, "move");
+    const move1B = waitForEvent(clientB, "move");
+    clientA.sendMove("e2e4");
+    await Promise.all([move1A, move1B]);
+
+    // Opponent (Black) resigns
+    const resignA = waitForEvent<ResignMessage>(clientA, "resign");
+    clientB.sendResign();
+    await resignA;
+
+    // Both players close tabs / disconnect
+    clientA.disconnect();
+    clientB.disconnect();
+
+    // Winner reopens browser, creates a brand new client
+    const clientA2 = createClientForAccount(playerAAccount);
+    const finishedPromise = waitForEvent<any>(clientA2, "gameFinished");
+    clientA2.connect(roomId);
+    const finishedMsg = await finishedPromise;
+
+    expect(finishedMsg.type).toBe("game_finished");
+    expect(clientA2.getFinishedInfo()).toBeDefined();
+    expect(clientA2.getSeenTerminalEvents().resignSeen).toBe(true);
+
+    const proposalPromise = waitForEvent<ResultProposalMessage>(clientA2, "resultProposal");
+    const sigPromise = waitForEvent<ResultSignatureMessage>(clientA2, "resultSignature");
+    clientA2.requestResult(roomId);
+
+    const [proposal, relaySig] = await Promise.all([proposalPromise, sigPromise]);
+
+    const verification = verifyResultProposal({
+      proposal,
+      moves: ["e2e4"],
+      whiteAddress: playerAAccount.address,
+      blackAddress: playerBAccount.address,
+      roomId,
+      chainId: 31337,
+      escrowAddress,
+      now: Math.floor(Date.now() / 1000),
+      seenEvents: clientA2.getSeenTerminalEvents(),
+    });
+
+    expect(verification.valid).toBe(true);
+    expect(proposal.winner.toLowerCase()).toBe(playerAAccount.address.toLowerCase());
+
+    const typedData = buildResultTypedData(
+      escrowAddress,
+      {
+        matchId: BigInt(roomId),
+        winner: proposal.winner,
+        outcome: proposal.outcome,
+        reason: proposal.reason,
+        moveCount: proposal.moveCount,
+        movesHash: proposal.movesHash,
+        nonce: BigInt(proposal.nonce),
+        deadline: BigInt(proposal.deadline),
+      },
+      31337
+    );
+    const playerASig = await playerAAccount.signTypedData(typedData);
+
+    const submitTx = await playerAWallet.writeContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "submitResult",
+      args: [
+        BigInt(roomId),
+        proposal.winner,
+        proposal.outcome,
+        proposal.reason,
+        proposal.moveCount,
+        proposal.movesHash,
+        BigInt(proposal.nonce),
+        BigInt(proposal.deadline),
+        playerASig,
+        relaySig.signature as Hex,
+      ],
+    });
+    await anvil!.publicClient.waitForTransactionReceipt({ hash: submitTx });
+
+    const pending: bigint = await anvil!.publicClient.readContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "pendingWithdrawals",
+      args: [playerAAccount.address],
+    });
+    expect(pending).toBe(parseEther("0.19"));
+
+    const withdrawTx = await playerAWallet.writeContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "withdraw",
+      args: [],
+    });
+    await anvil!.publicClient.waitForTransactionReceipt({ hash: withdrawTx });
+
+    clientA2.disconnect();
+  }, 35000);
+
+  it("8. Page reload after Draw Agreement: draw agreement -> player closes client, opens new client, requests result, verifies with inferred drawAcceptSeen, signs, submits, settles", async () => {
+    const roomId = await createOnChainRoom(playerAWallet, true, "0.1");
+    await joinOnChainRoom(playerBWallet, roomId, "0.1");
+
+    const clientA = createClientForAccount(playerAAccount);
+    const clientB = createClientForAccount(playerBAccount);
+
+    const aReady = waitForEvent(clientA, "roomState");
+    const bReady = waitForEvent(clientB, "roomState");
+    clientA.connect(roomId);
+    clientB.connect(roomId);
+    await Promise.all([aReady, bReady]);
+
+    const move1A = waitForEvent(clientA, "move");
+    const move1B = waitForEvent(clientB, "move");
+    clientA.sendMove("e2e4");
+    await Promise.all([move1A, move1B]);
+
+    const offerForB = waitForEvent<DrawOfferMessage>(clientB, "drawOffer");
+    clientA.sendDrawOffer();
+    await offerForB;
+
+    const acceptForA = waitForEvent(clientA, "drawAccept");
+    clientB.sendDrawAccept();
+    await acceptForA;
+
+    // Disconnect clients
+    clientA.disconnect();
+    clientB.disconnect();
+
+    // Player A reopens new client
+    const clientA2 = createClientForAccount(playerAAccount);
+    const finishedPromise = waitForEvent<any>(clientA2, "gameFinished");
+    clientA2.connect(roomId);
+    await finishedPromise;
+
+    expect(clientA2.getSeenTerminalEvents().drawAcceptSeen).toBe(true);
+
+    const proposalPromise = waitForEvent<ResultProposalMessage>(clientA2, "resultProposal");
+    const sigPromise = waitForEvent<ResultSignatureMessage>(clientA2, "resultSignature");
+    clientA2.requestResult(roomId);
+
+    const [proposal, relaySig] = await Promise.all([proposalPromise, sigPromise]);
+
+    const verification = verifyResultProposal({
+      proposal,
+      moves: ["e2e4"],
+      whiteAddress: playerAAccount.address,
+      blackAddress: playerBAccount.address,
+      roomId,
+      chainId: 31337,
+      escrowAddress,
+      now: Math.floor(Date.now() / 1000),
+      seenEvents: clientA2.getSeenTerminalEvents(),
+    });
+
+    expect(verification.valid).toBe(true);
+    expect(proposal.outcome).toBe(OutcomeCode.Draw);
+
+    const typedData = buildResultTypedData(
+      escrowAddress,
+      {
+        matchId: BigInt(roomId),
+        winner: proposal.winner,
+        outcome: proposal.outcome,
+        reason: proposal.reason,
+        moveCount: proposal.moveCount,
+        movesHash: proposal.movesHash,
+        nonce: BigInt(proposal.nonce),
+        deadline: BigInt(proposal.deadline),
+      },
+      31337
+    );
+    const playerASig = await playerAAccount.signTypedData(typedData);
+
+    const submitTx = await playerAWallet.writeContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "submitResult",
+      args: [
+        BigInt(roomId),
+        proposal.winner,
+        proposal.outcome,
+        proposal.reason,
+        proposal.moveCount,
+        proposal.movesHash,
+        BigInt(proposal.nonce),
+        BigInt(proposal.deadline),
+        playerASig,
+        relaySig.signature as Hex,
+      ],
+    });
+    await anvil!.publicClient.waitForTransactionReceipt({ hash: submitTx });
+
+    // In draw, each player gets 50% pot without fee
+    const pendingA: bigint = await anvil!.publicClient.readContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "pendingWithdrawals",
+      args: [playerAAccount.address],
+    });
+    expect(pendingA).toBe(parseEther("0.1"));
+
+    const withdrawTx = await playerAWallet.writeContract({
+      address: escrowAddress,
+      abi: escrowAbi,
+      functionName: "withdraw",
+      args: [],
+    });
+    await anvil!.publicClient.waitForTransactionReceipt({ hash: withdrawTx });
+
+    clientA2.disconnect();
+  }, 35000);
+
+  it("9. Page reload after Timeout: clock runs down on short-timer server -> winner closes client, opens new client, requests result, verifies with inferred timeoutSeen, signs, submits, settles", async () => {
+    const shortPort = relayPort + 10;
+    const shortResultsDir = fs.mkdtempSync(path.join(os.tmpdir(), "turn3c2-short-results-"));
+    const shortActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "turn3c2-short-active-"));
+
+    const shortServer = new RelayServer({
+      port: shortPort,
+      relayPrivateKey: ANVIL_ACCOUNTS[1].privateKey,
+      contractAddress: escrowAddress,
+      rpcUrl: anvil!.rpcUrl,
+      chainId: 31337,
+      publicClient: anvil!.publicClient,
+      walletClient: relayWallet,
+      resultsDir: shortResultsDir,
+      activeDir: shortActiveDir,
+      signalGameStartedEnabled: true,
+      initialTimeMs: 3000,
+    });
+
+    try {
+      const roomId = await createOnChainRoom(playerAWallet, true, "0.1");
+      await joinOnChainRoom(playerBWallet, roomId, "0.1");
+
+      const clientA = createClientForAccount(playerAAccount, shortPort);
+      const clientB = createClientForAccount(playerBAccount, shortPort);
+
+      const aReady = waitForEvent(clientA, "roomState");
+      const bReady = waitForEvent(clientB, "roomState");
+      clientA.connect(roomId);
+      clientB.connect(roomId);
+      await Promise.all([aReady, bReady]);
+
+      // White moves e2e4. Turn becomes Black.
+      const move1A = waitForEvent(clientA, "move");
+      const move1B = waitForEvent(clientB, "move");
+      clientA.sendMove("e2e4");
+      await Promise.all([move1A, move1B]);
+
+      // Wait for Black's 3000ms clock to run out
+      const timeoutA = waitForEvent<any>(clientA, "timeout", 10000);
+      const timeoutMsg = await timeoutA;
+      expect(timeoutMsg.type).toBe("timeout");
+      expect(timeoutMsg.player).toBe("b");
+
+      // Disconnect
+      clientA.disconnect();
+      clientB.disconnect();
+
+      // Winner (Player A) reconnects fresh
+      const clientA2 = createClientForAccount(playerAAccount, shortPort);
+      const finishedPromise = waitForEvent<any>(clientA2, "gameFinished");
+      clientA2.connect(roomId);
+      await finishedPromise;
+
+      expect(clientA2.getSeenTerminalEvents().timeoutSeen).toBe(true);
+
+      const proposalPromise = waitForEvent<ResultProposalMessage>(clientA2, "resultProposal");
+      const sigPromise = waitForEvent<ResultSignatureMessage>(clientA2, "resultSignature");
+      clientA2.requestResult(roomId);
+
+      const [proposal, relaySig] = await Promise.all([proposalPromise, sigPromise]);
+
+      const verification = verifyResultProposal({
+        proposal,
+        moves: ["e2e4"],
+        whiteAddress: playerAAccount.address,
+        blackAddress: playerBAccount.address,
+        roomId,
+        chainId: 31337,
+        escrowAddress,
+        now: Math.floor(Date.now() / 1000),
+        seenEvents: clientA2.getSeenTerminalEvents(),
+      });
+
+      expect(verification.valid).toBe(true);
+      expect(proposal.winner.toLowerCase()).toBe(playerAAccount.address.toLowerCase());
+      expect(proposal.reason).toBe(ReasonCode.Timeout);
+
+      const typedData = buildResultTypedData(
+        escrowAddress,
+        {
+          matchId: BigInt(roomId),
+          winner: proposal.winner,
+          outcome: proposal.outcome,
+          reason: proposal.reason,
+          moveCount: proposal.moveCount,
+          movesHash: proposal.movesHash,
+          nonce: BigInt(proposal.nonce),
+          deadline: BigInt(proposal.deadline),
+        },
+        31337
+      );
+      const playerASig = await playerAAccount.signTypedData(typedData);
+
+      const submitTx = await playerAWallet.writeContract({
+        address: escrowAddress,
+        abi: escrowAbi,
+        functionName: "submitResult",
+        args: [
+          BigInt(roomId),
+          proposal.winner,
+          proposal.outcome,
+          proposal.reason,
+          proposal.moveCount,
+          proposal.movesHash,
+          BigInt(proposal.nonce),
+          BigInt(proposal.deadline),
+          playerASig,
+          relaySig.signature as Hex,
+        ],
+      });
+      await anvil!.publicClient.waitForTransactionReceipt({ hash: submitTx });
+
+      const pending: bigint = await anvil!.publicClient.readContract({
+        address: escrowAddress,
+        abi: escrowAbi,
+        functionName: "pendingWithdrawals",
+        args: [playerAAccount.address],
+      });
+      expect(pending).toBe(parseEther("0.19"));
+
+      clientA2.disconnect();
+    } finally {
+      await shortServer.close();
+      try {
+        fs.rmSync(shortResultsDir, { recursive: true, force: true });
+        fs.rmSync(shortActiveDir, { recursive: true, force: true });
+      } catch {}
+    }
+  }, 45000);
 });

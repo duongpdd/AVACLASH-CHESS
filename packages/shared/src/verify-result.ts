@@ -13,6 +13,9 @@ export interface SeenTerminalEvents {
   resignSeen?: boolean;
   timeoutSeen?: boolean;
   drawAcceptSeen?: boolean;
+  resignerColor?: "w" | "b";
+  timeoutPlayer?: "w" | "b";
+  lastClockSync?: { whiteMs: number; blackMs: number };
 }
 
 export interface VerifyResultParams {
@@ -178,6 +181,23 @@ export function verifyResultProposal(params: VerifyResultParams): VerifyResultOu
           error: "Resignation cannot result in a Draw outcome.",
         };
       }
+      if (seenEvents?.resignerColor) {
+        const expectedWinner =
+          seenEvents.resignerColor === "w" ? blackAddress : whiteAddress;
+        const expectedOutcome =
+          seenEvents.resignerColor === "w"
+            ? OutcomeCode.BlackWin
+            : OutcomeCode.WhiteWin;
+        if (
+          proposal.winner.toLowerCase() !== expectedWinner.toLowerCase() ||
+          proposal.outcome !== expectedOutcome
+        ) {
+          return {
+            valid: false,
+            error: `Resigning player (${seenEvents.resignerColor}) cannot win the game. Winner must be opponent (${expectedWinner}).`,
+          };
+        }
+      }
     } else if (proposal.reason === ReasonCode.Timeout) {
       if (!seenEvents?.timeoutSeen) {
         return {
@@ -190,6 +210,40 @@ export function verifyResultProposal(params: VerifyResultParams): VerifyResultOu
           valid: false,
           error: "Timeout cannot result in a Draw outcome.",
         };
+      }
+      if (seenEvents?.timeoutPlayer) {
+        const expectedWinner =
+          seenEvents.timeoutPlayer === "w" ? blackAddress : whiteAddress;
+        const expectedOutcome =
+          seenEvents.timeoutPlayer === "w"
+            ? OutcomeCode.BlackWin
+            : OutcomeCode.WhiteWin;
+        if (
+          proposal.winner.toLowerCase() !== expectedWinner.toLowerCase() ||
+          proposal.outcome !== expectedOutcome
+        ) {
+          return {
+            valid: false,
+            error: `Timed out player (${seenEvents.timeoutPlayer}) cannot win the game. Winner must be opponent (${expectedWinner}).`,
+          };
+        }
+      }
+      if (seenEvents?.lastClockSync) {
+        const loserColor: "w" | "b" =
+          proposal.outcome === OutcomeCode.WhiteWin ? "b" : "w";
+        const loserMs =
+          loserColor === "w"
+            ? seenEvents.lastClockSync.whiteMs
+            : seenEvents.lastClockSync.blackMs;
+        const THRESHOLD_MS = 500;
+        const currentTurn: "w" | "b" = moves.length % 2 === 0 ? "w" : "b";
+        const isLoserTurn = currentTurn === loserColor;
+        if (loserMs > THRESHOLD_MS || (loserMs > 0 && !isLoserTurn)) {
+          return {
+            valid: false,
+            error: `Proposal claims timeout for ${loserColor}, but clock shows ${loserMs}ms time remaining.`,
+          };
+        }
       }
     } else if (proposal.reason === ReasonCode.Agreement) {
       if (!seenEvents?.drawAcceptSeen) {

@@ -272,6 +272,7 @@ export class RelayRoom {
     this.broadcast({
       type: "timeout",
       roomId: this.roomId,
+      player: loserColor,
     });
 
     this.onGameOver?.(this, outcome, "timeout", winner);
@@ -372,6 +373,7 @@ export class RelayRoom {
     this.broadcast({
       type: "resign",
       roomId: this.roomId,
+      player: loser,
     });
 
     this.onGameOver?.(this, outcome, "resign", winner);

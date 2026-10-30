@@ -56,6 +56,7 @@ export const moveSchema = z.object({
 export const resignSchema = z.object({
   type: z.literal("resign"),
   roomId: roomIdSchema,
+  player: z.enum(["w", "b"]).optional(),
 });
 
 export const drawOfferSchema = z.object({
@@ -115,6 +116,7 @@ export const errorSchema = z.object({
 export const timeoutSchema = z.object({
   type: z.literal("timeout"),
   roomId: roomIdSchema,
+  player: z.enum(["w", "b"]).optional(),
 });
 
 export const focusWarningSchema = z.object({
@@ -165,6 +167,10 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
 export const gameFinishedSchema = z.object({
   type: z.literal("game_finished"),
   roomId: roomIdSchema,
+  outcome: z.union([z.number().int().min(0).max(2), z.enum(["w", "b", "draw"])]).optional(),
+  reason: z.union([z.string(), z.number()]).optional(),
+  winner: addressSchema.optional(),
+  moveCount: z.number().int().nonnegative().optional(),
 });
 
 /**
