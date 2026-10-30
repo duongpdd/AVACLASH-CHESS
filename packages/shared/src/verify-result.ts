@@ -211,6 +211,20 @@ export function verifyResultProposal(params: VerifyResultParams): VerifyResultOu
           error: "Timeout cannot result in a Draw outcome.",
         };
       }
+
+      // Turn 3c-3 Item 2: Timeout check purely verifies that the loser is the player on turn,
+      // and winner is the opponent. No loserMs > 500 threshold check based on lastClockSync.
+      const loserColor: "w" | "b" =
+        proposal.outcome === OutcomeCode.WhiteWin ? "b" : "w";
+      const currentTurn: "w" | "b" = moves.length % 2 === 0 ? "w" : "b";
+
+      if (loserColor !== currentTurn) {
+        return {
+          valid: false,
+          error: `Proposal claims timeout for ${loserColor}, but it is ${currentTurn}'s turn. Only the player whose turn it is can lose on time.`,
+        };
+      }
+
       if (seenEvents?.timeoutPlayer) {
         const expectedWinner =
           seenEvents.timeoutPlayer === "w" ? blackAddress : whiteAddress;
@@ -225,23 +239,6 @@ export function verifyResultProposal(params: VerifyResultParams): VerifyResultOu
           return {
             valid: false,
             error: `Timed out player (${seenEvents.timeoutPlayer}) cannot win the game. Winner must be opponent (${expectedWinner}).`,
-          };
-        }
-      }
-      if (seenEvents?.lastClockSync) {
-        const loserColor: "w" | "b" =
-          proposal.outcome === OutcomeCode.WhiteWin ? "b" : "w";
-        const loserMs =
-          loserColor === "w"
-            ? seenEvents.lastClockSync.whiteMs
-            : seenEvents.lastClockSync.blackMs;
-        const THRESHOLD_MS = 500;
-        const currentTurn: "w" | "b" = moves.length % 2 === 0 ? "w" : "b";
-        const isLoserTurn = currentTurn === loserColor;
-        if (loserMs > THRESHOLD_MS || (loserMs > 0 && !isLoserTurn)) {
-          return {
-            valid: false,
-            error: `Proposal claims timeout for ${loserColor}, but clock shows ${loserMs}ms time remaining.`,
           };
         }
       }

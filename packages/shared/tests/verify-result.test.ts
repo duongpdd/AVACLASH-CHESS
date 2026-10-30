@@ -257,7 +257,8 @@ describe("verifyResultProposal (Turn 3c-2 Item 2)", () => {
   });
 
   it("verifies timeout if and only if timeoutSeen is true", () => {
-    const ongoingMoves = ["e2e4"];
+    // 2 moves -> White turn -> White loses on timeout -> Black wins
+    const ongoingMoves = ["e2e4", "e7e5"];
     const hash = computeMovesHash(ongoingMoves);
 
     // Without timeoutSeen -> REJECT
@@ -485,7 +486,7 @@ describe("verifyResultProposal (Turn 3c-2 Item 2)", () => {
     expect(res.error).toMatch(/timed out player|cannot win/i);
   });
 
-  it("rejects timeout when clock_sync shows loser still had time (Turn 3c-2-fix Item 1)", () => {
+  it("accepts timeout when clock_sync shows loser still had time (even multiple hours remaining) if timed out player is on turn (Turn 3c-3 Item 2)", () => {
     const ongoingMoves = ["e2e4"];
     const hash = computeMovesHash(ongoingMoves);
 
@@ -510,11 +511,44 @@ describe("verifyResultProposal (Turn 3c-2 Item 2)", () => {
       now: baseNow,
       seenEvents: {
         timeoutSeen: true,
-        lastClockSync: { whiteMs: 290000, blackMs: 60000 },
+        // Even if lastClockSync recorded 5 hours (18,000,000 ms) remaining for Black
+        lastClockSync: { whiteMs: 290000, blackMs: 5 * 3600 * 1000 },
+      },
+    });
+
+    expect(res.valid).toBe(true);
+  });
+
+  it("rejects timeout when the player assigned timeout loss was NOT on turn (Turn 3c-3 Item 2)", () => {
+    const ongoingMoves = ["e2e4"]; // 1 move -> Black's turn
+    const hash = computeMovesHash(ongoingMoves);
+
+    // Falsely claims White timed out (even though it's Black's turn)
+    const res = verifyResultProposal({
+      proposal: {
+        type: "result_proposal",
+        roomId,
+        winner: black,
+        outcome: OutcomeCode.BlackWin,
+        reason: ReasonCode.Timeout,
+        moveCount: ongoingMoves.length,
+        movesHash: hash,
+        nonce: 1,
+        deadline: validDeadline,
+      },
+      moves: ongoingMoves,
+      whiteAddress: white,
+      blackAddress: black,
+      roomId,
+      chainId,
+      escrowAddress: escrow,
+      now: baseNow,
+      seenEvents: {
+        timeoutSeen: true,
       },
     });
 
     expect(res.valid).toBe(false);
-    expect(res.error).toMatch(/clock|time remaining/i);
+    expect(res.error).toMatch(/turn/i);
   });
 });

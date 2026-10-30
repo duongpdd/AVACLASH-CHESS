@@ -436,8 +436,24 @@ export class RelayClient {
         const r = typeof msg.reason === "string" ? msg.reason.toLowerCase() : "";
         if (r === "resign" || msg.reason === ReasonCode.Resign) {
           this.seenTerminalEvents.resignSeen = true;
+          if (!this.seenTerminalEvents.resignerColor && msg.winner && this.roomState) {
+            const w = msg.winner.toLowerCase();
+            if (this.roomState.white.toLowerCase() === w) {
+              this.seenTerminalEvents.resignerColor = "b";
+            } else if (this.roomState.black?.toLowerCase() === w) {
+              this.seenTerminalEvents.resignerColor = "w";
+            }
+          }
         } else if (r === "timeout" || msg.reason === ReasonCode.Timeout) {
           this.seenTerminalEvents.timeoutSeen = true;
+          if (!this.seenTerminalEvents.timeoutPlayer && msg.winner && this.roomState) {
+            const w = msg.winner.toLowerCase();
+            if (this.roomState.white.toLowerCase() === w) {
+              this.seenTerminalEvents.timeoutPlayer = "b";
+            } else if (this.roomState.black?.toLowerCase() === w) {
+              this.seenTerminalEvents.timeoutPlayer = "w";
+            }
+          }
         } else if (
           r === "agreement" ||
           r === "draw_agreed" ||
@@ -602,6 +618,10 @@ export class RelayClient {
 
   public getSeenTerminalEvents(): SeenTerminalEvents {
     return { ...this.seenTerminalEvents };
+  }
+
+  public getSeenEvents(): SeenTerminalEvents {
+    return this.getSeenTerminalEvents();
   }
 
   public getLastClockSync(): { whiteMs: number; blackMs: number } | null {

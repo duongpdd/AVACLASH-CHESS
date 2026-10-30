@@ -7,6 +7,7 @@ import {
   type ResultProposalMessage,
   type FocusWarningMessage,
   type SeenTerminalEvents,
+  ReasonCode,
 } from "@avaclash/shared";
 import { RELAY_URL, ESCROW_ADDRESS, CHAIN_ID } from "@/config/env";
 
@@ -90,6 +91,58 @@ export function useRelaySession(
 
     clientRef.current = client;
 
+    const syncSeenFromClient = (
+      customRoomState?: RoomStateMessage,
+      gameFinishedMsg?: any
+    ) => {
+      const clientSeen =
+        typeof (client as any).getSeenEvents === "function"
+          ? (client as any).getSeenEvents()
+          : typeof client.getSeenTerminalEvents === "function"
+          ? client.getSeenTerminalEvents()
+          : {};
+      const finished = gameFinishedMsg || client.getFinishedInfo?.();
+      const currentRoomState = customRoomState || client.getRoomState?.();
+
+      setSeenEvents((prev) => {
+        const merged: SeenTerminalEvents = { ...prev, ...clientSeen };
+        if (finished) {
+          const r =
+            typeof finished.reason === "string"
+              ? finished.reason.toLowerCase()
+              : "";
+          if (r === "resign" || finished.reason === ReasonCode.Resign) {
+            merged.resignSeen = true;
+            if (!merged.resignerColor && finished.winner && currentRoomState) {
+              const w = finished.winner.toLowerCase();
+              if (currentRoomState.white.toLowerCase() === w) {
+                merged.resignerColor = "b";
+              } else if (currentRoomState.black?.toLowerCase() === w) {
+                merged.resignerColor = "w";
+              }
+            }
+          } else if (r === "timeout" || finished.reason === ReasonCode.Timeout) {
+            merged.timeoutSeen = true;
+            if (!merged.timeoutPlayer && finished.winner && currentRoomState) {
+              const w = finished.winner.toLowerCase();
+              if (currentRoomState.white.toLowerCase() === w) {
+                merged.timeoutPlayer = "b";
+              } else if (currentRoomState.black?.toLowerCase() === w) {
+                merged.timeoutPlayer = "w";
+              }
+            }
+          } else if (
+            r === "agreement" ||
+            r === "draw_agreed" ||
+            finished.reason === ReasonCode.Agreement
+          ) {
+            merged.drawAcceptSeen = true;
+          }
+        }
+        return merged;
+      });
+    };
+
     // Attach typed event listeners
     const unsubs = [
       client.on("connectionStatus", (status) => {
@@ -109,6 +162,10 @@ export function useRelaySession(
           turn,
           status: state.status,
         };
+        if (state.status === "finished") {
+          setGameFinished(true);
+        }
+        syncSeenFromClient(state);
       }),
 
       client.on("move", (move) => {
@@ -129,12 +186,20 @@ export function useRelaySession(
         lastSyncRef.current.time = Date.now();
       }),
 
-      client.on("resign", () => {
-        setSeenEvents((prev) => ({ ...prev, resignSeen: true }));
+      client.on("resign", (msg) => {
+        setSeenEvents((prev) => ({
+          ...prev,
+          resignSeen: true,
+          resignerColor: msg.player ?? prev.resignerColor,
+        }));
       }),
 
-      client.on("timeout", () => {
-        setSeenEvents((prev) => ({ ...prev, timeoutSeen: true }));
+      client.on("timeout", (msg) => {
+        setSeenEvents((prev) => ({
+          ...prev,
+          timeoutSeen: true,
+          timeoutPlayer: msg.player ?? prev.timeoutPlayer,
+        }));
       }),
 
       client.on("drawOffer", () => {
@@ -158,8 +223,9 @@ export function useRelaySession(
         setRelaySignature(sig.signature as `0x${string}`);
       }),
 
-      client.on("gameFinished", () => {
+      client.on("gameFinished", (msg) => {
         setGameFinished(true);
+        syncSeenFromClient(undefined, msg);
       }),
 
       client.on("focusWarning", (warn) => {
@@ -170,6 +236,9 @@ export function useRelaySession(
         setError(err.message);
       }),
     ];
+
+    // Initial sync from client if reconnecting or reloading page
+    syncSeenFromClient();
 
     if (autoConnect) {
       client.connect(parsedRoomId);
