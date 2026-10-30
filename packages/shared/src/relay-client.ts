@@ -24,6 +24,7 @@ export interface FinishedInfo {
   reason?: string | number;
   winner?: `0x${string}`;
   moveCount?: number;
+  moves?: string[];
 }
 
 export type ConnectionStatus =
