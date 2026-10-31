@@ -165,6 +165,27 @@ function GameContent() {
   const [relayErrorToast, setRelayErrorToast] = useState<string | null>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const whiteAddress =
+    room?.creatorIsWhite ? room.playerA : room?.playerB;
+  const blackAddress =
+    room?.creatorIsWhite ? room?.playerB : room?.playerA;
+
+  const isWhiteMe =
+    Boolean(address && whiteAddress && address.toLowerCase() === whiteAddress.toLowerCase());
+  const isBlackMe =
+    Boolean(address && blackAddress && address.toLowerCase() === blackAddress.toLowerCase());
+
+  const fallbackColor: "w" | "b" | "spectator" = isWhiteMe
+    ? "w"
+    : isBlackMe
+    ? "b"
+    : "spectator";
+
+  const effectiveColor: "w" | "b" | "spectator" =
+    (relaySession.roomState && relaySession.myColor)
+      ? relaySession.myColor
+      : fallbackColor;
+
   const showToast = useCallback((message: string, durationMs = 4000) => {
     if (toastTimeoutRef.current) {
       clearTimeout(toastTimeoutRef.current);
@@ -195,9 +216,9 @@ function GameContent() {
   });
 
   const sendFocusWarningRef = useRef(relaySession.sendFocusWarning);
-  const myColorRef = useRef(relaySession.myColor);
+  const myColorRef = useRef(effectiveColor);
   sendFocusWarningRef.current = relaySession.sendFocusWarning;
-  myColorRef.current = relaySession.myColor;
+  myColorRef.current = effectiveColor;
 
   // Track client focus warning (advisory only, no clock penalty)
   useEffect(() => {
@@ -299,16 +320,6 @@ function GameContent() {
     );
   }
 
-  const whiteAddress =
-    room?.creatorIsWhite ? room.playerA : room?.playerB;
-  const blackAddress =
-    room?.creatorIsWhite ? room?.playerB : room?.playerA;
-
-  const isWhiteMe =
-    address && whiteAddress && address.toLowerCase() === whiteAddress.toLowerCase();
-  const isBlackMe =
-    address && blackAddress && address.toLowerCase() === blackAddress.toLowerCase();
-
   const isCancelledOrRefunded =
     Boolean(room && (room.status === 3 || room.status === 4 || room.status === 6));
 
@@ -321,8 +332,8 @@ function GameContent() {
   const whiteName = isWhiteMe ? "Bạn (Trắng)" : "Người chơi Trắng";
   const blackName = isBlackMe ? "Bạn (Đen)" : "Người chơi Đen";
 
-  const topPlayer = relaySession.myColor === "b" ? "w" : "b";
-  const bottomPlayer = relaySession.myColor === "b" ? "b" : "w";
+  const topPlayer = effectiveColor === "b" ? "w" : "b";
+  const bottomPlayer = effectiveColor === "b" ? "b" : "w";
 
   return (
     <div className="flex flex-col gap-4 max-w-5xl w-full mx-auto">
@@ -443,9 +454,9 @@ function GameContent() {
           <div className="relative aspect-square w-full max-w-[480px] rounded-xl p-2 bg-slate-900/90 border border-white/15 shadow-2xl flex items-center justify-center overflow-hidden">
             <PhaserGame
               boardSize={464}
-              flipBoard={relaySession.myColor === "b"}
+              flipBoard={effectiveColor === "b"}
               moves={relaySession.moves}
-              playerColor={relaySession.myColor ?? "spectator"}
+              playerColor={effectiveColor}
               canMove={
                 relaySession.isMyTurn &&
                 relaySession.roomState?.status === "active" &&
@@ -527,9 +538,9 @@ function GameContent() {
             <div className="flex items-center justify-between text-xs text-slate-300">
               <span>Quân của bạn:</span>
               <span className="font-bold text-slate-100">
-                {relaySession.myColor === "w"
+                {effectiveColor === "w"
                   ? "Trắng (White)"
-                  : relaySession.myColor === "b"
+                  : effectiveColor === "b"
                   ? "Đen (Black)"
                   : "Khán giả (Spectator)"}
               </span>

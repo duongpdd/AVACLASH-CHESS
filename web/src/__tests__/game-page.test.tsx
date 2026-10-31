@@ -106,7 +106,11 @@ vi.mock("next/dynamic", () => ({
   default: () => {
     return function MockPhaserGame(props: any) {
       return (
-        <div data-testid="mock-phaser-game">
+        <div
+          data-testid="mock-phaser-game"
+          data-flip-board={String(props.flipBoard)}
+          data-player-color={props.playerColor}
+        >
           <button
             data-testid="simulate-blocked-interaction"
             onClick={() => props.onBlockedInteraction?.()}
@@ -532,6 +536,32 @@ describe("GamePage Online Mode Component Tests (Turn 3c-2-fix Item 5)", () => {
       });
 
       expect(screen.getByText("Chưa đến lượt bạn")).toBeDefined();
+    });
+
+    it("falls back to on-chain room data to infer player color and flipBoard when room_state is missing (Turn 3c-5 Item 3)", () => {
+      // User is Player B (Black since creatorIsWhite = true)
+      setMockAddress("0x2222222222222222222222222222222222222222");
+      setMockRoomData({
+        playerA: "0x1111111111111111111111111111111111111111",
+        playerB: "0x2222222222222222222222222222222222222222",
+        stake: BigInt("100000000000000000"),
+        status: 2, // Resolved / Finished on chain
+        creatorIsWhite: true,
+        gameStarted: true,
+      });
+
+      mockSearchParams.set("room", "10");
+      render(<GamePage />);
+
+      // On reload after finished game, relay has no active room_state
+      // User MUST NOT be shown as "Khán giả (Spectator)"
+      expect(screen.queryByText(/Khán giả/i)).toBeNull();
+      expect(screen.getByText(/Đen \(Black\)/i)).toBeDefined();
+
+      // Board must be flipped for Black player
+      const phaserGame = screen.getByTestId("mock-phaser-game");
+      expect(phaserGame.getAttribute("data-flip-board")).toBe("true");
+      expect(phaserGame.getAttribute("data-player-color")).toBe("b");
     });
   });
 });
