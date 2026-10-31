@@ -74,4 +74,33 @@ describe("ChessScene syncMoves GameState Lifecycle (Turn 3c-4 Item 4)", () => {
     scene.shutdown();
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it("Item 6c: local GameState used for captured piece statistics does not run any background clock timer", () => {
+    const scene = new ChessScene();
+    scene.init({
+      boardSize: 464,
+      flipBoard: false,
+      moves: [],
+      playerColor: "w",
+      canMove: true,
+    });
+    scene.create();
+
+    // After creation, no background clock timers should be active
+    expect(vi.getTimerCount()).toBe(0);
+
+    // After syncMoves, no background clock timers should be active
+    scene.syncMoves(["e2e4", "e7e5"]);
+    expect(vi.getTimerCount()).toBe(0);
+
+    // Material stats are computed accurately without any timer
+    const stats = scene.getGameState().getMaterialStats();
+    expect(stats.white.captured).toEqual([]);
+    expect(stats.black.captured).toEqual([]);
+    expect(stats.white.advantage).toBe(0);
+    expect(stats.black.advantage).toBe(0);
+
+    scene.shutdown();
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });

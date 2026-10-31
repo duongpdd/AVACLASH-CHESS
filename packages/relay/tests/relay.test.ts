@@ -1172,4 +1172,33 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       try { fs.rmSync(tmpActProxyFalse, { recursive: true, force: true }); } catch {}
     }
   });
+
+  it("Item 6b: sends game_finished with moves array from savedResults when reconnecting to finished room", async () => {
+    const roomId = 992;
+    registerMockRoom(roomId, accountAlice.address, accountBob.address, true);
+
+    const savedMoves = ["e2e4", "e7e5", "g1f3", "b8c6"];
+    const resultKey = (server as any).getResultKey(roomId);
+    (server as any).savedResults.set(resultKey, {
+      roomId,
+      outcome: 1,
+      reason: "resign",
+      winner: accountAlice.address,
+      moves: savedMoves,
+      signature: "0x1234",
+    });
+
+    const client = await createTestClient();
+    const gameFinishedPromise = client.waitFor((m: any) => m.type === "game_finished");
+    await authenticateAndJoin(client, accountAlice, roomId);
+
+    const gameFinishedMsg = await gameFinishedPromise;
+    expect(gameFinishedMsg.type).toBe("game_finished");
+    expect(gameFinishedMsg.roomId).toBe(roomId);
+    expect(gameFinishedMsg.moves).toBeDefined();
+    expect(gameFinishedMsg.moves).toEqual(savedMoves);
+    expect(gameFinishedMsg.moveCount).toBe(savedMoves.length);
+
+    client.close();
+  });
 });

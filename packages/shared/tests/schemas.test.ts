@@ -7,6 +7,7 @@ import {
   serverMessageSchema,
   clockSyncSchema,
   roomStateSchema,
+  gameFinishedSchema,
 } from "../src/schemas.js";
 import { OutcomeCode, ReasonCode } from "../src/types.js";
 
@@ -305,3 +306,43 @@ describe("spectatorPoolUpdateSchema", () => {
     ).toThrow();
   });
 });
+
+describe("gameFinishedSchema (Turn 3c-5 Item 6a)", () => {
+  it("should accept valid game_finished message with moves array", () => {
+    const msg = {
+      type: "game_finished",
+      roomId: 1,
+      outcome: 1,
+      reason: "resign",
+      winner: "0x1234567890abcdef1234567890abcdef12345678",
+      moveCount: 2,
+      moves: ["e2e4", "e7e5"],
+    };
+    expect(gameFinishedSchema.parse(msg)).toEqual(msg);
+    expect(serverMessageSchema.parse(msg)).toEqual(msg);
+  });
+
+  it("should accept valid game_finished message without moves", () => {
+    const msg = {
+      type: "game_finished",
+      roomId: 1,
+      outcome: 0,
+      reason: 0,
+      winner: "0x1234567890abcdef1234567890abcdef12345678",
+      moveCount: 0,
+    };
+    expect(gameFinishedSchema.parse(msg)).toEqual(msg);
+    expect(serverMessageSchema.parse(msg)).toEqual(msg);
+  });
+
+  it("should reject invalid moves format (non-string array)", () => {
+    expect(() =>
+      gameFinishedSchema.parse({
+        type: "game_finished",
+        roomId: 1,
+        moves: [123, 456],
+      }),
+    ).toThrow();
+  });
+});
+
