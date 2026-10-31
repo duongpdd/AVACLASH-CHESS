@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { OutcomeCode, ReasonCode, computeMovesHash, RelayClient } from "@avaclash/shared";
 
 const mocks = vi.hoisted(() => {
-  let address = "0x1111111111111111111111111111111111111111" as `0x${string}`;
+  let address: `0x${string}` | undefined = "0x1111111111111111111111111111111111111111";
   let receipt: any = { status: "success" };
   let isConfirming = false;
   const signTypedDataAsync = vi.fn();
@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     getAddress: () => address,
-    setAddress: (a: `0x${string}`) => {
+    setAddress: (a: `0x${string}` | undefined) => {
       address = a;
     },
     getReceipt: () => receipt,
@@ -274,6 +274,59 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3 & Turn 3c-2-fix Item 2)", () => {
       // With signTypedDataAsync in ref: connect is called exactly 1 time
       expect(connectSpy).toHaveBeenCalledTimes(1);
       expect(disconnectSpy).toHaveBeenCalledTimes(0);
+    });
+
+    it("(a) does NOT open socket when mounted with undefined address; opens exactly 1 socket when address appears (Turn 3c-5 Item 1)", () => {
+      const connectSpy = vi.spyOn(RelayClient.prototype, "connect").mockImplementation(() => {});
+      const disconnectSpy = vi.spyOn(RelayClient.prototype, "disconnect").mockImplementation(() => {});
+
+      mocks.setAddress(undefined);
+      const { rerender } = renderHook(() => useRelaySession(50));
+
+      // Should NOT open socket when address is undefined
+      expect(connectSpy).toHaveBeenCalledTimes(0);
+
+      // Address appears -> should open exactly 1 socket
+      mocks.setAddress("0x1111111111111111111111111111111111111111");
+      rerender();
+
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("(b) re-render with new signTypedDataAsync does not open additional sockets (Turn 3c-5 Item 1)", () => {
+      const connectSpy = vi.spyOn(RelayClient.prototype, "connect").mockImplementation(() => {});
+      const disconnectSpy = vi.spyOn(RelayClient.prototype, "disconnect").mockImplementation(() => {});
+
+      mocks.setAddress("0x1111111111111111111111111111111111111111");
+      mocks.signTypedDataAsync = vi.fn();
+      const { rerender } = renderHook(() => useRelaySession(50));
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+
+      mocks.signTypedDataAsync = vi.fn();
+      rerender();
+      mocks.signTypedDataAsync = vi.fn();
+      rerender();
+
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+      expect(disconnectSpy).toHaveBeenCalledTimes(0);
+    });
+
+    it("(c) changing address closes old socket and opens new socket (Turn 3c-5 Item 1)", () => {
+      const connectSpy = vi.spyOn(RelayClient.prototype, "connect").mockImplementation(() => {});
+      const disconnectSpy = vi.spyOn(RelayClient.prototype, "disconnect").mockImplementation(() => {});
+
+      mocks.setAddress("0x1111111111111111111111111111111111111111");
+      const { rerender } = renderHook(() => useRelaySession(50));
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+      expect(disconnectSpy).toHaveBeenCalledTimes(0);
+
+      // Address changes to new wallet
+      mocks.setAddress("0x2222222222222222222222222222222222222222");
+      rerender();
+
+      // Old socket disconnected and new socket connected
+      expect(disconnectSpy).toHaveBeenCalledTimes(1);
+      expect(connectSpy).toHaveBeenCalledTimes(2);
     });
   });
 });

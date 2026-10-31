@@ -62,8 +62,6 @@ export function useRelaySession(
     status: "waiting",
   });
 
-  const addressRef = useRef(address);
-  addressRef.current = address;
   const signTypedDataAsyncRef = useRef(signTypedDataAsync);
   signTypedDataAsyncRef.current = signTypedDataAsync;
 
@@ -73,7 +71,7 @@ export function useRelaySession(
 
   // Initialize RelayClient instance
   useEffect(() => {
-    if (parsedRoomId === undefined) return;
+    if (parsedRoomId === undefined || !address) return;
 
     const WebSocketImpl =
       typeof window !== "undefined" && window.WebSocket
@@ -88,8 +86,8 @@ export function useRelaySession(
         return (await signTypedDataAsyncRef.current(typedData as any)) as `0x${string}`;
       },
       getAddress: () => {
-        if (!addressRef.current) throw new Error("Wallet not connected");
-        return addressRef.current;
+        if (!address) throw new Error("Wallet not connected");
+        return address;
       },
       chainId: CHAIN_ID,
       escrowAddress: ESCROW_ADDRESS,
@@ -267,7 +265,7 @@ export function useRelaySession(
       client.disconnect();
       clientRef.current = null;
     };
-  }, [parsedRoomId, relayUrl, autoConnect]);
+  }, [parsedRoomId, relayUrl, autoConnect, address]);
 
   // Local Clock Interpolation between clock_sync ticks
   useEffect(() => {
