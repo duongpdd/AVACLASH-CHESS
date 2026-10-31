@@ -1,9 +1,6 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 
-try {
-  fs.rmSync(".next", { recursive: true, force: true });
-} catch {}
 
 const cmd = process.platform === "win32" ? "npx.cmd" : "npx";
 const args = ["next", "build", "--webpack"];
@@ -34,6 +31,7 @@ child.on("close", (code) => {
   const forbiddenPatterns = [
     "Attempted import error",
     "does not contain a default export",
+    "Module not found",
   ];
 
   const matched = forbiddenPatterns.filter((pattern) => output.includes(pattern));
