@@ -42,7 +42,14 @@ export function useRelaySession(
   const [focusWarning, setFocusWarning] = useState<FocusWarningMessage | null>(
     null
   );
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; id: number } | null>(
+    null
+  );
+  const errorIdRef = useRef(0);
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
   const [incomingDrawOffer, setIncomingDrawOffer] = useState(false);
 
   const clientRef = useRef<RelayClient | null>(null);
@@ -249,7 +256,8 @@ export function useRelaySession(
       }),
 
       client.on("error", (err) => {
-        setError(err.message);
+        errorIdRef.current += 1;
+        setError({ message: err.message, id: errorIdRef.current });
       }),
     ];
 
@@ -369,6 +377,7 @@ export function useRelaySession(
     gameFinished,
     focusWarning,
     error,
+    clearError,
     incomingDrawOffer,
     sendMove,
     sendResign,

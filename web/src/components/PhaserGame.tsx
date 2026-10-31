@@ -15,6 +15,7 @@ interface PhaserGameProps {
   onClockTick?: (whiteMs: number, blackMs: number) => void;
   onTurnChange?: (turn: PlayerColor) => void;
   onSceneReady?: (scene: ChessSceneType) => void;
+  onBlockedInteraction?: () => void;
 }
 
 export default function PhaserGame({
@@ -28,6 +29,7 @@ export default function PhaserGame({
   onClockTick,
   onTurnChange,
   onSceneReady,
+  onBlockedInteraction,
 }: PhaserGameProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -36,8 +38,8 @@ export default function PhaserGame({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Store callbacks in refs to avoid re-creating Phaser game
-  const callbacksRef = useRef({ onMove, onGameOver, onClockTick, onTurnChange, onSceneReady });
-  callbacksRef.current = { onMove, onGameOver, onClockTick, onTurnChange, onSceneReady };
+  const callbacksRef = useRef({ onMove, onGameOver, onClockTick, onTurnChange, onSceneReady, onBlockedInteraction });
+  callbacksRef.current = { onMove, onGameOver, onClockTick, onTurnChange, onSceneReady, onBlockedInteraction };
 
   // Store latest prop values in refs to guard against async initialization race conditions
   const movesRef = useRef(moves);
@@ -97,6 +99,8 @@ export default function PhaserGame({
                 callbacksRef.current.onClockTick?.(whiteMs, blackMs),
               onTurnChange: (turn: PlayerColor) =>
                 callbacksRef.current.onTurnChange?.(turn),
+              onBlockedInteraction: () =>
+                callbacksRef.current.onBlockedInteraction?.(),
             });
           }
 

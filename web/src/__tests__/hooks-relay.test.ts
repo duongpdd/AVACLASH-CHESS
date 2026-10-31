@@ -328,5 +328,44 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3 & Turn 3c-2-fix Item 2)", () => {
       expect(disconnectSpy).toHaveBeenCalledTimes(1);
       expect(connectSpy).toHaveBeenCalledTimes(2);
     });
+
+    it("returns error with incrementing id on repeated errors and provides clearError (Turn 3c-5 Item 2)", () => {
+      let errorHandler: ((err: any) => void) | undefined;
+      vi.spyOn(RelayClient.prototype, "on").mockImplementation((event: string, handler: any) => {
+        if (event === "error") errorHandler = handler;
+        return () => {};
+      });
+
+      mocks.setAddress("0x1111111111111111111111111111111111111111");
+      const { result } = renderHook(() => useRelaySession(50));
+
+      expect(result.current.error).toBeNull();
+
+      act(() => {
+        errorHandler?.({ message: "Nước đi không hợp lệ" });
+      });
+
+      expect(result.current.error).toEqual({
+        message: "Nước đi không hợp lệ",
+        id: 1,
+      });
+
+      // Same error message emitted again
+      act(() => {
+        errorHandler?.({ message: "Nước đi không hợp lệ" });
+      });
+
+      expect(result.current.error).toEqual({
+        message: "Nước đi không hợp lệ",
+        id: 2,
+      });
+
+      // clearError clears the error
+      act(() => {
+        result.current.clearError();
+      });
+
+      expect(result.current.error).toBeNull();
+    });
   });
 });

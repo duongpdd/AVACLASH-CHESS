@@ -163,17 +163,30 @@ function GameContent() {
   const [showDrawOfferModal, setShowDrawOfferModal] = useState(false);
   const [focusAlert, setFocusAlert] = useState<string | null>(null);
   const [relayErrorToast, setRelayErrorToast] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const showToast = useCallback((message: string, durationMs = 4000) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    setRelayErrorToast(message);
+    toastTimeoutRef.current = setTimeout(() => {
+      setRelayErrorToast(null);
+      toastTimeoutRef.current = null;
+    }, durationMs);
+  }, []);
 
   // Auto-dismissing notification for relay errors ("Đến lượt đối thủ", "Nước đi không hợp lệ", ...)
+  // Uses relaySession.error ({ message, id }) so repeated identical errors re-trigger toast reliably
   useEffect(() => {
     if (relaySession.error) {
-      setRelayErrorToast(relaySession.error);
-      const timer = setTimeout(() => {
-        setRelayErrorToast(null);
-      }, 4000);
-      return () => clearTimeout(timer);
+      showToast(relaySession.error.message, 4000);
     }
-  }, [relaySession.error]);
+  }, [relaySession.error, showToast]);
+
+  const handleBlockedInteraction = useCallback(() => {
+    showToast("Chưa đến lượt bạn", 3000);
+  }, [showToast]);
 
   const sceneRef = useRef<ChessScene | null>(null);
   const [materialStats, setMaterialStats] = useState<MaterialStats>({
@@ -440,6 +453,7 @@ function GameContent() {
               }
               onMove={handleBoardMove}
               onSceneReady={handleSceneReady}
+              onBlockedInteraction={handleBlockedInteraction}
             />
 
             {!relaySession.isConnected && !isGameOver && (

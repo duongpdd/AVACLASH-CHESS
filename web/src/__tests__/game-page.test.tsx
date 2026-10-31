@@ -105,7 +105,16 @@ vi.mock("next/navigation", () => ({
 vi.mock("next/dynamic", () => ({
   default: () => {
     return function MockPhaserGame(props: any) {
-      return <div data-testid="mock-phaser-game" />;
+      return (
+        <div data-testid="mock-phaser-game">
+          <button
+            data-testid="simulate-blocked-interaction"
+            onClick={() => props.onBlockedInteraction?.()}
+          >
+            Simulate Blocked
+          </button>
+        </div>
+      );
     };
   },
 }));
@@ -453,6 +462,76 @@ describe("GamePage Online Mode Component Tests (Turn 3c-2-fix Item 5)", () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+
+    it("displays toast again when the same relay error is emitted twice separated by 5 seconds (Turn 3c-5 Item 2)", () => {
+      vi.useFakeTimers();
+      try {
+        setMockRoomData({
+          playerA: "0x1111111111111111111111111111111111111111",
+          playerB: "0x2222222222222222222222222222222222222222",
+          stake: BigInt("100000000000000000"),
+          status: 1, // Active
+          creatorIsWhite: true,
+          gameStarted: true,
+        });
+
+        mockSearchParams.set("room", "10");
+        render(<GamePage />);
+
+        const relay = getMockRelayClientInstance();
+
+        // First error emission
+        act(() => {
+          relay.emit("error", {
+            type: "error",
+            message: "Nước đi không hợp lệ",
+          });
+        });
+
+        expect(screen.getByText("Nước đi không hợp lệ")).toBeDefined();
+
+        // Fast forward 5 seconds (4s auto-dismiss + 1s extra)
+        act(() => {
+          vi.advanceTimersByTime(5000);
+        });
+
+        expect(screen.queryByText("Nước đi không hợp lệ")).toBeNull();
+
+        // Second error emission with identical message
+        act(() => {
+          relay.emit("error", {
+            type: "error",
+            message: "Nước đi không hợp lệ",
+          });
+        });
+
+        // Must display toast again
+        expect(screen.getByText("Nước đi không hợp lệ")).toBeDefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("displays short notification 'Chưa đến lượt bạn' on onBlockedInteraction (Turn 3c-5 Item 2)", () => {
+      setMockRoomData({
+        playerA: "0x1111111111111111111111111111111111111111",
+        playerB: "0x2222222222222222222222222222222222222222",
+        stake: BigInt("100000000000000000"),
+        status: 1,
+        creatorIsWhite: true,
+        gameStarted: true,
+      });
+
+      mockSearchParams.set("room", "10");
+      render(<GamePage />);
+
+      const blockedBtn = screen.getByTestId("simulate-blocked-interaction");
+      act(() => {
+        fireEvent.click(blockedBtn);
+      });
+
+      expect(screen.getByText("Chưa đến lượt bạn")).toBeDefined();
     });
   });
 });

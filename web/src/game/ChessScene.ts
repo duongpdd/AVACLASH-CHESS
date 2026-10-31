@@ -38,6 +38,7 @@ export interface ChessSceneConfig {
   onGameOver?: (outcome: GameOutcome, reason: EndReason) => void;
   onClockTick?: (whiteMs: number, blackMs: number) => void;
   onTurnChange?: (turn: PlayerColor) => void;
+  onBlockedInteraction?: () => void;
 }
 
 export class ChessScene extends Phaser.Scene {
@@ -225,6 +226,17 @@ export class ChessScene extends Phaser.Scene {
       // No piece selected — try to select
       if (this.controller.canSelectSquare(square)) {
         this.selectSquare(square);
+      } else {
+        const piece = this.controller.getPieceAt(square);
+        if (piece) {
+          if (
+            !this.config_.canMove ||
+            this.config_.playerColor === "spectator" ||
+            this.controller.turn() !== this.config_.playerColor
+          ) {
+            this.config_.onBlockedInteraction?.();
+          }
+        }
       }
     }
   }
