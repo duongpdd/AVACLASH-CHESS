@@ -227,6 +227,8 @@ export default function WalletBar() {
               <span>
                 {isConnecting
                   ? "Đang kết nối..."
+                  : connectors.length > 1
+                  ? `Nối ví (${c.name})`
                   : "Nối ví (MetaMask / Core)"}
               </span>
             </button>
