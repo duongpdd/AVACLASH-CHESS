@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAccount, useChainId } from "wagmi";
 import { targetChain } from "@/config/wagmi";
@@ -13,9 +13,15 @@ import { useContractBytecodeGuard } from "@/hooks/useContractBytecodeGuard";
 import TxStatusAlert from "./TxStatusAlert";
 
 export default function RoomLobbyWidget() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { isConnected } = useAccount();
+  const effectiveConnected = mounted && isConnected;
   const chainId = useChainId();
-  const isWrongNetwork = isConnected && chainId !== targetChain.id;
+  const isWrongNetwork = effectiveConnected && chainId !== targetChain.id;
   const { isBlocked: isConfigBlocked, errorMessage: configLockReason } =
     useContractBytecodeGuard();
 
@@ -298,7 +304,7 @@ export default function RoomLobbyWidget() {
           <button
             type="button"
             disabled={
-              !isConnected ||
+              !effectiveConnected ||
               isWrongNetwork ||
               isConfigBlocked ||
               createStep === "waiting_wallet" ||
@@ -308,7 +314,7 @@ export default function RoomLobbyWidget() {
             className={`w-full py-3 rounded-xl font-bold text-sm shadow-xl transition-all ${
               isConfigBlocked
                 ? "bg-rose-950/80 text-rose-400 border border-rose-500/40 cursor-not-allowed"
-                : !isConnected
+                : !effectiveConnected
                   ? "bg-slate-800 text-slate-500 cursor-not-allowed"
                   : isWrongNetwork
                     ? "bg-rose-900/60 text-rose-300 cursor-not-allowed"
@@ -317,7 +323,7 @@ export default function RoomLobbyWidget() {
           >
             {isConfigBlocked
               ? "Bị khóa: Lỗi cấu hình Smart Contract"
-              : !isConnected
+              : !effectiveConnected
                 ? "Vui lòng nối ví trước"
                 : isWrongNetwork
                   ? "Vui lòng chuyển sang đúng mạng"
@@ -449,7 +455,7 @@ export default function RoomLobbyWidget() {
           <button
             type="button"
             disabled={
-              !isConnected ||
+              !effectiveConnected ||
               isWrongNetwork ||
               isConfigBlocked ||
               !previewRoom ||
@@ -462,7 +468,7 @@ export default function RoomLobbyWidget() {
             className={`w-full py-3 rounded-xl font-bold text-sm shadow-xl transition-all ${
               isConfigBlocked
                 ? "bg-rose-950/80 text-rose-400 border border-rose-500/40 cursor-not-allowed"
-                : !isConnected
+                : !effectiveConnected
                   ? "bg-slate-800 text-slate-500 cursor-not-allowed"
                   : isWrongNetwork
                     ? "bg-rose-900/60 text-rose-300 cursor-not-allowed"
@@ -473,7 +479,7 @@ export default function RoomLobbyWidget() {
           >
             {isConfigBlocked
               ? "Bị khóa: Lỗi cấu hình Smart Contract"
-              : !isConnected
+              : !effectiveConnected
                 ? "Vui lòng nối ví trước"
                 : isWrongNetwork
                   ? "Vui lòng chuyển sang đúng mạng"

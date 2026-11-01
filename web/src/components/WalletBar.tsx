@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useAccount,
   useConnect,
@@ -15,6 +15,11 @@ import { useWithdraw } from "@/hooks/useWithdraw";
 import { useContractBytecodeGuard } from "@/hooks/useContractBytecodeGuard";
 
 export default function WalletBar() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending: isConnecting } = useConnect();
   const { disconnect } = useDisconnect();
@@ -31,10 +36,27 @@ export default function WalletBar() {
 
   const [showNetworkGuide, setShowNetworkGuide] = useState(false);
 
-  const isWrongNetwork = isConnected && chainId !== targetChain.id;
+  const isWrongNetwork = mounted && isConnected && chainId !== targetChain.id;
 
   const truncateAddress = (addr: string) =>
     `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+
+  if (!mounted) {
+    return (
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 opacity-80 text-slate-950 font-bold text-xs sm:text-sm px-4 py-2 shadow-lg cursor-not-allowed"
+          >
+            <span>🦊</span>
+            <span>Nối ví (MetaMask / Core)</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2.5">
