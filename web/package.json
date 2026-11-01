@@ -6,7 +6,7 @@
     "generate-abi": "node ../packages/shared/scripts/generate-abi.mjs",
     "prebuild": "node ../packages/shared/scripts/generate-abi.mjs",
     "pretest": "node ../packages/shared/scripts/generate-abi.mjs",
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build --webpack",
     "check:build": "node scripts/check-build.mjs",
     "start": "next start",
