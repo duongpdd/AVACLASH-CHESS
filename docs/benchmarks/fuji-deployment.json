@@ -1,0 +1,120 @@
+{
+  "verifiedAt": "2026-11-01T16:09:41.224Z",
+  "chainId": 43113,
+  "addresses": {
+    "AvaClashMeta": "0x188FA04D5959164Ca8823ca32C89A73D62BEbF78",
+    "ChessEscrow": "0x638135fA831A000DD438c6F6EFa7e75BC36aC78F"
+  },
+  "roles": {
+    "DEPLOYER_ADDRESS": "0x4Bd8a521bC3AdB2645EFe9b89AB7b1eb31C931f9",
+    "RELAY_SIGNER_ADDRESS": "0x39d8Ba81d73D22eD18c2Cf9E1136758942e082bF",
+    "ARBITER_ADDRESS": "0x9d732d8B545068938337772742D8ab880F4DA85e",
+    "TREASURY_ADDRESS": "0x38600150747f4a18e40EcFe6E41d119FF47F6A4B"
+  },
+  "transactions": [
+    {
+      "hash": "0xc64c6b293942562572aeaef18d31958be927ed86add473993ec566338eb8fa94",
+      "contract": "AvaClashMeta",
+      "action": "deploy",
+      "block": "60358129",
+      "status": "success",
+      "gasUsed": "1660247",
+      "feeAvax": "0.00000000026563952"
+    },
+    {
+      "hash": "0x843412b116680c9d75433c84d070798a6d18645744a51988759d981564e00b71",
+      "contract": "ChessEscrow",
+      "action": "deploy",
+      "block": "60358130",
+      "status": "success",
+      "gasUsed": "3290458",
+      "feeAvax": "0.00000000052647328"
+    },
+    {
+      "hash": "0x2717760c06ac56e49a6b9bfd627c724a6b56f26177848b5c95ccd60fd2b64ee5",
+      "contract": "AvaClashMeta",
+      "action": "setEscrowContract(address)",
+      "block": "60358132",
+      "status": "success",
+      "gasUsed": "50603",
+      "feeAvax": "0.00000000000809648"
+    },
+    {
+      "hash": "0x821a2921020c7dd6ebae0d62bbcbf225d5086c154b83f580312cda6aa75d7e7e",
+      "contract": "ChessEscrow",
+      "action": "setMetaContract(address)",
+      "block": "60358134",
+      "status": "success",
+      "gasUsed": "47277",
+      "feeAvax": "0.00000000000756432"
+    }
+  ],
+  "contractChecks": [
+    {
+      "check": "RPC chain 43113",
+      "pass": true
+    },
+    {
+      "check": "DEPLOYER_ADDRESS test AVAX",
+      "pass": true,
+      "balance": "0.3499999991888664"
+    },
+    {
+      "check": "RELAY_SIGNER_ADDRESS test AVAX",
+      "pass": true,
+      "balance": "0.15"
+    },
+    {
+      "check": "NEXT_PUBLIC_ESCROW_ADDRESS bytecode",
+      "pass": true
+    },
+    {
+      "check": "NEXT_PUBLIC_META_ADDRESS bytecode",
+      "pass": true
+    },
+    {
+      "check": "NEXT_PUBLIC_ESCROW_ADDRESS.relaySigner",
+      "pass": true
+    },
+    {
+      "check": "NEXT_PUBLIC_ESCROW_ADDRESS.arbiter",
+      "pass": true
+    },
+    {
+      "check": "NEXT_PUBLIC_ESCROW_ADDRESS.treasury",
+      "pass": true
+    },
+    {
+      "check": "NEXT_PUBLIC_ESCROW_ADDRESS.owner",
+      "pass": true
+    },
+    {
+      "check": "NEXT_PUBLIC_META_ADDRESS.owner",
+      "pass": true
+    },
+    {
+      "check": "NEXT_PUBLIC_ESCROW_ADDRESS.metaContract",
+      "pass": true
+    },
+    {
+      "check": "NEXT_PUBLIC_META_ADDRESS.escrowContract",
+      "pass": true
+    },
+    {
+      "check": "NEXT_PUBLIC_ESCROW_ADDRESS.singleSignedEnabled",
+      "pass": true
+    },
+    {
+      "check": "NEXT_PUBLIC_META_ADDRESS.spectatorBettingEnabled",
+      "pass": true
+    }
+  ],
+  "contractsReady": true,
+  "pendingPublicConfig": [
+    {
+      "check": "NEXT_PUBLIC_RELAY_URL must use WSS with a public DNS hostname and no URL credentials.",
+      "pass": false
+    }
+  ],
+  "onlineReady": false
+}

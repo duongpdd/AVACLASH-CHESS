@@ -1,0 +1,30 @@
+{
+  "name": "avaclash-chess",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AvaClash Chess — 1v1 chess with AVAX testnet wagering on Avalanche Fuji",
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "dev:local": "node scripts/dev-local.mjs",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test:tools": "node --test scripts/tooling.test.mjs",
+    "check:fuji": "node scripts/fuji-preflight.mjs",
+    "prepare:deploy": "node scripts/prepare-deploy.mjs",
+    "check:online": "node scripts/check-online.mjs",
+    "test:deploy": "node --test scripts/deploy-config.test.mjs",
+    "test:campaign": "pnpm --filter @avaclash/relay exec vitest run tests/local-campaign.test.ts",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "prettier": "^3.3.0",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

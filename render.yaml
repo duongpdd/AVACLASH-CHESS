@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: avaclash-chess-relay
+    runtime: docker
+    plan: free
+    region: singapore
+    numInstances: 1
+    dockerfilePath: ./deploy/relay/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "10000"
+      - key: CHAIN_ID
+        value: "43113"
+      - key: RPC_URL
+        value: https://api.avax-test.network/ext/bc/C/rpc
+      - key: ESCROW_ADDRESS
+        value: "0x638135fA831A000DD438c6F6EFa7e75BC36aC78F"
+      - key: STORAGE_DRIVER
+        value: postgres
+      - key: DATABASE_URL
+        sync: false
+      - key: RELAY_PRIVATE_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: https://avaclash-chess.vercel.app
+      - key: ALLOW_NO_ORIGIN
+        value: "false"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: SIGNAL_GAME_STARTED_ENABLED
+        value: "true"
+      - key: RELAY_MIN_BALANCE
+        value: "0.1"

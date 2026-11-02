@@ -1,0 +1,37 @@
+{
+  "name": "@avaclash/relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "main": "./dist/index.js",
+  "scripts": {
+    "generate-abi": "node ../shared/scripts/generate-abi.mjs",
+    "pretest": "pnpm --filter @avaclash/shared build",
+    "prebuild": "node ../shared/scripts/generate-abi.mjs",
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "migrate": "node dist/migrate.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@avaclash/shared": "workspace:*",
+    "pg": "8.23.1",
+    "viem": "^2.21.0",
+    "ws": "^8.18.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/pg": "8.23.1",
+    "@types/ws": "^8.5.10",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}

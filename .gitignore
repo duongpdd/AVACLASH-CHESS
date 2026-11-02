@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+out/
+.next/
+cache/
+results/
+.local/
+.vercel/
+
+# Environment
+.env
+.env.local
+.env.*
+!.env.example
+*.log
+*.tsbuildinfo
+
+# Foundry
+contracts/out/
+contracts/cache/
+broadcast/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS & Browser profiles
+.DS_Store
+Thumbs.db
+edge_profile/
+edge_profile_mobile/
+
+# Test coverage
+coverage/
+lcov.info

@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-11-01T09:51:49.984Z",
+  "routes": {
+    "/": 200,
+    "/hotseat": 200,
+    "/vault": 200,
+    "/guide": 200,
+    "/game": 200
+  },
+  "relay": {
+    "status": "ready"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "validatedAt": "2026-11-02T15:36:13.9754146Z",
+  "projectId": "gentle-sound-48456305",
+  "region": "aws-ap-southeast-1",
+  "organizationPlan": "free",
+  "validationBranch": "br-cold-bonus-b34dlql9",
+  "productionBranch": "br-patient-violet-b36wfxfq",
+  "migration": "001-relay-games.sql",
+  "migrationAppliedTo": [
+    "validation",
+    "production"
+  ],
+  "database": "real Neon PostgreSQL 17 over TLS with certificate verification",
+  "chainInStorageTests": "mocked; no Fuji transaction was sent",
+  "storageTests": {
+    "passed": 6,
+    "failed": 0,
+    "success": true,
+    "scenarios": [
+      "withhold move acknowledgement until commit and serialize next action",
+      "refuse signing when terminal persistence fails",
+      "queued reconnect cannot recreate active state after terminal commit",
+      "recover active transcript and retain immutable terminal result",
+      "renew lease, refuse second owner and fence stale writer",
+      "authenticated restart recovery without shutdown flush and re-sign same terminal result"
+    ]
+  },
+  "relayRegression": {
+    "passed": 87,
+    "failed": 0,
+    "skipped": 3,
+    "note": "Full package regression before the additional terminal reconnect test; additional test passed in storage suite."
+  },
+  "deployConfigTests": {
+    "passed": 6,
+    "failed": 0
+  },
+  "typecheck": "passed",
+  "productionPooledSchemaCheck": "passed, read-only",
+  "productionPackage": "pnpm deploy --prod succeeded; PostgreSQL and shared modules import successfully",
+  "dockerImageBuild": "not run locally; Docker is unavailable",
+  "liveDeployment": "pending private GitHub repository access and relay secret setup"
+}

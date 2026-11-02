@@ -1,0 +1,37 @@
+
+> web@0.1.0 prebuild C:\Users\Admin\Desktop\PRJ1\avaclash-chess\web
+> node ../packages/shared/scripts/generate-abi.mjs
+
+[generate-abi] Successfully generated C:\Users\Admin\Desktop\PRJ1\avaclash-chess\packages\shared\src\abi\ChessEscrow.ts
+[generate-abi] Successfully generated C:\Users\Admin\Desktop\PRJ1\avaclash-chess\packages\shared\src\abi\AvaClashMeta.ts
+
+> web@0.1.0 build C:\Users\Admin\Desktop\PRJ1\avaclash-chess\web
+> next build --webpack
+
+▲ Next.js 16.4.3 (webpack)
+- Environments: .env.local
+✓ Running next.config.ts took 122ms
+- Cache Components enabled
+- Partial Prefetching enabled
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 6.1s
+  Running TypeScript ...
+  Finished TypeScript in 7.9s ...
+  Collecting page data using 6 workers ...
+  Generating static pages using 6 workers (0/5) ...
+  Generating static pages using 6 workers (1/5) 
+  Generating static pages using 6 workers (2/5) 
+  Generating static pages using 6 workers (3/5) 
+✓ Generating static pages using 6 workers (5/5) in 1244ms
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+└ ○ /game
+
+
+○  (Static)  prerendered as static content
+

@@ -1,0 +1,351 @@
+{
+  "timestamp": "2026-11-01T09:54:37.881Z",
+  "status": "uncommitted worktree, internal review only",
+  "note": "Updated after UI refresh; contracts and relay logic unchanged in UI turn; independent audit pending",
+  "files": [
+    {
+      "path": "contracts/src/AvaClashMeta.sol",
+      "sha256": "9ec6042ddbe277fdeb75f0766c5530016cded77e28847235582f94588e55a6ca"
+    },
+    {
+      "path": "contracts/src/ChessEscrow.sol",
+      "sha256": "2925ab6f01183b49990c5b95c9e896d0a60614f277b61ca000abd61720d60d8e"
+    },
+    {
+      "path": "contracts/src/Constants.sol",
+      "sha256": "40e7c0dab09b91624c1d0594f1f46b698c4476bc4ed8a320e2fa88d6a8f5c31d"
+    },
+    {
+      "path": "packages/relay/src/RelayRoom.ts",
+      "sha256": "51fda3fd75889ed2c9f17b7d2041d843689a57b107fcc4b1304ecfb838d6607b"
+    },
+    {
+      "path": "packages/relay/src/RelayServer.ts",
+      "sha256": "c0c5c121abba661b6143f54c1559bb265ddbf201cd0c40f35ac6d3011f2ff888"
+    },
+    {
+      "path": "packages/relay/src/abi/AvaClashMeta.ts",
+      "sha256": "40bea4f3acc80f6611a91892f3233bc08d7dc02688a8fb700b3966c9cfeb0c51"
+    },
+    {
+      "path": "packages/relay/src/abi/ChessEscrow.ts",
+      "sha256": "92a02a3ca8090ab6784e2525bd70db9f17063bcbad90c7093a9dc302a85ed26e"
+    },
+    {
+      "path": "packages/relay/src/index.ts",
+      "sha256": "cfd0d0c5822e4628ec16384366b66b8edc67c74c3e0a4b9cb7c82320103f1150"
+    },
+    {
+      "path": "packages/relay/src/readiness.ts",
+      "sha256": "87296f11eec0ca0fe492d92790394eed29c6deb236d1630a00a3dfc94b1adb9a"
+    },
+    {
+      "path": "packages/shared/src/abi/AvaClashMeta.ts",
+      "sha256": "23a879a9f4db22558466b55e7fb4322798011468ec98ba36bd0151683bd5dd7c"
+    },
+    {
+      "path": "packages/shared/src/abi/ChessEscrow.ts",
+      "sha256": "b0612b6fda784dc41401aed6b2ea18b07cb52310924893be6c33ac3cb544a750"
+    },
+    {
+      "path": "packages/shared/src/abi/index.ts",
+      "sha256": "767a6983e9a978058aa2b76c6e2055a5e882bb523eebfc09cd78a19b6edf7d7b"
+    },
+    {
+      "path": "packages/shared/src/chess.ts",
+      "sha256": "64d433c8d336d61502274af459a9981754e3eef5387aa54301fadfafe16add0a"
+    },
+    {
+      "path": "packages/shared/src/eip712.ts",
+      "sha256": "550aee8c361eb18a148991c67361322d5faee6ea32ed4d16f2a61075cfa7be86"
+    },
+    {
+      "path": "packages/shared/src/hash.ts",
+      "sha256": "1258ae7b4d775aafc243205d84fd0075e9e7f887c60f902b95e49f81c0dae9e3"
+    },
+    {
+      "path": "packages/shared/src/index.ts",
+      "sha256": "85f4e7b4da089a78477f48b61a2a4a69da9ad017a82d7d3ecac4194001cb803f"
+    },
+    {
+      "path": "packages/shared/src/relay-auth.ts",
+      "sha256": "bd057cc81eec9ebac373f063332dfb846b86e91508c54c5bd20d947da08cb2c0"
+    },
+    {
+      "path": "packages/shared/src/relay-client.ts",
+      "sha256": "9128cef0a98bb4cb635aa67cff150f3fb6ce3653c541e7668a62d674638c59b4"
+    },
+    {
+      "path": "packages/shared/src/replay.ts",
+      "sha256": "d38751b247b6a98b9a6714cfe530a431b03af269d4c0df320d8fd71cddc10f44"
+    },
+    {
+      "path": "packages/shared/src/schemas.ts",
+      "sha256": "77b94645184088d83af34fb8dfc8c13af80e751724f6184d9847fe487e921410"
+    },
+    {
+      "path": "packages/shared/src/submit-flow.ts",
+      "sha256": "7d8fc4035addd5706fb115d6ab7c6ca8c003924e81ed0e4d0da2d654f1aa97ae"
+    },
+    {
+      "path": "packages/shared/src/types.ts",
+      "sha256": "65f2aabe5e3e210f363a290c42ed6a07423272eb5bf08cf3b00b268cdc1b45d6"
+    },
+    {
+      "path": "packages/shared/src/verify-result.ts",
+      "sha256": "19d0f63315a947e742ee16eba4e5be4ba055766d18fd7d7f586e9894aaa1cfc6"
+    },
+    {
+      "path": "web/src/__tests__/abort-refund.test.tsx",
+      "sha256": "40584dd14f73e1acfab30ed113f6b95723880147485abdb059b35c00930df29a"
+    },
+    {
+      "path": "web/src/__tests__/anvil-web-integration.test.ts",
+      "sha256": "7b2edd01756a4aa8cd4807fe1ab4b1d586ac2118786e2620a59ec905b57c6c82"
+    },
+    {
+      "path": "web/src/__tests__/banner.test.ts",
+      "sha256": "5e7b50482feb12652df28c0c365f36bd59cf4d5162d0c7ae4cf193b030ba44ae"
+    },
+    {
+      "path": "web/src/__tests__/board-relay-sync.test.tsx",
+      "sha256": "9b18b169c3c8acdc81bea0859e17bc45506900d20cc90bdf655045c1fe7721c9"
+    },
+    {
+      "path": "web/src/__tests__/chess-scene-destroy.test.ts",
+      "sha256": "d34434de111f1b728ec701381da26ff00954f278f45686a8da169936cac72b2d"
+    },
+    {
+      "path": "web/src/__tests__/env-guard.test.ts",
+      "sha256": "9f1128049b979de4f9b77e6c15624c01d2d6704288d0e030c8dbc5a627a541ca"
+    },
+    {
+      "path": "web/src/__tests__/error-decoder.test.ts",
+      "sha256": "f7c17c16e9a6b75edc4e7b4eda54a15fa5fedac510719910768fec82f177f04f"
+    },
+    {
+      "path": "web/src/__tests__/game-page.test.tsx",
+      "sha256": "f14382dbac09240768a0ea0858198fe71bedfb596fca381abc35ea557ed788d1"
+    },
+    {
+      "path": "web/src/__tests__/hooks-relay.test.ts",
+      "sha256": "17df652e18519f4ae03741960b5c8c3324cfd800ff774be9fa10e30ddfdaab0f"
+    },
+    {
+      "path": "web/src/__tests__/hooks-wagmi.test.ts",
+      "sha256": "b0b5efed51d2541b828f1396d5fd1ab5b4317d5294d3a17241389b6471ac5254"
+    },
+    {
+      "path": "web/src/__tests__/hotseat.test.tsx",
+      "sha256": "e822c86d4fb57614b8f3ca36854cc233c380553729ceae4fffc3701a00a1024a"
+    },
+    {
+      "path": "web/src/__tests__/lobby-navigation.test.tsx",
+      "sha256": "ca877961a1ceba0bde0200514a991a714193a5452347ac17a2c49effcb4fe863"
+    },
+    {
+      "path": "web/src/__tests__/phaser-scene-race.test.tsx",
+      "sha256": "5ec143076f1d3394b398f648da204002c8b9ae0ab18d580b2815c3ed05e7059c"
+    },
+    {
+      "path": "web/src/__tests__/relay-session-hydration.test.ts",
+      "sha256": "6b8062eabb0214bf11c2de2de3fd759abf56568129f5a4e618ae430b0dfbc75a"
+    },
+    {
+      "path": "web/src/__tests__/reward-claims.test.ts",
+      "sha256": "27cc50b7d426a655aee67a44908b166f220413daf50f62d2db9c41ceca5bbb2b"
+    },
+    {
+      "path": "web/src/__tests__/room-utils.test.ts",
+      "sha256": "1dcd58392d477d3df6e616085d2b56151284e2c3e36e735509ea0074404c0e83"
+    },
+    {
+      "path": "web/src/__tests__/vault.test.tsx",
+      "sha256": "c378c8db598c74c37c2f8eb3227429507ca26a3a32ec3562dab472f853a51713"
+    },
+    {
+      "path": "web/src/__tests__/wallet-action.test.tsx",
+      "sha256": "021af043c04febdc47f75c940f2d8bcc4b7b72e19f8f6f50f3b0cca7ccc6708e"
+    },
+    {
+      "path": "web/src/app/game/page.tsx",
+      "sha256": "c03fc52d570354026f2147b61a0738e62d6de3e1662a2d21f1da923e382ba34f"
+    },
+    {
+      "path": "web/src/app/guide/page.tsx",
+      "sha256": "9fc2d46be284dae28ca7b9e61e30eefbba87e0ff9ad03128e31b743278c9ca18"
+    },
+    {
+      "path": "web/src/app/hotseat/page.tsx",
+      "sha256": "28ee66fee2d32981d37e3048c26f6fc271b1cff8842f25d2eb417fc594c98562"
+    },
+    {
+      "path": "web/src/app/layout.tsx",
+      "sha256": "c62fd8dfeb2c8a212137738910ba2cc17e8b351215a02c9dfa1a85f392a835dc"
+    },
+    {
+      "path": "web/src/app/page.tsx",
+      "sha256": "f3a684082bdb5ad733b6ddc05bb9d25058e5257a5e504ea9b7650e9d79d49578"
+    },
+    {
+      "path": "web/src/app/vault/page.tsx",
+      "sha256": "4b8a6744840aa287eb444359099c85115e77d35169bfa241de7251ed49b7304a"
+    },
+    {
+      "path": "web/src/components/AbortRefundWidget.tsx",
+      "sha256": "b9fa1f1feefbdc812c1c6b0f912749d89fda2eb6aea3197a740167f05b8cdb00"
+    },
+    {
+      "path": "web/src/components/AppFooter.tsx",
+      "sha256": "7a42538b38341e048d5c9ffa8bd0b4572ba9d03ade7cde7486be37c7a682c289"
+    },
+    {
+      "path": "web/src/components/AppHeader.tsx",
+      "sha256": "9b15829e0ddbf9ab34ec09cb1bded67d5ff348da701244e4f05508a8cd8edfc3"
+    },
+    {
+      "path": "web/src/components/BoardPerformance.tsx",
+      "sha256": "6fdf9945ad8355629de42a19a1c93c35838c2ae79cb076ed1f1c6bfe9044e7d9"
+    },
+    {
+      "path": "web/src/components/ConfigErrorBanner.tsx",
+      "sha256": "3b440e6503b6ec45005b21640bd919840498bcc5d84a4b9dacc29ee39b360fd8"
+    },
+    {
+      "path": "web/src/components/Dialog.tsx",
+      "sha256": "8ef5ec77008f2b97983f8cbc7c7d789e854ee1296ec5c216eada8870ff100d9c"
+    },
+    {
+      "path": "web/src/components/FujiTestnetBanner.tsx",
+      "sha256": "ddddc73cd3d77fe2b9af54dd8e18844219d7e8ef3c1b479a7fc55a1a20827175"
+    },
+    {
+      "path": "web/src/components/Icon.tsx",
+      "sha256": "3d7b1bac2fef0d9ce8e8e356601524d2f45c9898984ff3ca4d634b4b60ffa12b"
+    },
+    {
+      "path": "web/src/components/PhaserGame.tsx",
+      "sha256": "b53904cd10d1341cc2c19a6a9c495e2e22b7af495b384184009f796c60233a32"
+    },
+    {
+      "path": "web/src/components/RoomLobbyWidget.tsx",
+      "sha256": "aecf4040070c3dcdbd89128369a129b42acbb21144eba58ddd5ac8dfe39314bc"
+    },
+    {
+      "path": "web/src/components/SeasonRewardsWidget.tsx",
+      "sha256": "bcf3589b66fb8018d1efe95866c1e0ed9b6805e64717c279d4cb08b3b38845e9"
+    },
+    {
+      "path": "web/src/components/SpectatorPoolWidget.tsx",
+      "sha256": "5709c8b66d1b88a0f3602c4c44ebcf09de0066dd1e7e44a80fec7872bf551650"
+    },
+    {
+      "path": "web/src/components/TxStatusAlert.tsx",
+      "sha256": "1fb1f97fa1248556c93ac2d54a111de57f8e80120b4e160b8a7f7cf7e8903f28"
+    },
+    {
+      "path": "web/src/components/VaultWidget.tsx",
+      "sha256": "da5fc0a726dd6081c6b6726bc7adee237b5fe37ecca8834f844c1652891dcc30"
+    },
+    {
+      "path": "web/src/components/VictoryModal.tsx",
+      "sha256": "f8f84f99917dd1e2896d27032601ac9cdb243c6d5a3c87c2038a3a361a1a9c94"
+    },
+    {
+      "path": "web/src/components/WalletAction.tsx",
+      "sha256": "d5e0489c217986c63d07a65187361265c8b041e37e4968f4566ea3b9a3b04883"
+    },
+    {
+      "path": "web/src/components/WalletBar.tsx",
+      "sha256": "6aeae7e0f75136ee8d2cba483bde074eb0db85d7e097d36a6b86ce183c8135fe"
+    },
+    {
+      "path": "web/src/config/env.ts",
+      "sha256": "cc04a6d4724fc49dd42b2fcedd12008c6e70a9a5dda1323baf8baa4945972666"
+    },
+    {
+      "path": "web/src/config/wagmi.ts",
+      "sha256": "600f05a9c58a2f7116dc052199267914ac991bd43a4f58e670fbd07f2fc6df7b"
+    },
+    {
+      "path": "web/src/game/BoardSyncController.ts",
+      "sha256": "6be10c92bc186cf24be53f036ff13cff882b080a267fe959af5321accdc12c07"
+    },
+    {
+      "path": "web/src/game/ChessScene.ts",
+      "sha256": "10b3ae58d517327f16b430af241e91277706911b6f7c14962e67d33e19c52026"
+    },
+    {
+      "path": "web/src/game/GameState.ts",
+      "sha256": "0d5738f60eb13a64c5a631e3c328bca10be82e13548f1aa569a6cd666f1f9d1d"
+    },
+    {
+      "path": "web/src/game/__tests__/GameState.test.ts",
+      "sha256": "38461ee381504259893c070e3453c8c58f5737ab373683a9f6b26e5ede1c2c36"
+    },
+    {
+      "path": "web/src/game/__tests__/applyRelayMoves.test.ts",
+      "sha256": "f7938f32bf6a178df19cb93a2ce950899ca7df9001168ef1181f5fdaf9d09746"
+    },
+    {
+      "path": "web/src/game/applyRelayMoves.ts",
+      "sha256": "30eb75972011e35340bf94db5aaa7a6786ec3ec826026418fc42df42d5a3d454"
+    },
+    {
+      "path": "web/src/hooks/useClientMounted.ts",
+      "sha256": "30f02ca0c59ebec15f83bd4895a04cce4f3faef0687dbfc8ddaa1c47e999445c"
+    },
+    {
+      "path": "web/src/hooks/useContractBytecodeGuard.ts",
+      "sha256": "851a7b960389d7899288b30ae9ed034f56a3190cb070f22bc51b6d2bf5e843b3"
+    },
+    {
+      "path": "web/src/hooks/useCreateRoom.ts",
+      "sha256": "9df3c4f0cf24a86309031b94d0875c436081ff93b980fb843605a61384b6e4b5"
+    },
+    {
+      "path": "web/src/hooks/useFairPlayGuard.ts",
+      "sha256": "b2ed26bfcf228a1db867857cad1cdd919adf90091f882c571e88632ac716a192"
+    },
+    {
+      "path": "web/src/hooks/useJoinRoom.ts",
+      "sha256": "90b28e70af14ce1285e5a98618272fb279567c608b91399e2ae0b15dfe0c2082"
+    },
+    {
+      "path": "web/src/hooks/useOpenRooms.ts",
+      "sha256": "c49810b2a4133077db6791ec7ee4dcc5ef178b6f6ad1e39564368b59e8458a3e"
+    },
+    {
+      "path": "web/src/hooks/useRelaySession.ts",
+      "sha256": "4b3c68d1bfd95a23f7caa9ce30bc105ae9d7793f99c68241143e8f422dbf84f3"
+    },
+    {
+      "path": "web/src/hooks/useRoom.ts",
+      "sha256": "56cbe91129366d70bed125c6f6a4af2749390061a9f8ed8ebbcbc0d67c1eeb42"
+    },
+    {
+      "path": "web/src/hooks/useSubmitResult.ts",
+      "sha256": "9232c30ba65ff31a866fcc132e702721aa0727865d1fcedfd0a333ddeefd3d12"
+    },
+    {
+      "path": "web/src/hooks/useWithdraw.ts",
+      "sha256": "bdb2a6bdea6d1719dd269ca9fa9418a882673bf7a712255381b2c7dd436c7545"
+    },
+    {
+      "path": "web/src/providers/Web3Provider.tsx",
+      "sha256": "3ba43307e6d3319f21cfe36440eb7b22a434c64689c0ed6bd1eb93509df44f9c"
+    },
+    {
+      "path": "web/src/utils/errors.ts",
+      "sha256": "85d73b2225f8e94368a5d524b6978db9016abf2c7627fb1517cabbd7433b7095"
+    },
+    {
+      "path": "web/src/utils/reward-claims.ts",
+      "sha256": "d893777d918453882ce144b370e9e634121efb49f7f9b778ec6e5ba052810529"
+    },
+    {
+      "path": "web/src/utils/room.ts",
+      "sha256": "453ac57d517ac7f3a431c60477c96db81a1c00e7f7338170e928bbcb42bb5bf4"
+    }
+  ]
+}

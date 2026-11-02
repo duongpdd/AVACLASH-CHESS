@@ -1,0 +1,10 @@
+{
+  "desktop": {
+    "clientWidth": 1265,
+    "scrollWidth": 1265
+  },
+  "mobile": {
+    "clientWidth": 360,
+    "scrollWidth": 360
+  }
+}

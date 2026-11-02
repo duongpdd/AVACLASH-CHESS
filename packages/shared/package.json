@@ -1,0 +1,33 @@
+{
+  "name": "@avaclash/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "files": ["dist"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "generate-abi": "node scripts/generate-abi.mjs",
+    "prebuild": "node scripts/generate-abi.mjs",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "pretest": "node scripts/generate-abi.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "chess.js": "^1.0.0-beta.8",
+    "viem": "^2.21.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}

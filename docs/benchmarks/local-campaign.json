@@ -1,0 +1,695 @@
+{
+  "timestamp": "2026-11-02T15:20:12.937Z",
+  "environment": "isolated Anvil, Node WebSocket clients on one Windows host; no browser or Fuji",
+  "chainId": 31337,
+  "escrow": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+  "games": 20,
+  "relayLatency": {
+    "samples": 106,
+    "p50Ms": 1.6662000000001171,
+    "p95Ms": 4.222700000000259
+  },
+  "records": [
+    {
+      "roomId": 0,
+      "creatorWhite": true,
+      "outcome": 1,
+      "reason": 0,
+      "moves": [
+        "f2f3",
+        "e7e5",
+        "g2g4",
+        "d8h4"
+      ],
+      "create": {
+        "hash": "0x9d641a30545ae2f9ecee48cd3f10a06729e4996570b9380eb93ac6153b682fce",
+        "gas": "116615"
+      },
+      "join": {
+        "hash": "0xa2ea0ecf844e15ebca4e16ccabd8fb96f87c5ac9e18549f6725bc2494b51fdfa",
+        "gas": "199826"
+      },
+      "settle": {
+        "hash": "0x485b5a79caa77d8a1a0a8e89248a517f23cc5c7ab09ea083dac732b0853b6ffd",
+        "gas": "122611"
+      },
+      "withdrawals": [
+        {
+          "hash": "0x3fff92e40da1ab821d16d227adcf264995114a4c04f9194614436e9c7e6f2ffa",
+          "gas": "32646",
+          "payoutWei": "19000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 1,
+      "creatorWhite": false,
+      "outcome": 2,
+      "reason": 7,
+      "moves": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "b8c6",
+        "f1b5",
+        "a7a6"
+      ],
+      "create": {
+        "hash": "0x1b0b49c89e5c59da0705151aed117bd09e4369f91cf8569ff6fef2e596acb824",
+        "gas": "79603"
+      },
+      "join": {
+        "hash": "0x0143ee7105fb1132924f80c7704e49acb6175218b24de3cc1a794a97eb763ac7",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0xdec527b53443f6d3811881c45640cd27720f72fd9da0790faf674167037dac68",
+        "gas": "122248"
+      },
+      "withdrawals": [
+        {
+          "hash": "0xe620b031e3e1578e87e995b4975ae9a8ab9b32811e69a7e5e20f81713cfded22",
+          "gas": "32646",
+          "payoutWei": "10000000000000000"
+        },
+        {
+          "hash": "0xaeb9a8730809a44ebe7e189f702a6bd9740d6e644055144673b1e996f74c7ca5",
+          "gas": "32646",
+          "payoutWei": "10000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 2,
+      "creatorWhite": true,
+      "outcome": 1,
+      "reason": 1,
+      "moves": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "b8c6",
+        "f1b5",
+        "a7a6"
+      ],
+      "create": {
+        "hash": "0x721be48fe536c305cdc7738e452db204a6f3b948a7a4352f14b07cda7d21a7d6",
+        "gas": "99515"
+      },
+      "join": {
+        "hash": "0xecb72d5db78c8c90b97af97ba81374afc4f282dce88aaa2e367650ad1c5f210b",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0x5a461d2753a9cc2aa6f46e34bede8a73956695306c671b79950b6f28caaf23e2",
+        "gas": "105547"
+      },
+      "withdrawals": [
+        {
+          "hash": "0xf24cd574fa9c1b419510bd543c670597902b6f1c83070fa9523ad9894be1562c",
+          "gas": "32646",
+          "payoutWei": "19000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 3,
+      "creatorWhite": false,
+      "outcome": 1,
+      "reason": 0,
+      "moves": [
+        "f2f3",
+        "e7e5",
+        "g2g4",
+        "d8h4"
+      ],
+      "create": {
+        "hash": "0xde51ac410848dabc3d5f6fb0d92d1f660af4c041943cc3f8239b5523b0aa9f61",
+        "gas": "79603"
+      },
+      "join": {
+        "hash": "0xe4b6c278af9f9bfa0787b2e6514899bca2a7c097fb31954b3b4a523b4b4a43f5",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0x117df3b8b327cf1143660d9b33d0cbf42bd6823b2e0b39b53123313102b8f6c8",
+        "gas": "105534"
+      },
+      "withdrawals": [
+        {
+          "hash": "0xf41659f04e16d18987e3067a162013037b1e19e27e80e076eacede16c865e906",
+          "gas": "32646",
+          "payoutWei": "19000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 4,
+      "creatorWhite": true,
+      "outcome": 2,
+      "reason": 7,
+      "moves": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "b8c6",
+        "f1b5",
+        "a7a6"
+      ],
+      "create": {
+        "hash": "0x703d91bd9221b68dbd9a2c8a7ddfd72e35ea92e699eb4e8274fa73bcfe998b73",
+        "gas": "99515"
+      },
+      "join": {
+        "hash": "0xe1cc1f724965fdc5934a608d6c919f54092739436f090216afb16bba52374772",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0x6c147067827e4ed24156fcf0394fd32802ae1810c70a194084bdad5db3b8baec",
+        "gas": "122224"
+      },
+      "withdrawals": [
+        {
+          "hash": "0xa45aaeb44acc010eeb44a743b1ebccace569c984ff457df6f5ae6d3853947302",
+          "gas": "32646",
+          "payoutWei": "10000000000000000"
+        },
+        {
+          "hash": "0x36924f011b427b1af7b80dfaa276dc4695c78351d202b1de5f3e03d5b4b99633",
+          "gas": "32646",
+          "payoutWei": "10000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 5,
+      "creatorWhite": false,
+      "outcome": 1,
+      "reason": 1,
+      "moves": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "b8c6",
+        "f1b5",
+        "a7a6"
+      ],
+      "create": {
+        "hash": "0x07ae1a6878c6e15c04ee0ca9451dfe24834f9b122a37b71f4c78ef45d5cf5b53",
+        "gas": "79603"
+      },
+      "join": {
+        "hash": "0x4f6ecb5c53549c5e414642a1541fc2412858ca7dbc65e3b9f0dc05a05c82b9c0",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0x582e3de488570aa6fd004862bf372b20a8684caf308fc883c1a4401a6e175a4f",
+        "gas": "105558"
+      },
+      "withdrawals": [
+        {
+          "hash": "0x3f2b367e4a6f76489f1eaa6fb478fc1d8f1ec18a5c378fa62373b1bc3fa87f34",
+          "gas": "32646",
+          "payoutWei": "19000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 6,
+      "creatorWhite": true,
+      "outcome": 1,
+      "reason": 0,
+      "moves": [
+        "f2f3",
+        "e7e5",
+        "g2g4",
+        "d8h4"
+      ],
+      "create": {
+        "hash": "0x68d9b5e852b255b8981c2b394f77caceef1593929e9eae45b415318cc3fc6171",
+        "gas": "99515"
+      },
+      "join": {
+        "hash": "0x6e63f0f8dcf1de19c5658414db876b4416d9b46faee127e2e0993b6d0d18e430",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0xca441b9d16622f8172fdfe4bd35724aeb6857bcda5d2ac593f47b450b1ba42cf",
+        "gas": "105499"
+      },
+      "withdrawals": [
+        {
+          "hash": "0xa6a4fe9c42fb69c315fc8599248e49bc2daeeedbfc4195ba91368cb3ba495a5e",
+          "gas": "32646",
+          "payoutWei": "19000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 7,
+      "creatorWhite": false,
+      "outcome": 2,
+      "reason": 7,
+      "moves": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "b8c6",
+        "f1b5",
+        "a7a6"
+      ],
+      "create": {
+        "hash": "0x0562f77d37afeb212bf48894cf8dafd6c6fdc623cfecd25f9b488f9ff89c422d",
+        "gas": "79603"
+      },
+      "join": {
+        "hash": "0xc768c8c56f2ac4a5538d0e9fb07bf51b012295064bea34272160fadb00b80387",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0xf35cab53351f63d7c5468b6549a81faf93ca29326ad4dfcc443e08753b682aa9",
+        "gas": "122248"
+      },
+      "withdrawals": [
+        {
+          "hash": "0xa4b646685217b55d781c01a820544dbf08356642fcec2a9dbad1e25e6482377e",
+          "gas": "32646",
+          "payoutWei": "10000000000000000"
+        },
+        {
+          "hash": "0xaf18181f8f14e80f47313c47365222078f11d9fd9650246bb0cec133334febba",
+          "gas": "32646",
+          "payoutWei": "10000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 8,
+      "creatorWhite": true,
+      "outcome": 1,
+      "reason": 1,
+      "moves": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "b8c6",
+        "f1b5",
+        "a7a6"
+      ],
+      "create": {
+        "hash": "0x2b36ebecd7d52d1b920bcf373d0f70219f71045bc83b5e068ebad6f4a8f89cf9",
+        "gas": "99515"
+      },
+      "join": {
+        "hash": "0x6daeef26ab8daa7a6ab99cf0f2d611dd580fe744bff650d9f4c9186c6184e1f2",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0xce4b98576fe8718048d143189782874d4793da07c89b735dbac132481b0f9e50",
+        "gas": "105547"
+      },
+      "withdrawals": [
+        {
+          "hash": "0x9fe80bf512541d046dc3946ace9a3bf509dcd2cdbd3f815d9854f9986f1ab52e",
+          "gas": "32646",
+          "payoutWei": "19000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 9,
+      "creatorWhite": false,
+      "outcome": 1,
+      "reason": 0,
+      "moves": [
+        "f2f3",
+        "e7e5",
+        "g2g4",
+        "d8h4"
+      ],
+      "create": {
+        "hash": "0xbccb104354eb33b24e2d28beae73bca6687302745beb911b41370505fc49ab0d",
+        "gas": "79603"
+      },
+      "join": {
+        "hash": "0xf2ce85c30c81ade598b19a924edfc106e2b3d1299896ec0dda79d29832c8c215",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0x1b55b1f9067a162bbe0760acde32a13326fbc2a64cc2e5d1fa22c97378a21134",
+        "gas": "105522"
+      },
+      "withdrawals": [
+        {
+          "hash": "0x695cc819c6f875cdf405ffeb778a9a854e08de0be1f8a4854055a37e7595737e",
+          "gas": "32646",
+          "payoutWei": "19000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 10,
+      "creatorWhite": true,
+      "outcome": 2,
+      "reason": 7,
+      "moves": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "b8c6",
+        "f1b5",
+        "a7a6"
+      ],
+      "create": {
+        "hash": "0x5f04004f533c5d7ddd4da2ab849288d43bb91b9c991c53eaf134ae7feb22b97f",
+        "gas": "99515"
+      },
+      "join": {
+        "hash": "0x554bb8f26b9ce11241593982dcf1740de3e6f5df2468aef6026a8ff888e5ea0d",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0xf6c1b00758f164496d83ad8d8a4579d48a93506e4bf02da4cf5ecfd0f3fd35ea",
+        "gas": "122224"
+      },
+      "withdrawals": [
+        {
+          "hash": "0x189e644390b64cca2aae6c42039b6ecb8608720ca1cb8dc8b7d4decc67762cfd",
+          "gas": "32646",
+          "payoutWei": "10000000000000000"
+        },
+        {
+          "hash": "0x7bf0be621905bc67aeab6e09a3aa294e677e22dd010c352578969d241d9a2f5a",
+          "gas": "32646",
+          "payoutWei": "10000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 11,
+      "creatorWhite": false,
+      "outcome": 1,
+      "reason": 1,
+      "moves": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "b8c6",
+        "f1b5",
+        "a7a6"
+      ],
+      "create": {
+        "hash": "0x956c8d3169069dc4ed19dde7fa49ec0265bdf635e2c3f27e5fc83fc1f3d45ae8",
+        "gas": "79603"
+      },
+      "join": {
+        "hash": "0xb2301ea1edae8c042564060ea13e732df5b6ff08387d8884c94b994cbdf2ee7b",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0x5747591145c01fed3bb02f2a0a42bb5dcb8f24fc6f054be891a9fc5109270b23",
+        "gas": "105558"
+      },
+      "withdrawals": [
+        {
+          "hash": "0xe9f46265bfa3ae99717934e9def355fa88374c776f9d5d2e95b98bc9f736458c",
+          "gas": "32646",
+          "payoutWei": "19000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 12,
+      "creatorWhite": true,
+      "outcome": 1,
+      "reason": 0,
+      "moves": [
+        "f2f3",
+        "e7e5",
+        "g2g4",
+        "d8h4"
+      ],
+      "create": {
+        "hash": "0x223c40a18d34aaccd687013c7ba6564ad63a573855d5aba2eed2ba25b60fa898",
+        "gas": "99515"
+      },
+      "join": {
+        "hash": "0xe489bcba1231570dc0180388a29c9f21046f884801386bd27e5c6389032c1214",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0xba905c8f56175f5dd57cb0ea7f3296960e8ccb56fbc004014a7bdf62340ed170",
+        "gas": "105523"
+      },
+      "withdrawals": [
+        {
+          "hash": "0xfbbbaa47df46244283126a101dd6003eed0010afe6209a71fed489f208f21b53",
+          "gas": "32646",
+          "payoutWei": "19000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 13,
+      "creatorWhite": false,
+      "outcome": 2,
+      "reason": 7,
+      "moves": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "b8c6",
+        "f1b5",
+        "a7a6"
+      ],
+      "create": {
+        "hash": "0x6bdfcd4ac5670c8a6ca92646a9a6c6d56c90f1b66937469317259aa161b53c14",
+        "gas": "79603"
+      },
+      "join": {
+        "hash": "0x7a9bd20fdfcd7b13592062c908c4146bf1709cb6b4a76a48ca13e5c96acd51be",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0x47c55e5f496a71369b439d6decac43a5611b9ab507275d792ebe5e2468197244",
+        "gas": "122248"
+      },
+      "withdrawals": [
+        {
+          "hash": "0x91f8eaf2de6c3f4d8e1dc22217aef317f178aa616a506c9f614120b9c0720275",
+          "gas": "32646",
+          "payoutWei": "10000000000000000"
+        },
+        {
+          "hash": "0xa56f2387f44012146529dfd5e2c87531672f88f80043576930ec564dfc3a85d4",
+          "gas": "32646",
+          "payoutWei": "10000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 14,
+      "creatorWhite": true,
+      "outcome": 1,
+      "reason": 1,
+      "moves": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "b8c6",
+        "f1b5",
+        "a7a6"
+      ],
+      "create": {
+        "hash": "0x97173c7866f8ff3e01b6a38b2a95ef0a350e8dae835d34553417d7b555ebc36b",
+        "gas": "99515"
+      },
+      "join": {
+        "hash": "0x166caa929bd24dfa629417e0c256fb216574dada8f3be0e7c242153a1f1c44f9",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0x238364c10805a840cf123458c4e14ba8683b1fe2e015ae456f0a7e1b10089fcb",
+        "gas": "105547"
+      },
+      "withdrawals": [
+        {
+          "hash": "0x324d2d3ee0749fb91faa3597d2d3f44fb1b3a103db8cfce8074d5f491fd2ce50",
+          "gas": "32646",
+          "payoutWei": "19000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 15,
+      "creatorWhite": false,
+      "outcome": 1,
+      "reason": 0,
+      "moves": [
+        "f2f3",
+        "e7e5",
+        "g2g4",
+        "d8h4"
+      ],
+      "create": {
+        "hash": "0xda84e11a6f956a2caea6557fa07af1fec14ee657e297268213c03f6848d051e8",
+        "gas": "79603"
+      },
+      "join": {
+        "hash": "0x4d3a7a4202c52424e1f17143686df8d834eefdb09e06d1f7c17be8e28d8add98",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0x9eed6f3a5d16e03bbcca3339bf802420ad8c40e1c1ed52ebb56fc0c26d0ed9c3",
+        "gas": "105534"
+      },
+      "withdrawals": [
+        {
+          "hash": "0x6a3ba7a1d747ea724fbb6d648fe8b035c1e724693d2e1fdf45a7ab30626ed2a4",
+          "gas": "32646",
+          "payoutWei": "19000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 16,
+      "creatorWhite": true,
+      "outcome": 2,
+      "reason": 7,
+      "moves": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "b8c6",
+        "f1b5",
+        "a7a6"
+      ],
+      "create": {
+        "hash": "0xb791c86fde20c80c96b64ffb75ddad29a0a7528a1f2c0d2a862840d1b509e2f1",
+        "gas": "99515"
+      },
+      "join": {
+        "hash": "0x0f5d3d8069ce9e61b3fc824de6491ce11b1e0aefd0aa6237d720c4ca8e335ce3",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0xf51a9083edc1edc9316d91899b978d89a8a953dd07cb602df5016d4e9d94bb2f",
+        "gas": "122212"
+      },
+      "withdrawals": [
+        {
+          "hash": "0x759ec40a0211308b96875237c05d2254b4fe4a37e8fe3ae0e8a71d298f16a4fb",
+          "gas": "32646",
+          "payoutWei": "10000000000000000"
+        },
+        {
+          "hash": "0x9ca3c96c19793f690e83c3bd91244d348d844cc274fadec4d7b265ce707ab54a",
+          "gas": "32646",
+          "payoutWei": "10000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 17,
+      "creatorWhite": false,
+      "outcome": 1,
+      "reason": 1,
+      "moves": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "b8c6",
+        "f1b5",
+        "a7a6"
+      ],
+      "create": {
+        "hash": "0x78ec23edb2a6f9c1a6c7e6201b0928e7fdf70b1a56a282c9b8aee3d09afabf94",
+        "gas": "79603"
+      },
+      "join": {
+        "hash": "0xa505aaf960ead4cb559506919deb24eb7c4550457cc35c0b92af5eb48146ca82",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0x63098d2dba151feb2c4342d0f93ff3649050e70dfee778f999a99b018968e85b",
+        "gas": "105546"
+      },
+      "withdrawals": [
+        {
+          "hash": "0xcdf3bedc302f0095a3575b56a82d6dbe26c440932b0cdd9549d200f174504cb9",
+          "gas": "32646",
+          "payoutWei": "19000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 18,
+      "creatorWhite": true,
+      "outcome": 1,
+      "reason": 0,
+      "moves": [
+        "f2f3",
+        "e7e5",
+        "g2g4",
+        "d8h4"
+      ],
+      "create": {
+        "hash": "0xe6acc63a6ed1ff531157766fbc97b435d2a6afc25a93e6dcc87657425507a7cc",
+        "gas": "99515"
+      },
+      "join": {
+        "hash": "0xec4909c497e7fa883c0cb46096ad6301f0f15adaaae3599fadc5bda442f2b305",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0x3acd9d6440a0d6b852806f2eade5910d331d45a9feb180b410eb93d5b5a2222b",
+        "gas": "105523"
+      },
+      "withdrawals": [
+        {
+          "hash": "0x541bb7b61c5f66aec40d4ea764ffc29b121068732afd59bad43cbb68ccbbf7af",
+          "gas": "32646",
+          "payoutWei": "19000000000000000"
+        }
+      ]
+    },
+    {
+      "roomId": 19,
+      "creatorWhite": false,
+      "outcome": 2,
+      "reason": 7,
+      "moves": [
+        "e2e4",
+        "e7e5",
+        "g1f3",
+        "b8c6",
+        "f1b5",
+        "a7a6"
+      ],
+      "create": {
+        "hash": "0xa16d5a8c36815880f288c6a189d2cdbc98b8d248f3ef7ad5f2ca3218dfc4f174",
+        "gas": "79603"
+      },
+      "join": {
+        "hash": "0xc868ceee92a3ff5f6355b4a084b3dca422d08b216dd2aaf09186333e51f839c1",
+        "gas": "199838"
+      },
+      "settle": {
+        "hash": "0x00a3346a566c7ea14cd11f8fc57b51bb4afb02bc331424395214d8d07b1dca38",
+        "gas": "122248"
+      },
+      "withdrawals": [
+        {
+          "hash": "0xc9a80659ead5f1ac5d5c098623731fb851c34422533b10fc193e3ab1ea74967b",
+          "gas": "32646",
+          "payoutWei": "10000000000000000"
+        },
+        {
+          "hash": "0x46a5e61e8c52e511f21c488db8dc6e1c86636ebe922475b488213412df341644",
+          "gas": "32646",
+          "payoutWei": "10000000000000000"
+        }
+      ]
+    }
+  ]
+}
