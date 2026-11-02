@@ -1,6 +1,6 @@
 # Relay trên Railway, giao diện trên Vercel
 
-Đây là phương án cũ ngày 01/11/2026, giữ để tham khảo. Người dùng đã chuyển sang [Render Free + Neon Free + Vercel](RENDER_DEPLOY.md) ngày 02/11/2026. Hợp đồng Fuji đã triển khai và xác minh; xem [FUJI_DEPLOY.md](FUJI_DEPLOY.md). Relay/website chưa nghiệm thu online.
+Đây là phương án cũ ngày 01/11/2026, giữ để tham khảo. Người dùng đã chuyển sang [Render Free + Neon Free + Vercel](RENDER_DEPLOY.md) ngày 02/11/2026. Hợp đồng Fuji đã triển khai và xác minh; xem [FUJI_DEPLOY.md](FUJI_DEPLOY.md). Trạng thái hosting hiện tại được ghi trong hướng dẫn Render.
 
 ## Đã chuẩn bị trong source
 

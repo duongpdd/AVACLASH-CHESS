@@ -1,0 +1,158 @@
+{
+  "verifiedAt": "2026-11-02T16:14:43.9015022Z",
+  "sourceCommit": "a3976ff47ec8973f40c45b8551611faa98dc938a",
+  "github": {
+    "repository": "duongpdd/AVACLASH-CHESS",
+    "visibility": "private"
+  },
+  "vercel": {
+    "projectId": "prj_VuXhV7G66M5pAMI6yfoT2QovYx53",
+    "deploymentId": "dpl_ES82SJP18t6CuaW1wbgz9cvPGsCq",
+    "state": "READY",
+    "target": "production",
+    "origin": "https://avaclash-chess.vercel.app"
+  },
+  "render": {
+    "serviceId": "srv-dbkb5h8473hc7385uhpg",
+    "deployId": "dep-dbkba1dg1s2s739ru5cg",
+    "state": "live",
+    "plan": "free",
+    "region": "singapore",
+    "origin": "https://avaclash-chess-relay.onrender.com",
+    "healthCheckPath": "/healthz",
+    "signer": "0x39d8Ba81d73D22eD18c2Cf9E1136758942e082bF",
+    "databaseCredentialTransferExplicitlyApproved": true,
+    "relayKeyEnteredByUserOnRender": true
+  },
+  "neon": {
+    "projectId": "gentle-sound-48456305",
+    "productionBranch": "br-patient-violet-b36wfxfq",
+    "plan": "free",
+    "migration": "001-relay-games.sql applied",
+    "pooledConnectionVerified": true
+  },
+  "connectivity": {
+    "checks": [
+      {
+        "check": "Web /",
+        "pass": true
+      },
+      {
+        "check": "Web /game",
+        "pass": true
+      },
+      {
+        "check": "Web /hotseat",
+        "pass": true
+      },
+      {
+        "check": "Web /vault",
+        "pass": true
+      },
+      {
+        "check": "Web /guide",
+        "pass": true
+      },
+      {
+        "check": "Relay /healthz",
+        "pass": true
+      },
+      {
+        "check": "Relay /readyz",
+        "pass": true
+      },
+      {
+        "check": "WSS accepts web origin",
+        "pass": true
+      },
+      {
+        "check": "WSS rejects other origin",
+        "pass": true
+      }
+    ],
+    "ready": true,
+    "note": "Connectivity only; does not sign or play a game."
+  },
+  "fuji": {
+    "timestamp": "2026-11-02T16:02:11.205Z",
+    "network": "Avalanche Fuji",
+    "mode": "deployed",
+    "checks": [
+      {
+        "check": "RPC chain 43113",
+        "pass": true
+      },
+      {
+        "check": "DEPLOYER_ADDRESS test AVAX",
+        "pass": true,
+        "balance": "0.3499999991888664"
+      },
+      {
+        "check": "RELAY_SIGNER_ADDRESS test AVAX",
+        "pass": true,
+        "balance": "0.15"
+      },
+      {
+        "check": "NEXT_PUBLIC_ESCROW_ADDRESS bytecode",
+        "pass": true
+      },
+      {
+        "check": "NEXT_PUBLIC_META_ADDRESS bytecode",
+        "pass": true
+      },
+      {
+        "check": "NEXT_PUBLIC_ESCROW_ADDRESS.relaySigner",
+        "pass": true
+      },
+      {
+        "check": "NEXT_PUBLIC_ESCROW_ADDRESS.arbiter",
+        "pass": true
+      },
+      {
+        "check": "NEXT_PUBLIC_ESCROW_ADDRESS.treasury",
+        "pass": true
+      },
+      {
+        "check": "NEXT_PUBLIC_ESCROW_ADDRESS.owner",
+        "pass": true
+      },
+      {
+        "check": "NEXT_PUBLIC_META_ADDRESS.owner",
+        "pass": true
+      },
+      {
+        "check": "NEXT_PUBLIC_ESCROW_ADDRESS.metaContract",
+        "pass": true
+      },
+      {
+        "check": "NEXT_PUBLIC_META_ADDRESS.escrowContract",
+        "pass": true
+      },
+      {
+        "check": "NEXT_PUBLIC_ESCROW_ADDRESS.singleSignedEnabled",
+        "pass": true
+      },
+      {
+        "check": "NEXT_PUBLIC_META_ADDRESS.spectatorBettingEnabled",
+        "pass": true
+      }
+    ],
+    "ready": true
+  },
+  "publicBundleChecks": {
+    "relayUrl": true,
+    "escrowAddress": true,
+    "metaAddress": true,
+    "fujiRpc": true
+  },
+  "browserChecks": [
+    "home hydrated; wallet and room controls rendered",
+    "hotseat chessboard and piece textures rendered"
+  ],
+  "blueprintSchemaValidation": "passed against https://render.com/schema/render.yaml.json",
+  "liveFujiTransactionsSentDuringHostingVerification": 0,
+  "remainingAcceptance": [
+    "two-wallet PvP game on Fuji",
+    "settlement and withdrawal on Fuji"
+  ]
+}

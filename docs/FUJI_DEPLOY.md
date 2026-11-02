@@ -7,7 +7,7 @@ Cập nhật 01/11/2026, 23:09 giờ Việt Nam. **Đã triển khai hợp đồ
 | ChessEscrow | `0x638135fA831A000DD438c6F6EFa7e75BC36aC78F` |
 | AvaClashMeta | `0x188FA04D5959164Ca8823ca32C89A73D62BEbF78` |
 
-Địa chỉ đã lưu trong `.env.fuji.local`. Relay WSS/domain và web Vercel **chưa triển khai**; endpoint relay trong tệp vẫn là placeholder, nên preflight toàn bộ cấu hình public vẫn báo chưa sẵn sàng. Không lấy kết quả triển khai hợp đồng thay cho nghiệm thu PvP Fuji. Các hướng dẫn deploy dưới đây phục vụ tái lập trên phiên bản mới; không chạy lại `-Broadcast` cho bản này. Báo cáo `benchmarks/fuji-preflight.json` cũ chỉ phản ánh thời điểm chưa có ví/gas.
+Địa chỉ đã lưu trong `.env.fuji.local`. Cập nhật hosting ngày 02/11/2026: web đã READY tại https://avaclash-chess.vercel.app và relay đã live tại wss://avaclash-chess-relay.onrender.com; 9/9 kiểm tra HTTP/health/WSS và 14/14 kiểm tra Fuji đạt. Xem [bằng chứng online](benchmarks/online-deployment.json). Chưa nghiệm thu ván PvP hai ví, settlement và withdraw thực tế trên Fuji. Không chạy lại `-Broadcast` cho bản hợp đồng này. Báo cáo `benchmarks/fuji-preflight.json` cũ chỉ phản ánh thời điểm chưa có ví/gas.
 
 ## Chuẩn bị tài khoản
 

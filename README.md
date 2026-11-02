@@ -47,7 +47,7 @@ Nếu chưa có đối thủ, phòng on-chain vẫn Open và chưa mở kết n�
 
 ## Cấu hình Fuji
 
-Phương án hosting đã chọn: [Render Free cho relay, Neon Free lưu ván đấu và Vercel cho web](docs/RENDER_DEPLOY.md). Hợp đồng Fuji đã triển khai; xem địa chỉ và receipt trong [trạng thái Fuji](docs/FUJI_DEPLOY.md). Database Neon đã tạo, migration đã kiểm thử trên nhánh riêng rồi áp dụng production. Website/relay chưa nghiệm thu online. Các hướng dẫn [Railway](docs/RAILWAY_DEPLOY.md) và [Docker/Caddy trên VPS](docs/VERCEL_DEPLOY.md) được giữ làm phương án khác.
+Website đã online tại **https://avaclash-chess.vercel.app**; relay WSS tại **wss://avaclash-chess-relay.onrender.com**. Phương án hosting: [Render Free + Neon Free + Vercel](docs/RENDER_DEPLOY.md). Hợp đồng Fuji đã triển khai; database production đã áp dụng migration và kiểm tra kết nối thật. Cả 9 kiểm tra HTTP/health/WSS đều đạt, cùng 14 kiểm tra hợp đồng/vai trò/gas. Chưa thực hiện ván PvP hai ví và settlement/withdraw thực tế trên Fuji; xem [bằng chứng triển khai](docs/benchmarks/online-deployment.json). Các hướng dẫn [Railway](docs/RAILWAY_DEPLOY.md) và [Docker/Caddy trên VPS](docs/VERCEL_DEPLOY.md) được giữ làm phương án khác.
 
 Sao chép `.env.example` cho cấu hình deploy, `packages/relay/.env.example` thành `.env.local` tại relay, và `web/.env.example` thành `web/.env.local`. Tệp root không tự cấu hình thay cho Next.js; các biến web phải nằm trong `web/.env.local` hoặc môi trường build.
 

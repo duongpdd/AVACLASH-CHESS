@@ -5,10 +5,14 @@ Phương án người dùng chọn ngày 02/11/2026 cho bản thử nghiệm Fuj
 ## Trạng thái thực tế
 
 - Neon: project `avaclash-chess` (`gentle-sound-48456305`), PostgreSQL 17, Singapore, tổ chức Free, compute giới hạn 0.25 CU. Branch production `br-patient-violet-b36wfxfq`, branch kiểm thử `relay-storage-validation` (`br-cold-bonus-b34dlql9`). Đã chạy migration `001-relay-games.sql` trên nhánh kiểm thử rồi production.
-- Vercel: project `avaclash-chess`, Node 22, root `web`, origin đã cấp `https://avaclash-chess.vercel.app`. Chưa có bản deploy được nghiệm thu; chưa gắn URL relay.
-- Render: đã kết nối workspace do người dùng xác nhận. Đã chuẩn bị `render.yaml` gói Free tại Singapore; chưa có relay chạy thành công.
-- GitHub: connector hiện chưa đọc được repo private `duongpdd/AVACLASH-CHESS`; chưa tải source lên. Cần cấp quyền repo cho Codex/ChatGPT và Render.
+- Vercel: project `avaclash-chess`, Node 22, root `web`, **READY** ở https://avaclash-chess.vercel.app. Deployment `dpl_ES82SJP18t6CuaW1wbgz9cvPGsCq` dùng commit `a3976ff47ec8973f40c45b8551611faa98dc938a`, đã gắn URL relay thật.
+- Render: service `srv-dbkb5h8473hc7385uhpg`, Free, Singapore, một instance; **live** tại https://avaclash-chess-relay.onrender.com. Deploy `dep-dbkba1dg1s2s739ru5cg`, cùng commit với Vercel. Đã xác minh HTTP health path `/healthz` và signer đúng ví relay. Người dùng tự nhập relay key trên Render; database URL production đã được lưu sau khi người dùng đồng ý rõ ràng.
+- GitHub: source đã tải lên repo **Private** `duongpdd/AVACLASH-CHESS`. Local đã gắn `origin`; snapshot phát hành được tạo qua API, không đẩy lịch sử local lên GitHub. Không force-push nhánh local để thay lịch sử remote; khi cập nhật phải giữ remote head làm parent.
 - Hợp đồng Fuji đã triển khai; xem [receipt và địa chỉ](FUJI_DEPLOY.md). Không deploy lại hợp đồng cho thay đổi storage này.
+
+Đã đạt 9/9 kiểm tra kết nối HTTP/health/WSS, 14/14 kiểm tra chain/contract/vai trò/gas, xác minh bundle public dùng đúng relay/contract/RPC, và kiểm tra trình duyệt thấy trang chủ cùng bàn cờ hot-seat tải đúng. Chưa chơi ván PvP hai ví hoặc gửi giao dịch settlement/withdraw thực tế trên Fuji. Xem [bằng chứng online](benchmarks/online-deployment.json).
+
+Service hiện được tạo và cấu hình trực tiếp qua Render MCP; `render.yaml` là cấu hình tái lập, chưa liên kết Blueprint tự đồng bộ. File đã đạt JSON Schema 2020-12 chính thức; thay đổi YAML cục bộ không tự sửa service hiện có.
 
 ## Dữ liệu được giữ như thế nào
 

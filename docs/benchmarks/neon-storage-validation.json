@@ -38,6 +38,6 @@
   "typecheck": "passed",
   "productionPooledSchemaCheck": "passed, read-only",
   "productionPackage": "pnpm deploy --prod succeeded; PostgreSQL and shared modules import successfully",
-  "dockerImageBuild": "not run locally; Docker is unavailable",
-  "liveDeployment": "pending private GitHub repository access and relay secret setup"
+  "dockerImageBuild": "passed on Render; relay live deploy dep-dbkba1dg1s2s739ru5cg",
+  "liveDeployment": "Vercel READY and Render live; 9 connectivity checks passed; real Fuji PvP/settlement acceptance pending"
 }
