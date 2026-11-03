@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { Suspense, useState, type FormEvent } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAccount, useBalance, useBlock, useReadContract } from "wagmi";
 import { formatEther, isAddress, parseEther, parseEventLogs } from "viem";
 import { TOURNAMENT_ABI } from "@avaclash/shared";
 import AppHeader from "@/components/AppHeader";
 import AppFooter from "@/components/AppFooter";
 import MatchActions from "@/components/TournamentMatchActions";
+import TournamentHistory from "@/components/TournamentHistory";
 import {
   CHAIN_ID,
   CURRENCY_SYMBOL,
@@ -202,7 +204,10 @@ function TournamentDetails({
   now: bigint;
 }) {
   const { address } = useAccount();
+  const queryClient = useQueryClient();
   const [selectedMatch, selectMatch] = useState<bigint>();
+  const [myMatchesOnly, setMyMatchesOnly] = useState(true);
+  const [shareStatus, setShareStatus] = useState("");
   const [formError, setFormError] = useState("");
   const tournament = useReadContract({
     ...tournamentContract,
@@ -258,6 +263,14 @@ function TournamentDetails({
       allocation.refetch(),
       contributions.refetch(),
       refunded.refetch(),
+      queryClient.invalidateQueries({
+        queryKey: [
+          "tournament-history",
+          CHAIN_ID,
+          tournamentContract.address,
+          id.toString(),
+        ],
+      }),
     ]);
   }
   const t = tournament.data;
@@ -275,6 +288,14 @@ function TournamentDetails({
   const organizer = same(address, t.organizer);
   const reviewer = same(address, t.reviewer);
   const relay = !!relaySigner.data && same(address, relaySigner.data);
+  const myMatches = list.filter(
+    (match) => same(address, match.white) || same(address, match.black),
+  );
+  const visibleMatches = me >= 0 && myMatchesOnly ? myMatches : list;
+  const myNextMatch = myMatches.find((match) => !match.result.reported);
+  const waitingReviews = list.filter(
+    (match) => match.result.reported && !match.result.approved,
+  ).length;
   const open = t.phase === 0 && now < t.registrationEnds;
   let registrationBlock = "";
   if (!address) registrationBlock = "Kết nối ví kỳ thủ để đăng ký.";
@@ -288,10 +309,15 @@ function TournamentDetails({
           : "nhà tài trợ";
     registrationBlock = `Ví ${role} không thể thi đấu ở giải này. Hãy dùng ví kỳ thủ riêng.`;
   } else if (t.funded === 0n) registrationBlock = "Giải chưa có quỹ thưởng.";
-  else if (players.length >= t.capacity) registrationBlock = "Giải đã đủ kỳ thủ.";
+  else if (players.length >= t.capacity)
+    registrationBlock = "Giải đã đủ kỳ thủ.";
   else if (balance.data?.value === 0n)
     registrationBlock = `Ví cần ${CURRENCY_SYMBOL} thử nghiệm để trả phí mạng khi đăng ký.`;
-  else if (!relaySigner.data || contributions.data === undefined || !standing.data)
+  else if (
+    !relaySigner.data ||
+    contributions.data === undefined ||
+    !standing.data
+  )
     registrationBlock =
       relaySigner.isError || contributions.isError || standing.isError
         ? "Chưa kiểm tra được điều kiện đăng ký. Hãy tải lại trang."
@@ -331,6 +357,50 @@ function TournamentDetails({
   else if (matches.data && t.reviewUntil > now)
     settlementStatus = `Có thể chốt thưởng sau ${date(t.reviewUntil)} nếu không phát sinh khiếu nại.`;
   const disabled = tx.busy || !address;
+  let role = address ? "Chưa đăng ký" : "Khách xem";
+  if (organizer) role = "Ban tổ chức";
+  else if (reviewer) role = "Trọng tài";
+  else if (me >= 0) role = "Kỳ thủ";
+  else if (relay) role = "Relay";
+  else if (contributions.data) role = "Nhà tài trợ";
+  let nextStep = "Theo dõi quỹ thưởng, bảng điểm và lịch thi đấu.";
+  if (open) {
+    if (organizer && !standing.data) nextStep = "Đang tải danh sách kỳ thủ.";
+    else if (organizer && t.funded === 0n)
+      nextStep = "Nạp quỹ thưởng để mở đăng ký.";
+    else if (organizer && players.length < t.capacity)
+      nextStep = `Còn thiếu ${t.capacity - players.length} kỳ thủ để bắt đầu giải.`;
+    else if (organizer) nextStep = "Đã đủ kỳ thủ. Bạn có thể bắt đầu giải.";
+    else if (me >= 0)
+      nextStep = "Bạn đã đăng ký. Hãy đợi ban tổ chức bắt đầu giải.";
+    else if (reviewer) nextStep = "Chờ giải bắt đầu để duyệt kết quả các ván.";
+    else if (!registrationBlock)
+      nextStep = "Bạn có thể đăng ký thi đấu bằng ví này.";
+  } else if (canClaim) nextStep = `Bạn có thể nhận ${amount(prize)}.`;
+  else if (canRefund)
+    nextStep = "Bạn có thể nhận lại phần tài trợ chưa được trao.";
+  else if (ready) nextStep = settlementStatus;
+  else if (running && reviewer && t.openAppeals > 0n)
+    nextStep = `Có ${t.openAppeals} khiếu nại cần xử lý trong hồ sơ ván.`;
+  else if (running && reviewer && waitingReviews > 0)
+    nextStep = `Có ${waitingReviews} ván có kết quả đang chờ bạn duyệt.`;
+  else if (running && myNextMatch)
+    nextStep = "Mở ván của bạn theo lịch ban tổ chức.";
+  else if (t.phase === 1) nextStep = settlementStatus;
+  else if (t.phase === 0) nextStep = "Đã hết hạn đăng ký.";
+  else if (t.phase === 2) nextStep = "Bảng thưởng đã được chốt.";
+  else if (t.phase === 3) nextStep = "Giải đã hủy.";
+
+  async function copyShareLink() {
+    try {
+      await navigator.clipboard.writeText(
+        new URL(`/tournaments?id=${id}`, window.location.origin).href,
+      );
+      setShareStatus("Đã sao chép link giải.");
+    } catch {
+      setShareStatus("Bạn có thể mở link giải rồi sao chép từ thanh địa chỉ.");
+    }
+  }
   async function action(
     functionName:
       | "register"
@@ -360,12 +430,38 @@ function TournamentDetails({
   return (
     <div className="grid gap-5">
       <section className="surface-card grid gap-4">
-        <div>
-          <p className="eyebrow">
-            GIẢI #{id.toString()} · {phaseNames[t.phase]}
-          </p>
-          <h2 className="section-title break-words">{t.title}</h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="eyebrow">
+              GIẢI #{id.toString()} · {phaseNames[t.phase]}
+            </p>
+            <h2 className="section-title break-words">{t.title}</h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => void copyShareLink()}
+            >
+              Sao chép link giải
+            </button>
+            {shareStatus && (
+              <p className="text-sm text-slate-300" role="status">
+                {shareStatus}
+              </p>
+            )}
+            {shareStatus.startsWith("Bạn") && (
+              <Link className="text-link" href={`/tournaments?id=${id}`}>
+                Mở link giải
+              </Link>
+            )}
+          </div>
         </div>
+        {open && (
+          <p className="text-sm text-slate-300">
+            Đăng ký đến {date(t.registrationEnds)}.
+          </p>
+        )}
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
             <p className="text-sm text-slate-400">Quỹ đã nạp</p>
@@ -380,6 +476,20 @@ function TournamentDetails({
           <div>
             <p className="text-sm text-slate-400">Đã trao</p>
             <strong>{amount(t.paid)}</strong>
+          </div>
+        </div>
+        <div className="rounded-lg border border-amber-200/25 bg-amber-200/5 p-4">
+          <p className="eyebrow">{role}</p>
+          <p className="mt-1 font-semibold">{nextStep}</p>
+          <div className="mt-2 flex flex-wrap gap-4 text-sm">
+            {list.length > 0 && (
+              <a className="text-link" href="#lich-dau">
+                {me >= 0 ? "Ván của tôi" : "Lịch ván đấu"}
+              </a>
+            )}
+            <a className="text-link" href="#lich-su">
+              Lịch sử quỹ và kết quả
+            </a>
           </div>
         </div>
         <details>
@@ -436,7 +546,8 @@ function TournamentDetails({
           </p>
         )}
         <div className="flex flex-wrap gap-2">
-          {open && me < 0 &&
+          {open &&
+            me < 0 &&
             (registrationBlock ? (
               <p className="text-sm text-amber-100">{registrationBlock}</p>
             ) : (
@@ -596,13 +707,43 @@ function TournamentDetails({
         )}
       </section>
       {!!list.length && (
-        <section className="surface-card">
-          <h2 className="section-title">Lịch ván đấu</h2>
+        <section className="surface-card" id="lich-dau">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="section-title">Lịch ván đấu</h2>
+            {me >= 0 && (
+              <div
+                className="flex flex-wrap gap-2"
+                role="group"
+                aria-label="Lọc lịch ván đấu"
+              >
+                <button
+                  type="button"
+                  className={
+                    myMatchesOnly ? "button-primary" : "button-secondary"
+                  }
+                  aria-pressed={myMatchesOnly}
+                  onClick={() => setMyMatchesOnly(true)}
+                >
+                  Ván của tôi ({myMatches.length})
+                </button>
+                <button
+                  type="button"
+                  className={
+                    myMatchesOnly ? "button-secondary" : "button-primary"
+                  }
+                  aria-pressed={!myMatchesOnly}
+                  onClick={() => setMyMatchesOnly(false)}
+                >
+                  Tất cả ({list.length})
+                </button>
+              </div>
+            )}
+          </div>
           <p className="mb-3 text-sm text-slate-400">
             Mỗi cặp chơi một ván. Hai kỳ thủ mở cùng ván theo lịch BTC.
           </p>
           <ul className="grid gap-2">
-            {list.map((match) => (
+            {visibleMatches.map((match) => (
               <li
                 key={match.roomId.toString()}
                 className="rounded-lg border border-white/10 p-3"
@@ -615,13 +756,15 @@ function TournamentDetails({
                   <span>
                     {match.result.reported
                       ? `${outcomes[match.result.outcome]} · ${match.result.approved ? "Đã duyệt" : "Chờ duyệt"}`
-                      : "Chưa có kết quả"}
+                      : running
+                        ? "Chưa có kết quả"
+                        : "Không có kết quả"}
                   </span>
                   <Link
                     className="text-link"
                     href={`/tournaments/play?id=${id}&room=${match.roomId}`}
                   >
-                    {match.result.reported ? "Xem ván" : "Mở ván"}
+                    {match.result.reported ? "Xem lại ván" : "Mở ván"}
                   </Link>
                   <button
                     className="text-link"
@@ -654,11 +797,13 @@ function TournamentDetails({
           </ul>
         </section>
       )}
+      <TournamentHistory id={id} roomIds={list.map((match) => match.roomId)} />
     </div>
   );
 }
 
 function TournamentLobby() {
+  const router = useRouter();
   const params = useSearchParams();
   const { address } = useAccount();
   const tx = useTournamentTx();
@@ -675,15 +820,13 @@ function TournamentLobby() {
     chainId: CHAIN_ID,
     query: { enabled: tournamentEnabled, ...polling },
   });
-  const [selection, setSelection] = useState<bigint>();
   const urlId = parseRoomId(params.get("id"));
   const id =
-    selection ??
-    (urlId !== undefined
+    urlId !== undefined
       ? BigInt(urlId)
       : next && next > 0n
         ? next - 1n
-        : undefined);
+        : undefined;
   if (!tournamentEnabled)
     return (
       <p className="surface-card">Chưa có giải thử nghiệm trên mạng này.</p>
@@ -703,7 +846,7 @@ function TournamentLobby() {
           tx={tx}
           now={block.timestamp}
           onCreated={(id) => {
-            setSelection(id);
+            router.push(`/tournaments?id=${id}`, { scroll: false });
             void refetch();
           }}
         />
@@ -720,7 +863,8 @@ function TournamentLobby() {
           const value = parseRoomId(
             String(new FormData(e.currentTarget).get("id")),
           );
-          if (value !== undefined) setSelection(BigInt(value));
+          if (value !== undefined)
+            router.push(`/tournaments?id=${value}`, { scroll: false });
         }}
       >
         <label>
@@ -739,7 +883,9 @@ function TournamentLobby() {
           <button
             type="button"
             className="button-secondary"
-            onClick={() => setSelection(next - 1n)}
+            onClick={() =>
+              router.push(`/tournaments?id=${next - 1n}`, { scroll: false })
+            }
           >
             Giải mới nhất
           </button>
