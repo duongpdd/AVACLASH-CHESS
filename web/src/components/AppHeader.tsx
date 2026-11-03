@@ -7,7 +7,7 @@ export default function AppHeader({
   active = "play",
   showWallet = true,
 }: {
-  active?: "play" | "vault" | "guide" | "tournament";
+  active?: "play" | "vault" | "guide" | "tournament" | "practice" | "profile";
   showWallet?: boolean;
 }) {
   return (
@@ -29,7 +29,8 @@ export default function AppHeader({
           {(tournamentEnabled
             ? [
                 { id: "tournament", href: "/tournaments", label: "Giải đấu" },
-                { id: "play", href: "/hotseat", label: "Tập cờ" },
+                { id: "practice", href: "/practice", label: "Tập cờ" },
+                { id: "profile", href: "/profile", label: "Hồ sơ" },
                 { id: "guide", href: "/guide", label: "Hướng dẫn" },
               ]
             : [
@@ -56,7 +57,7 @@ export default function AppHeader({
         ) : (
           <span className="header-offline">
             <Icon name="users" />
-            Cùng thiết bị
+            {active === "practice" ? "Chơi solo" : "Cùng thiết bị"}
           </span>
         )}
       </div>

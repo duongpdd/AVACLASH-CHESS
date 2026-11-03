@@ -1,28 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { useAccount } from "wagmi";
-import { CHAIN_ID, tournamentEnabled } from "@/config/env";
-import type { CupRating } from "@/utils/tournament-elo";
+import { tournamentEnabled } from "@/config/env";
+import { useCupElo } from "@/hooks/useCupElo";
 
 export default function TournamentElo() {
   const { address } = useAccount();
   const [showAll, setShowAll] = useState(false);
-  const board = useQuery({
-    queryKey: ["tournament-elo", CHAIN_ID],
-    enabled: tournamentEnabled,
-    queryFn: async ({
-      signal,
-    }): Promise<{ startingElo: number; ratings: CupRating[] }> => {
-      const response = await fetch("/api/tournaments/elo", { signal });
-      if (!response.ok) throw new Error("Cup ratings unavailable");
-      return response.json();
-    },
-    staleTime: 30_000,
-    refetchInterval: 30_000,
-    retry: 1,
-  });
+  const board = useCupElo();
   if (!tournamentEnabled) return null;
 
   const ratings = board.data?.ratings ?? [];
@@ -81,7 +68,12 @@ export default function TournamentElo() {
                 <tr key={row.address} className="border-t border-white/10">
                   <td className="py-2">{row.rank}</td>
                   <td className="font-mono" title={row.address}>
-                    {row.address.slice(0, 8)}…{row.address.slice(-4)}
+                    <Link
+                      className="text-link"
+                      href={`/profile?wallet=${row.address}`}
+                    >
+                      {row.address.slice(0, 8)}…{row.address.slice(-4)}
+                    </Link>
                     {row.address === player?.address && " · Bạn"}
                   </td>
                   <td className="font-semibold text-amber-200">{row.rating}</td>

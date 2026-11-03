@@ -10,6 +10,7 @@ import { ChessGame, computeMovesHash } from "@avaclash/shared";
 import { keccak256, toHex, zeroHash, type Address, type Hex } from "viem";
 import AppHeader from "@/components/AppHeader";
 import AppFooter from "@/components/AppFooter";
+import Dialog from "@/components/Dialog";
 import MatchActions from "@/components/TournamentMatchActions";
 import {
   CHAIN_ID,
@@ -22,7 +23,7 @@ import {
 import { useRelaySession } from "@/hooks/useRelaySession";
 import { tournamentContract, useTournamentTx } from "@/hooks/useTournamentTx";
 import { parseRoomId } from "@/utils/room";
-import { buildTournamentPgn } from "@/utils/tournament-pgn";
+import { buildTournamentRecord } from "@/utils/tournament-pgn";
 
 const Board = dynamic(() => import("@/components/PhaserGame"), {
   ssr: false,
@@ -52,12 +53,19 @@ function History({ moves }: { moves: string[] }) {
 
 function LiveMatch({
   roomId,
+  tournamentId,
+  white,
+  black,
   onReported,
 }: {
   roomId: number;
+  tournamentId: bigint;
+  white: Address;
+  black: Address;
   onReported: () => void;
 }) {
   const tx = useTournamentTx();
+  const [reviewOpen, setReviewOpen] = useState(false);
   const session = useRelaySession(roomId, {
     contractAddress: TOURNAMENT_ADDRESS,
   });
@@ -69,8 +77,31 @@ function LiveMatch({
       computeMovesHash(session.moves) === resultProposal.movesHash,
     [resultProposal, session.moves],
   );
+  const preview = useMemo(
+    () =>
+      reviewOpen && resultProposal && validTranscript
+        ? buildTournamentRecord(session.moves, {
+            roomId,
+            tournamentId,
+            white,
+            black,
+            outcome: resultProposal.outcome,
+          })
+        : null,
+    [
+      reviewOpen,
+      resultProposal,
+      validTranscript,
+      session.moves,
+      roomId,
+      tournamentId,
+      white,
+      black,
+    ],
+  );
   async function report() {
-    if (!resultProposal || !relaySignature || !validTranscript) return;
+    if (!resultProposal || !relaySignature || !validTranscript || !preview)
+      return;
     const { winner, outcome, reason, moveCount, movesHash, nonce, deadline } =
       resultProposal;
     if (
@@ -90,8 +121,10 @@ function LiveMatch({
           relaySignature,
         ],
       })
-    )
+    ) {
+      setReviewOpen(false);
       onReported();
+    }
   }
   return (
     <div className="hotseat-layout">
@@ -191,9 +224,9 @@ function LiveMatch({
             <button
               className="button-primary"
               disabled={!relaySignature || !validTranscript || tx.busy}
-              onClick={() => void report()}
+              onClick={() => setReviewOpen(true)}
             >
-              Gửi kết quả tạm
+              Xem và gửi biên bản
             </button>
             <button
               className="button-secondary"
@@ -208,6 +241,78 @@ function LiveMatch({
         )}
         <History moves={session.moves} />
       </aside>
+      {reviewOpen && (
+        <Dialog
+          titleId="result-proof-title"
+          onClose={() => {
+            if (!tx.busy) setReviewOpen(false);
+          }}
+        >
+          <div className="surface-card max-h-[85vh] w-full max-w-2xl space-y-3 overflow-y-auto">
+            <h2 id="result-proof-title" className="section-title">
+              Xác nhận biên bản ván #{roomId}
+            </h2>
+            {preview && resultProposal ? (
+              <>
+                <p>
+                  {outcomeLabels[resultProposal.outcome]} ·{" "}
+                  {session.moves.length} nửa nước
+                </p>
+                <p className="text-sm text-slate-300">
+                  Ví gửi kết quả tạm và chữ ký relay lên {NETWORK_NAME}. Hợp
+                  đồng ghi mã băm chuỗi nước đi UCI. Trọng tài sẽ duyệt kết quả
+                  sau khi gửi.
+                </p>
+                <dl className="space-y-2 text-sm">
+                  <div>
+                    <dt>Hash nước đi UCI</dt>
+                    <dd className="break-all font-mono text-amber-100">
+                      {resultProposal.movesHash}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>FEN cuối ván</dt>
+                    <dd className="break-all font-mono">{preview.fen}</dd>
+                  </div>
+                </dl>
+                <details open>
+                  <summary className="cursor-pointer">
+                    PGN của kết quả tạm
+                  </summary>
+                  <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-all rounded bg-slate-950 p-2 text-xs">
+                    {preview.pgn}
+                  </pre>
+                </details>
+              </>
+            ) : (
+              <p role="status">Chưa đối chiếu được biên bản và chữ ký relay.</p>
+            )}
+            {tx.message && (
+              <p role="status" className="text-sm text-amber-100">
+                {tx.message}
+              </p>
+            )}
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={tx.busy}
+                onClick={() => setReviewOpen(false)}
+              >
+                Quay lại
+              </button>
+              <button
+                type="button"
+                className="button-primary"
+                disabled={!preview || !relaySignature || tx.busy}
+                onClick={() => void report()}
+              >
+                Ký và gửi lên {NETWORK_NAME}
+              </button>
+            </div>
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -262,10 +367,10 @@ function Replay({
   const matches = computed === committed;
   const anchored = committed !== zeroHash;
   const pgnOutcome = anchored && matches ? outcome : undefined;
-  const pgn = useMemo(
+  const record = useMemo(
     () =>
       moves &&
-      buildTournamentPgn(moves, {
+      buildTournamentRecord(moves, {
         roomId,
         tournamentId,
         white,
@@ -292,7 +397,7 @@ function Replay({
         </button>
       </div>
     );
-  if (!pgn)
+  if (!record)
     return (
       <p role="alert" className="surface-card">
         Biên bản chứa nước đi không hợp lệ.
@@ -300,9 +405,9 @@ function Replay({
     );
   const at = Math.min(ply ?? moves.length, moves.length);
   function downloadPgn() {
-    if (!pgn || (anchored && !matches)) return;
+    if (!record || (anchored && !matches)) return;
     const url = URL.createObjectURL(
-      new Blob([pgn], { type: "application/x-chess-pgn" }),
+      new Blob([record.pgn], { type: "application/x-chess-pgn" }),
     );
     const link = document.createElement("a");
     link.href = url;
@@ -334,6 +439,10 @@ function Replay({
           <div>
             <dt>Hash tính từ biên bản relay</dt>
             <dd className="break-all font-mono">{computed}</dd>
+          </div>
+          <div>
+            <dt>FEN cuối ván</dt>
+            <dd className="break-all font-mono">{record.fen}</dd>
           </div>
         </dl>
         <p className="text-xs text-slate-400">
@@ -534,6 +643,9 @@ function MatchContent() {
         <LiveMatch
           key={`${roomId}:${address}`}
           roomId={roomId}
+          tournamentId={tournamentId}
+          white={room.creatorIsWhite ? room.playerA : room.playerB}
+          black={room.creatorIsWhite ? room.playerB : room.playerA}
           onReported={() => void refetch()}
         />
       ) : (

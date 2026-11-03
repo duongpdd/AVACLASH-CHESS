@@ -16,6 +16,7 @@ import {
   CHAIN_ID,
   CURRENCY_SYMBOL,
   FUJI_EXPLORER_URL,
+  FUJI_FAUCET_URL,
   NETWORK_NAME,
   tournamentEnabled,
   ZERO_ADDRESS,
@@ -26,6 +27,7 @@ import {
   type TournamentTx,
 } from "@/hooks/useTournamentTx";
 import { parseRoomId } from "@/utils/room";
+import { useCupElo } from "@/hooks/useCupElo";
 
 const input =
   "w-full rounded-lg border border-white/15 bg-slate-950 px-3 py-2 text-slate-100";
@@ -206,6 +208,7 @@ function TournamentDetails({
 }) {
   const { address } = useAccount();
   const queryClient = useQueryClient();
+  const { data: elo } = useCupElo();
   const [selectedMatch, selectMatch] = useState<bigint>();
   const [myMatchesOnly, setMyMatchesOnly] = useState(true);
   const [shareStatus, setShareStatus] = useState("");
@@ -285,6 +288,14 @@ function TournamentDetails({
     );
   const [players, points] = standing.data ?? [[], []];
   const list = matches.data ?? [];
+  const ratings = new Map(
+    elo?.ratings.map(({ address, rating }) => [address.toLowerCase(), rating]),
+  );
+  const pairKey = (a: string, b: string) =>
+    [a.toLowerCase(), b.toLowerCase()].sort().join(":");
+  const pairs = new Map(
+    list.map((match) => [pairKey(match.white, match.black), match]),
+  );
   const me = players.findIndex((p) => same(address, p));
   const organizer = same(address, t.organizer);
   const reviewer = same(address, t.reviewer);
@@ -553,7 +564,19 @@ function TournamentDetails({
           {open &&
             me < 0 &&
             (registrationBlock ? (
-              <p className="text-sm text-amber-100">{registrationBlock}</p>
+              <div className="grid gap-1">
+                <p className="text-sm text-amber-100">{registrationBlock}</p>
+                {CHAIN_ID === 43113 && balance.data?.value === 0n && (
+                  <a
+                    className="text-link w-fit text-sm"
+                    href={FUJI_FAUCET_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Nhận AVAX testnet
+                  </a>
+                )}
+              </div>
             ) : (
               <button
                 className="button-primary"
@@ -680,6 +703,7 @@ function TournamentDetails({
               <tr>
                 <th className="py-2">Kỳ thủ</th>
                 <th>Điểm</th>
+                <th>Elo Cup</th>
                 {t.phase === 2 && <th>Thưởng</th>}
               </tr>
             </thead>
@@ -694,10 +718,20 @@ function TournamentDetails({
                 .map(({ player, index, point }) => (
                   <tr className="border-t border-white/10" key={player}>
                     <td className="py-2 font-mono" title={player}>
-                      {short(player)}
+                      <Link
+                        className="text-link"
+                        href={`/profile?wallet=${player}`}
+                      >
+                        {short(player)}
+                      </Link>
                       {me === index && " · Bạn"}
                     </td>
                     <td>{Number(point) / 2}</td>
+                    <td>
+                      {ratings.get(player.toLowerCase()) ??
+                        elo?.startingElo ??
+                        "—"}
+                    </td>
                     {t.phase === 2 && (
                       <td>
                         {amount(allocation.data?.[0][index] ?? 0n)}
@@ -746,6 +780,79 @@ function TournamentDetails({
           <p className="mb-3 text-sm text-slate-400">
             Mỗi cặp chơi một ván. Hai kỳ thủ mở cùng ván theo lịch BTC.
           </p>
+          <details className="mb-4 rounded-lg border border-white/10 p-3" open>
+            <summary className="cursor-pointer font-semibold">
+              Sơ đồ vòng tròn
+            </summary>
+            <div className="mt-2 overflow-x-auto">
+              <table className="min-w-max text-center text-xs">
+                <caption className="mb-2 text-left text-slate-400">
+                  Chọn một cặp để mở ván. Mỗi cặp xuất hiện một lần.
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col" className="p-2 text-left">
+                      Kỳ thủ
+                    </th>
+                    {players.map((player, i) => (
+                      <th
+                        key={player}
+                        scope="col"
+                        title={player}
+                        className="p-2"
+                      >
+                        #{i + 1}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {players.map((player, i) => (
+                    <tr key={player} className="border-t border-white/10">
+                      <th
+                        scope="row"
+                        className="p-2 text-left font-mono"
+                        title={player}
+                      >
+                        #{i + 1} {short(player)}
+                      </th>
+                      {players.map((opponent, j) => {
+                        const match =
+                          j > i
+                            ? pairs.get(pairKey(player, opponent))
+                            : undefined;
+                        const label = match?.result.approved
+                          ? "Đã duyệt"
+                          : match?.result.reported
+                            ? "Chờ duyệt"
+                            : "Mở ván";
+                        return (
+                          <td key={opponent} className="min-w-16 p-1">
+                            {match ? (
+                              <Link
+                                className={`block rounded px-2 py-2 ${match.result.approved ? "bg-emerald-400/15 text-emerald-200" : match.result.reported ? "bg-amber-400/15 text-amber-200" : "bg-slate-700/60 text-slate-200"}`}
+                                href={`/tournaments/play?id=${id}&room=${match.roomId}`}
+                                aria-label={`Ván ${match.roomId}, ${short(player)} gặp ${short(opponent)}, ${label}`}
+                              >
+                                {label}
+                              </Link>
+                            ) : (
+                              <span
+                                aria-hidden="true"
+                                className="text-slate-500"
+                              >
+                                —
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
           <ul className="grid gap-2">
             {visibleMatches.map((match) => (
               <li
@@ -941,8 +1048,8 @@ export default function TournamentsPage() {
               nhận giải; giao dịch có phí mạng.
             </p>
           </div>
-          <Link href="/hotseat" className="text-link">
-            Tập cờ cùng thiết bị →
+          <Link href="/practice" className="text-link">
+            Thử giải thế cờ →
           </Link>
         </section>
         <Suspense fallback={<p role="status">Đang tải giải…</p>}>

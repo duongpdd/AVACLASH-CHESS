@@ -8,6 +8,8 @@ export const CURRENCY_SYMBOL = CHAIN_ID === 31337 ? "ETH" : "AVAX";
 export const NETWORK_NAME =
   CHAIN_ID === 31337 ? "Anvil Local" : "Avalanche Fuji";
 export const FUJI_EXPLORER_URL = "https://explorer-test.avax.network/c-chain";
+export const FUJI_FAUCET_URL =
+  "https://build.avax.network/console/primary-network/faucet";
 
 export const RPC_URL =
   process.env.NEXT_PUBLIC_RPC_URL ||
