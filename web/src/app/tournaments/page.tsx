@@ -12,6 +12,7 @@ import MatchActions from "@/components/TournamentMatchActions";
 import {
   CHAIN_ID,
   CURRENCY_SYMBOL,
+  FUJI_EXPLORER_URL,
   NETWORK_NAME,
   tournamentEnabled,
   ZERO_ADDRESS,
@@ -749,7 +750,7 @@ function TournamentLobby() {
         {tx.hash && CHAIN_ID === 43113 && (
           <a
             className="ml-2 underline"
-            href={`https://subnets.avax.network/fuji/tx/${tx.hash}`}
+            href={`${FUJI_EXPLORER_URL}/tx/${tx.hash}`}
             target="_blank"
             rel="noreferrer"
           >

@@ -1,7 +1,7 @@
 "use client";
 
 import { TxStep } from "@/hooks/useCreateRoom";
-import { CHAIN_ID } from "@/config/env";
+import { CHAIN_ID, FUJI_EXPLORER_URL } from "@/config/env";
 
 export default function TxStatusAlert({
   step,
@@ -84,7 +84,7 @@ export default function TxStatusAlert({
       )}
       {txHash && CHAIN_ID === 43113 && (
         <a
-          href={`https://testnet.snowtrace.io/tx/${txHash}`}
+          href={`${FUJI_EXPLORER_URL}/tx/${txHash}`}
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs text-cyan-300 underline break-all"
