@@ -1,4 +1,5 @@
 // Core chess wrapper
+export { TOURNAMENT_ABI } from "./abi/TournamentPrizePool.js";
 export { ChessGame } from "./chess.js";
 
 // Replay engine

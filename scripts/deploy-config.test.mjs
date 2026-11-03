@@ -201,6 +201,32 @@ test("deployed preflight requires both contracts, correct roles, links and disab
   );
 });
 
+test("Cup release binds the web and relay to a distinct tournament contract", async () => {
+  const env = {
+    ...config,
+    WEB_ORIGIN: "https://chess.vercel.app",
+    NEXT_PUBLIC_TOURNAMENT_ADDRESS: address(7),
+  };
+  const files = makeDeploymentEnv(env, "render");
+  assert.ok(
+    files.web.includes(`NEXT_PUBLIC_TOURNAMENT_ADDRESS=${address(7)}\n`),
+  );
+  assert.ok(files.relay.includes(`TOURNAMENT_ADDRESS=${address(7)}\n`));
+  assert.ok(
+    validatePublicDeployment({
+      ...env,
+      NEXT_PUBLIC_TOURNAMENT_ADDRESS: config.NEXT_PUBLIC_ESCROW_ADDRESS,
+    }).length,
+  );
+  const client = mockClient();
+  const readContract = client.readContract;
+  client.readContract = async (args) =>
+    args.functionName === "nextTournamentId" ? 0n : readContract(args);
+  assert.equal((await runFujiPreflight(env, { client })).ready, true);
+  client.readContract = readContract;
+  assert.equal((await runFujiPreflight(env, { client })).ready, false);
+});
+
 test("Vercel build stops before compiling when online configuration is absent", () => {
   const env = { ...process.env };
   for (const key of Object.keys(config)) delete env[key];

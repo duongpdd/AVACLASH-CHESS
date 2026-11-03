@@ -227,6 +227,21 @@ export class RelayServer {
     return `${this.chainId}:${this.contractAddress.toLowerCase()}:${roomId}`;
   }
 
+  /** Public tournament replay, served only for finalized local game records. */
+  public async readTournamentReplay(roomId: number) {
+    const result = this.store
+      ? (await this.store.read(roomId))?.result
+      : this.savedResults.get(this.getResultKey(roomId));
+    if (!result) return null;
+    return {
+      roomId,
+      moves: result.moves,
+      outcome: result.outcome,
+      reason: result.reason,
+      movesHash: computeMovesHash(result.moves),
+    };
+  }
+
   public getActiveGamesDir(): string {
     return this.activeDir;
   }

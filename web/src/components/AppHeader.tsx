@@ -1,12 +1,13 @@
 import Link from "next/link";
 import WalletBar from "./WalletBar";
 import Icon from "./Icon";
+import { tournamentEnabled } from "@/config/env";
 
 export default function AppHeader({
   active = "play",
   showWallet = true,
 }: {
-  active?: "play" | "vault" | "guide";
+  active?: "play" | "vault" | "guide" | "tournament";
   showWallet?: boolean;
 }) {
   return (
@@ -25,11 +26,19 @@ export default function AppHeader({
           </span>
         </Link>
         <nav className="main-nav" aria-label="Điều hướng chính">
-          {[
-            { id: "play", href: "/", label: "Chơi" },
-            { id: "vault", href: "/vault", label: "Vault" },
-            { id: "guide", href: "/guide", label: "Hướng dẫn" },
-          ].map((item) => (
+          {(tournamentEnabled
+            ? [
+                { id: "tournament", href: "/tournaments", label: "Giải đấu" },
+                { id: "play", href: "/hotseat", label: "Tập cờ" },
+                { id: "guide", href: "/guide", label: "Hướng dẫn" },
+              ]
+            : [
+                { id: "play", href: "/", label: "Chơi" },
+                { id: "tournament", href: "/tournaments", label: "Giải đấu" },
+                { id: "vault", href: "/vault", label: "Vault" },
+                { id: "guide", href: "/guide", label: "Hướng dẫn" },
+              ]
+          ).map((item) => (
             <Link
               key={item.id}
               href={item.href}

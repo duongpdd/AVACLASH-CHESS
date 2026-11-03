@@ -20,13 +20,26 @@ const require = createRequire(
 );
 const { WebSocket } = require("ws");
 const checks = [];
-for (const route of ["/", "/game", "/hotseat", "/vault", "/guide"]) {
+const tournament = env.NEXT_PUBLIC_TOURNAMENT_ADDRESS;
+const routes = tournament
+  ? ["/", "/tournaments", "/tournaments/play", "/hotseat", "/guide"]
+  : ["/", "/game", "/hotseat", "/vault", "/guide"];
+for (const route of routes) {
   try {
     const response = await fetch(new URL(route, env.WEB_ORIGIN), {
       redirect: "manual",
       signal: AbortSignal.timeout(15000),
     });
-    checks.push({ check: `Web ${route}`, pass: response.status === 200 });
+    let pass = response.status === 200;
+    if (tournament && route === "/") {
+      const location = response.headers.get("location");
+      pass =
+        [307, 308].includes(response.status) &&
+        !!location &&
+        new URL(location, env.WEB_ORIGIN).href ===
+          new URL("/tournaments", env.WEB_ORIGIN).href;
+    }
+    checks.push({ check: `Web ${route}`, pass });
     await response.body?.cancel();
   } catch {
     checks.push({ check: `Web ${route}`, pass: false });
@@ -66,7 +79,24 @@ async function handshake(origin, expectAllowed) {
       resolve(pass);
     };
     const timer = setTimeout(() => finish(false), 12000);
-    ws.once("open", () => finish(expectAllowed));
+    ws.once("open", () => {
+      if (!expectAllowed || !tournament) finish(expectAllowed);
+    });
+    if (expectAllowed && tournament) {
+      ws.once("message", (raw) => {
+        try {
+          const message = JSON.parse(raw.toString());
+          finish(
+            message.type === "auth_challenge" &&
+              message.chainId === 43113 &&
+              message.origin === origin &&
+              message.escrowAddress?.toLowerCase() === tournament.toLowerCase(),
+          );
+        } catch {
+          finish(false);
+        }
+      });
+    }
     ws.once("unexpected-response", (_req, res) => {
       res.resume();
       finish(!expectAllowed && res.statusCode === 403);
@@ -75,7 +105,9 @@ async function handshake(origin, expectAllowed) {
   });
 }
 checks.push({
-  check: "WSS accepts web origin",
+  check: tournament
+    ? "WSS challenge matches Fuji, tournament contract and web origin"
+    : "WSS accepts web origin",
   pass: await handshake(env.WEB_ORIGIN, true),
 });
 checks.push({

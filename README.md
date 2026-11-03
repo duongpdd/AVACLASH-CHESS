@@ -1,6 +1,8 @@
 # AvaClash Chess
 
-Game cờ vua 1v1, đồng hồ 5+0, ký quỹ AVAX thử nghiệm trên **Avalanche Fuji (43113)**. Phát triển và kiểm thử cục bộ bằng **Anvil (31337)**. Luật cờ chạy qua chess.js; nước đi truyền qua WebSocket; hợp đồng giữ tiền và xác thực chữ ký kết quả.
+AvaClash Cup là bản nâng cấp cho giải cờ vua 5+0 miễn phí tham dự: nhà tài trợ nạp quỹ riêng từng giải, trọng tài duyệt kết quả và người thắng nhận thưởng trên mạng thử nghiệm. Xem [hướng dẫn chạy demo và triển khai Fuji](docs/TOURNAMENT_DEMO.md).
+
+Bên dưới là hướng dẫn cho bản 1v1 ký quỹ **cũ**, hiện vẫn là bản đang triển khai trên Fuji. Bật cấu hình giải đấu mới để dùng luồng không cược. Phát triển và kiểm thử cục bộ bằng **Anvil (31337)**; hợp đồng mới chỉ hỗ trợ Anvil và **Avalanche Fuji (43113)**.
 
 ## Bắt đầu
 

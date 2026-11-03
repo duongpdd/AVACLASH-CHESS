@@ -20,6 +20,11 @@ export const ESCROW_ADDRESS = (process.env.NEXT_PUBLIC_ESCROW_ADDRESS ||
 export const META_ADDRESS = (process.env.NEXT_PUBLIC_META_ADDRESS ||
   ZERO_ADDRESS) as `0x${string}`;
 
+export const TOURNAMENT_ADDRESS = (process.env.NEXT_PUBLIC_TOURNAMENT_ADDRESS ||
+  ZERO_ADDRESS) as `0x${string}`;
+export const tournamentEnabled =
+  validateAddressConfig(TOURNAMENT_ADDRESS).valid;
+
 export const RELAY_URL =
   process.env.NEXT_PUBLIC_RELAY_URL || "ws://localhost:8080";
 

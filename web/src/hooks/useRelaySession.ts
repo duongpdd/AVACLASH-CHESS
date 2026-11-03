@@ -16,6 +16,7 @@ import { RELAY_URL, ESCROW_ADDRESS, CHAIN_ID } from "@/config/env";
 export interface RelaySessionOptions {
   relayUrl?: string;
   autoConnect?: boolean;
+  contractAddress?: `0x${string}`;
 }
 
 export function useRelaySession(
@@ -78,6 +79,7 @@ export function useRelaySession(
 
   const parsedRoomId = roomId !== undefined ? Number(roomId) : undefined;
   const relayUrl = options.relayUrl ?? RELAY_URL;
+  const contractAddress = options.contractAddress ?? ESCROW_ADDRESS;
   const autoConnect = options.autoConnect ?? true;
 
   // Initialize RelayClient instance
@@ -110,7 +112,7 @@ export function useRelaySession(
       !address
     )
       return;
-    const storageKey = `avaclash:moves:${CHAIN_ID}:${ESCROW_ADDRESS.toLowerCase()}:${parsedRoomId}:${address.toLowerCase()}`;
+    const storageKey = `avaclash:moves:${CHAIN_ID}:${contractAddress.toLowerCase()}:${parsedRoomId}:${address.toLowerCase()}`;
     const persistMoves = (confirmedMoves: string[]) => {
       try {
         localStorage.setItem(storageKey, JSON.stringify(confirmedMoves));
@@ -156,7 +158,7 @@ export function useRelaySession(
         return address;
       },
       chainId: CHAIN_ID,
-      escrowAddress: ESCROW_ADDRESS,
+      escrowAddress: contractAddress,
     });
 
     clientRef.current = client;
@@ -339,7 +341,7 @@ export function useRelaySession(
       client.disconnect();
       clientRef.current = null;
     };
-  }, [parsedRoomId, relayUrl, autoConnect, address]);
+  }, [parsedRoomId, relayUrl, autoConnect, address, contractAddress]);
 
   // Local Clock Interpolation between clock_sync ticks
   useEffect(() => {

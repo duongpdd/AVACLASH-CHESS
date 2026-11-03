@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [switch]$Broadcast,
+    [switch]$Tournament,
     [ValidatePattern('^[A-Za-z0-9_-]+$')]
     [string]$Account = 'avaclash-deployer'
 )
@@ -34,7 +35,9 @@ foreach ($name in $publicNames) {
     Set-Item -LiteralPath "Env:$name" -Value $publicConfig[$name]
 }
 
-$broadcastPath = Join-Path $repoDirectory 'contracts/broadcast/Deploy.s.sol/43113/run-latest.json'
+$scriptFile = if ($Tournament) { 'DeployTournament.s.sol' } else { 'Deploy.s.sol' }
+$scriptContract = if ($Tournament) { 'DeployTournament' } else { 'DeployScript' }
+$broadcastPath = Join-Path $repoDirectory "contracts/broadcast/$scriptFile/43113/run-latest.json"
 if ($Broadcast -and (Test-Path -LiteralPath $broadcastPath)) {
     throw 'A Fuji broadcast record already exists. Review its receipts before retrying to avoid deploying twice.'
 }
@@ -58,7 +61,7 @@ try {
 
     Set-Location -LiteralPath (Join-Path $repoDirectory 'contracts')
     $forgeArguments = @(
-        'script', 'script/Deploy.s.sol:DeployScript',
+        'script', "script/${scriptFile}:${scriptContract}",
         '--rpc-url', $publicConfig['FUJI_RPC_URL'], '--chain', '43113',
         '--sender', $publicConfig['DEPLOYER_ADDRESS']
     )

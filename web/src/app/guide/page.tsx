@@ -3,8 +3,84 @@ import AppHeader from "@/components/AppHeader";
 import AppFooter from "@/components/AppFooter";
 import FujiTestnetBanner from "@/components/FujiTestnetBanner";
 import Icon from "@/components/Icon";
-import { CURRENCY_SYMBOL, NETWORK_NAME, CHAIN_ID, RPC_URL } from "@/config/env";
+import {
+  CURRENCY_SYMBOL,
+  NETWORK_NAME,
+  CHAIN_ID,
+  RPC_URL,
+  tournamentEnabled,
+} from "@/config/env";
 export default function GuidePage() {
+  if (tournamentEnabled)
+    return (
+      <div className="app-shell">
+        <AppHeader active="guide" />
+        <main className="site-container play-page space-y-5">
+          <section className="page-intro">
+            <div>
+              <p className="eyebrow">HƯỚNG DẪN AVACLASH CUP</p>
+              <h1>
+                Vào giải. <span>Tới lượt bạn.</span>
+              </h1>
+              <p className="intro-description">
+                Giải cờ 5+0, không đặt cược, quỹ thưởng do nhà tài trợ nạp bằng
+                token thử nghiệm.
+              </p>
+            </div>
+            <Link href="/tournaments" className="button-primary">
+              Xem giải đấu
+            </Link>
+          </section>
+          <section className="surface-card">
+            <ol className="guide-steps">
+              <li>
+                <span>01</span>
+                <div>
+                  <h2>Đăng ký</h2>
+                  <p>
+                    Nối ví trên {NETWORK_NAME}, mở mã giải và đọc điều lệ trước
+                    khi đăng ký. Không có phí tham dự; giao dịch đăng ký có phí
+                    mạng.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span>02</span>
+                <div>
+                  <h2>Thi đấu</h2>
+                  <p>
+                    Mở ván theo lịch BTC và ký xác thực để vào bàn. Chữ ký vào
+                    bàn và nước đi không cần giao dịch.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span>03</span>
+                <div>
+                  <h2>Gửi kết quả tạm</h2>
+                  <p>
+                    Một kỳ thủ gửi kết quả đã được relay ký. Trọng tài xem biên
+                    bản, duyệt ván và xử lý khiếu nại trước khi chốt giải.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <span>04</span>
+                <div>
+                  <h2>Nhận thưởng</h2>
+                  <p>
+                    Khi bảng thưởng đã chốt, xem số tiền của ví mình và nhận
+                    trong 30 ngày. Nếu không nhận, phần còn lại được hoàn cho
+                    nhà tài trợ theo tỷ lệ góp quỹ.
+                  </p>
+                </div>
+              </li>
+            </ol>
+          </section>
+        </main>
+        <AppFooter />
+      </div>
+    );
   return (
     <div className="app-shell">
       <FujiTestnetBanner />

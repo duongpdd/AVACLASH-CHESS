@@ -59,6 +59,19 @@ export function validatePublicDeployment(env) {
     env.NEXT_PUBLIC_META_ADDRESS?.toLowerCase()
   )
     errors.push("Escrow and Meta must have different addresses.");
+  const tournament = env.NEXT_PUBLIC_TOURNAMENT_ADDRESS;
+  if (tournament) {
+    if (!validAddress(tournament))
+      errors.push(
+        "NEXT_PUBLIC_TOURNAMENT_ADDRESS must be a nonzero EVM address.",
+      );
+    else if (
+      [env.NEXT_PUBLIC_ESCROW_ADDRESS, env.NEXT_PUBLIC_META_ADDRESS].some(
+        (address) => address?.toLowerCase() === tournament.toLowerCase(),
+      )
+    )
+      errors.push("The tournament must use its own contract address.");
+  }
   if (!publicUrl(env.NEXT_PUBLIC_RPC_URL, "https:"))
     errors.push(
       "NEXT_PUBLIC_RPC_URL must use HTTPS with a public DNS hostname and no URL credentials.",

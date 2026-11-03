@@ -5,8 +5,11 @@ import Icon from "@/components/Icon";
 import RoomLobbyWidget from "@/components/RoomLobbyWidget";
 import FujiTestnetBanner from "@/components/FujiTestnetBanner";
 import ConfigErrorBanner from "@/components/ConfigErrorBanner";
+import { redirect } from "next/navigation";
+import { tournamentEnabled } from "@/config/env";
 
 export default function HomePage() {
+  if (tournamentEnabled) redirect("/tournaments");
   return (
     <div className="app-shell">
       <FujiTestnetBanner />

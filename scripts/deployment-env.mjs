@@ -28,6 +28,9 @@ export function makeDeploymentEnv(env, target = "caddy") {
       "NEXT_PUBLIC_META_ADDRESS",
       "NEXT_PUBLIC_RELAY_URL",
     ].map((name) => `${name}=${env[name]}`),
+    ...(env.NEXT_PUBLIC_TOURNAMENT_ADDRESS
+      ? [`NEXT_PUBLIC_TOURNAMENT_ADDRESS=${env.NEXT_PUBLIC_TOURNAMENT_ADDRESS}`]
+      : []),
     `NEXT_PUBLIC_UI_MAX_STAKE=${env.NEXT_PUBLIC_UI_MAX_STAKE || "0.1"}`,
   ];
   const relayEnv = [
@@ -41,6 +44,9 @@ export function makeDeploymentEnv(env, target = "caddy") {
     "CHAIN_ID=43113",
     `RPC_URL=${env.NEXT_PUBLIC_RPC_URL}`,
     `ESCROW_ADDRESS=${env.NEXT_PUBLIC_ESCROW_ADDRESS}`,
+    ...(env.NEXT_PUBLIC_TOURNAMENT_ADDRESS
+      ? [`TOURNAMENT_ADDRESS=${env.NEXT_PUBLIC_TOURNAMENT_ADDRESS}`]
+      : []),
     "RELAY_PRIVATE_KEY=",
     `ALLOWED_ORIGINS=${env.WEB_ORIGIN}`,
     "ALLOW_NO_ORIGIN=false",

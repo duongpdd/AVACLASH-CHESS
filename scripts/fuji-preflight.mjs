@@ -25,6 +25,7 @@ const getters = parseAbi([
   "function owner() view returns (address)",
   "function singleSignedEnabled() view returns (bool)",
   "function spectatorBettingEnabled() view returns (bool)",
+  "function nextTournamentId() view returns (uint256)",
 ]);
 
 export async function runFujiPreflight(env, { deployed = false, client } = {}) {
@@ -41,6 +42,7 @@ export async function runFujiPreflight(env, { deployed = false, client } = {}) {
   for (const error of validateFujiRoles(env)) check(error, false);
   const inspectContracts =
     deployed ||
+    !!env.NEXT_PUBLIC_TOURNAMENT_ADDRESS ||
     validAddress(env.NEXT_PUBLIC_ESCROW_ADDRESS) ||
     validAddress(env.NEXT_PUBLIC_META_ADDRESS);
   if (inspectContracts)
@@ -71,6 +73,7 @@ export async function runFujiPreflight(env, { deployed = false, client } = {}) {
       for (const name of [
         "NEXT_PUBLIC_ESCROW_ADDRESS",
         "NEXT_PUBLIC_META_ADDRESS",
+        "NEXT_PUBLIC_TOURNAMENT_ADDRESS",
       ]) {
         if (!validAddress(env[name])) continue;
         try {
@@ -100,6 +103,11 @@ export async function runFujiPreflight(env, { deployed = false, client } = {}) {
         ],
         ["NEXT_PUBLIC_ESCROW_ADDRESS", "singleSignedEnabled", false],
         ["NEXT_PUBLIC_META_ADDRESS", "spectatorBettingEnabled", false],
+        [
+          "NEXT_PUBLIC_TOURNAMENT_ADDRESS",
+          "relaySigner",
+          env.RELAY_SIGNER_ADDRESS,
+        ],
       ];
       for (const [name, functionName, expected] of reads) {
         if (!validAddress(env[name])) continue;
@@ -117,6 +125,18 @@ export async function runFujiPreflight(env, { deployed = false, client } = {}) {
           );
         } catch {
           check(`${name}.${functionName}`, false);
+        }
+      }
+      if (validAddress(env.NEXT_PUBLIC_TOURNAMENT_ADDRESS)) {
+        try {
+          const id = await client.readContract({
+            address: env.NEXT_PUBLIC_TOURNAMENT_ADDRESS,
+            abi: getters,
+            functionName: "nextTournamentId",
+          });
+          check("Tournament interface", typeof id === "bigint");
+        } catch {
+          check("Tournament interface", false);
         }
       }
       if (env.NEXT_PUBLIC_RPC_URL && env.NEXT_PUBLIC_RPC_URL !== rpc) {
