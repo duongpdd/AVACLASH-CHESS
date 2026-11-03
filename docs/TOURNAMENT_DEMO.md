@@ -2,6 +2,8 @@
 
 Phiên bản giải đấu dành cho 2–8 kỳ thủ. Người chơi không gửi tiền cược, không nạp Vault và không trả phí nền tảng để tham dự. Phiên bản này dùng ví để đăng ký và xác thực; giao dịch có phí mạng thử nghiệm. Nhà tài trợ cấp ngân sách bằng tài sản testnet. Bản hiện tại không có doanh thu, lợi suất, cược khán giả hoặc giao dịch tiền thật.
 
+[Bản công khai](https://avaclash-chess.vercel.app/tournaments) chạy trên Avalanche Fuji (43113), với hợp đồng `TournamentPrizePool` tại `0x268F6034175750791AAaA20FD04F658BDDAcB9F9`. [Giao dịch triển khai](https://subnets.avax.network/fuji/tx/0x83d2d8168a3e42be47baa2a91464666cfd64640888925d87936068669e32599f) đã thành công. Sau triển khai, 17 kiểm tra cấu hình/hợp đồng và 9 kiểm tra web/relay đều đạt. Luồng thi đấu, xử lý khiếu nại và nhận thưởng trọn giải đã được kiểm thử trên Anvil; vẫn cần chạy một giải thật trên Fuji để nghiệm thu luồng này ở môi trường công khai.
+
 ## Chạy cục bộ
 
 Trong thư mục monorepo, với Foundry, Node và dependencies đã cài:

@@ -1,8 +1,8 @@
 # AvaClash Chess
 
-AvaClash Cup là bản nâng cấp cho giải cờ vua 5+0 miễn phí tham dự: nhà tài trợ nạp quỹ riêng từng giải, trọng tài duyệt kết quả và người thắng nhận thưởng trên mạng thử nghiệm. Xem [hướng dẫn chạy demo và triển khai Fuji](docs/TOURNAMENT_DEMO.md).
+AvaClash Cup là bản nâng cấp cho giải cờ vua 5+0 miễn phí tham dự: nhà tài trợ nạp quỹ riêng từng giải, trọng tài duyệt kết quả và người thắng nhận thưởng trên mạng thử nghiệm. [Mở AvaClash Cup trên Fuji](https://avaclash-chess.vercel.app/tournaments) hoặc xem [hướng dẫn chạy demo và triển khai Fuji](docs/TOURNAMENT_DEMO.md).
 
-Bên dưới là hướng dẫn cho bản 1v1 ký quỹ **cũ**, hiện vẫn là bản đang triển khai trên Fuji. Bật cấu hình giải đấu mới để dùng luồng không cược. Phát triển và kiểm thử cục bộ bằng **Anvil (31337)**; hợp đồng mới chỉ hỗ trợ Anvil và **Avalanche Fuji (43113)**.
+Bên dưới là tài liệu kỹ thuật của bản 1v1 ký quỹ cũ. Web và relay công khai hiện chạy AvaClash Cup. Phát triển và kiểm thử cục bộ bằng **Anvil (31337)**; hợp đồng Cup chỉ hỗ trợ Anvil và **Avalanche Fuji (43113)**.
 
 ## Bắt đầu
 
@@ -49,7 +49,7 @@ Nếu chưa có đối thủ, phòng on-chain vẫn Open và chưa mở kết n�
 
 ## Cấu hình Fuji
 
-Website đã online tại **https://avaclash-chess.vercel.app**; relay WSS tại **wss://avaclash-chess-relay.onrender.com**. Phương án hosting: [Render Free + Neon Free + Vercel](docs/RENDER_DEPLOY.md). Hợp đồng Fuji đã triển khai; database production đã áp dụng migration và kiểm tra kết nối thật. Cả 9 kiểm tra HTTP/health/WSS đều đạt, cùng 14 kiểm tra hợp đồng/vai trò/gas. Chưa thực hiện ván PvP hai ví và settlement/withdraw thực tế trên Fuji; xem [bằng chứng triển khai](docs/benchmarks/online-deployment.json). Các hướng dẫn [Railway](docs/RAILWAY_DEPLOY.md) và [Docker/Caddy trên VPS](docs/VERCEL_DEPLOY.md) được giữ làm phương án khác.
+Web và relay hiện dùng địa chỉ Cup trong [hướng dẫn Fuji](docs/TOURNAMENT_DEMO.md). Cấu hình bên dưới áp dụng cho bản 1v1 cũ; [bằng chứng triển khai 1v1](docs/benchmarks/online-deployment.json) được lưu để tham khảo. Các hướng dẫn [Railway](docs/RAILWAY_DEPLOY.md) và [Docker/Caddy trên VPS](docs/VERCEL_DEPLOY.md) được giữ làm phương án khác.
 
 Sao chép `.env.example` cho cấu hình deploy, `packages/relay/.env.example` thành `.env.local` tại relay, và `web/.env.example` thành `web/.env.local`. Tệp root không tự cấu hình thay cho Next.js; các biến web phải nằm trong `web/.env.local` hoặc môi trường build.
 
@@ -95,7 +95,7 @@ Giữ phiên bản pnpm 9.15 đã khóa trong `packageManager`. Không bỏ qua 
 - Single-signed tắt mặc định. Nếu quản trị bật, cơ chế optimistic challenge vẫn có rủi ro claim giả và trọng tài không phản hồi; đây không phải fraud-proof.
 - `seasonPrizePool` có phân phối Merkle theo danh sách công bố, chờ 2 ngày, claim 90 ngày; owner được tin cậy khi phân bổ. Vault chưa tạo lợi suất và không tự tạo quyền nhận giải tuần.
 - ELO khởi điểm 1200; chỉ cập nhật khi đủ 20 half-move; giảm điểm tăng theo cặp ví/ngày chưa chống Sybil nhiều ví.
-- Dự án chưa qua audit độc lập, chưa được xác nhận deploy/end-to-end Fuji trong đợt rà soát này. Chỉ dùng token testnet không có giá trị.
+- Dự án chưa qua audit độc lập. Dùng token testnet cho bản Cup trên Fuji; bài kiểm thử trọn giải đã chạy trên Anvil.
 
 Xem [danh mục tài liệu](docs/README.md), [kiến trúc](docs/ARCHITECTURE.md), [giao thức](docs/PROTOCOL.md), [tiến độ](docs/PROGRESS.md) và [báo cáo rà soát](docs/REVIEW_2026-11-01.md).
 
