@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import { useAccount, useBlock, useReadContract } from "wagmi";
+import { useAccount, useBalance, useBlock, useReadContract } from "wagmi";
 import { formatEther, isAddress, parseEther, parseEventLogs } from "viem";
 import { TOURNAMENT_ABI } from "@avaclash/shared";
 import AppHeader from "@/components/AppHeader";
@@ -239,6 +239,16 @@ function TournamentDetails({
     args: [id, address ?? ZERO_ADDRESS],
     query: { enabled: !!address, ...polling },
   });
+  const relaySigner = useReadContract({
+    ...tournamentContract,
+    functionName: "relaySigner",
+    query: { enabled: !!address, staleTime: Infinity },
+  });
+  const balance = useBalance({
+    address,
+    chainId: CHAIN_ID,
+    query: { enabled: !!address && tournament.data?.phase === 0, ...polling },
+  });
   function refresh() {
     void Promise.all([
       tournament.refetch(),
@@ -263,7 +273,28 @@ function TournamentDetails({
   const me = players.findIndex((p) => same(address, p));
   const organizer = same(address, t.organizer);
   const reviewer = same(address, t.reviewer);
+  const relay = !!relaySigner.data && same(address, relaySigner.data);
   const open = t.phase === 0 && now < t.registrationEnds;
+  let registrationBlock = "";
+  if (!address) registrationBlock = "Kết nối ví kỳ thủ để đăng ký.";
+  else if (organizer || reviewer || relay || contributions.data) {
+    const role = organizer
+      ? "ban tổ chức"
+      : reviewer
+        ? "trọng tài"
+        : relay
+          ? "relay"
+          : "nhà tài trợ";
+    registrationBlock = `Ví ${role} không thể thi đấu ở giải này. Hãy dùng ví kỳ thủ riêng.`;
+  } else if (t.funded === 0n) registrationBlock = "Giải chưa có quỹ thưởng.";
+  else if (players.length >= t.capacity) registrationBlock = "Giải đã đủ kỳ thủ.";
+  else if (balance.data?.value === 0n)
+    registrationBlock = `Ví cần ${CURRENCY_SYMBOL} thử nghiệm để trả phí mạng khi đăng ký.`;
+  else if (!relaySigner.data || contributions.data === undefined || !standing.data)
+    registrationBlock =
+      relaySigner.isError || contributions.isError || standing.isError
+        ? "Chưa kiểm tra được điều kiện đăng ký. Hãy tải lại trang."
+        : "Đang kiểm tra điều kiện đăng ký…";
   const running = t.phase === 1 && now < t.completionDeadline;
   const approvedCount = list.filter((m) => m.result.approved).length;
   const ready =
@@ -404,17 +435,18 @@ function TournamentDetails({
           </p>
         )}
         <div className="flex flex-wrap gap-2">
-          {open && me < 0 && !organizer && !reviewer && !contributions.data && (
-            <button
-              className="button-primary"
-              disabled={
-                disabled || t.funded === 0n || players.length >= t.capacity
-              }
-              onClick={() => void action("register")}
-            >
-              Đăng ký miễn phí
-            </button>
-          )}
+          {open && me < 0 &&
+            (registrationBlock ? (
+              <p className="text-sm text-amber-100">{registrationBlock}</p>
+            ) : (
+              <button
+                className="button-primary"
+                disabled={disabled}
+                onClick={() => void action("register")}
+              >
+                Đăng ký miễn phí
+              </button>
+            ))}
           {open && me >= 0 && (
             <span className="text-emerald-300">Bạn đã đăng ký.</span>
           )}
@@ -497,7 +529,7 @@ function TournamentDetails({
             </button>
           )}
         </div>
-        {open && me < 0 && !reviewer && (
+        {open && me < 0 && !reviewer && !!relaySigner.data && !relay && (
           <form className="flex flex-wrap items-end gap-2" onSubmit={fund}>
             <label>
               Tài trợ quỹ ({CURRENCY_SYMBOL} test)
