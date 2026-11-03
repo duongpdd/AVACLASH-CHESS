@@ -11,6 +11,7 @@ import AppHeader from "@/components/AppHeader";
 import AppFooter from "@/components/AppFooter";
 import MatchActions from "@/components/TournamentMatchActions";
 import TournamentHistory from "@/components/TournamentHistory";
+import TournamentElo from "@/components/TournamentElo";
 import {
   CHAIN_ID,
   CURRENCY_SYMBOL,
@@ -490,6 +491,9 @@ function TournamentDetails({
             <a className="text-link" href="#lich-su">
               Lịch sử quỹ và kết quả
             </a>
+            <a className="text-link" href="#elo-cup">
+              Bảng Elo
+            </a>
           </div>
         </div>
         <details>
@@ -944,6 +948,7 @@ export default function TournamentsPage() {
         <Suspense fallback={<p role="status">Đang tải giải…</p>}>
           <TournamentLobby />
         </Suspense>
+        <TournamentElo />
       </main>
       <AppFooter />
     </div>
