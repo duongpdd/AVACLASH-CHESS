@@ -166,12 +166,8 @@ contract AvaClashCosmetics is ERC721Enumerable, Ownable {
     }
 
     function _validate(Kind kind, Theme calldata t, string calldata name_) private pure {
-        bytes calldata raw = bytes(name_);
-        if (raw.length == 0 || raw.length > 40 || t.whiteWidth > 6 || t.blackWidth > 6) revert InvalidInput();
-        for (uint256 i; i < raw.length; ++i) {
-            bytes1 c = raw[i];
-            if (c < 0x20 || c == '"' || c == "\\" || c == "<" || c == ">" || c == "&") revert InvalidInput();
-        }
+        _validateName(bytes(name_));
+        if (t.whiteWidth > 6 || t.blackWidth > 6) revert InvalidInput();
 
         if (kind == Kind.Board) {
             if (
@@ -180,6 +176,31 @@ contract AvaClashCosmetics is ERC721Enumerable, Ownable {
             ) revert InvalidInput();
         } else if (t.light != 0 || t.dark != 0 || t.lastLight != 0 || t.lastDark != 0) {
             revert InvalidInput();
+        }
+    }
+
+    function _validateName(bytes calldata raw) private pure {
+        if (raw.length == 0 || raw.length > 40) revert InvalidInput();
+        for (uint256 i; i < raw.length;) {
+            bytes1 c = raw[i];
+            if (c < 0x80) {
+                if (c < 0x20 || c == '"' || c == "\\" || c == "<" || c == ">" || c == "&") revert InvalidInput();
+                ++i;
+                continue;
+            }
+            // Reject truncated UTF-8, overlong encodings, surrogate halves and
+            // values above U+10FFFF before embedding the name in JSON.
+            uint256 width = c < 0xe0 ? 2 : c < 0xf0 ? 3 : 4;
+            if (c < 0xc2 || c > 0xf4 || i + width > raw.length) revert InvalidInput();
+            bytes1 second = raw[i + 1];
+            if (
+                (c == 0xe0 && second < 0xa0) || (c == 0xed && second >= 0xa0) || (c == 0xf0 && second < 0x90)
+                    || (c == 0xf4 && second >= 0x90)
+            ) revert InvalidInput();
+            for (uint256 j = 1; j < width; ++j) {
+                if (raw[i + j] < 0x80 || raw[i + j] > 0xbf) revert InvalidInput();
+            }
+            i += width;
         }
     }
 

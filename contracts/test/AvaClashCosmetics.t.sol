@@ -90,6 +90,8 @@ contract AvaClashCosmeticsTest is CosmeticsFixture {
         vm.expectRevert(Skins.InvalidInput.selector);
         skins.setOfficial(id, Skins.Kind.Board, _board(), "bad&name");
         vm.expectRevert(Skins.InvalidInput.selector);
+        skins.setOfficial(id, Skins.Kind.Board, _board(), string(abi.encodePacked(hex"c0af")));
+        vm.expectRevert(Skins.InvalidInput.selector);
         skins.setOfficial(id, Skins.Kind.Board, _board(), "12345678901234567890123456789012345678901");
         vm.expectRevert(Skins.InvalidInput.selector);
         skins.setOfficial(id, Skins.Kind.Pieces, _board(), "Cup");
@@ -130,6 +132,7 @@ contract AvaClashCosmeticsTest is CosmeticsFixture {
         assertEq(string(bytes(uri).slice(0, 29)), "data:application/json;base64,");
         string memory json = string(Base64.decode(string(bytes(uri).slice(29))));
         assertEq(vm.parseJsonString(json, ".name"), "Blue Cup");
+        assertEq(vm.parseJsonString(json, ".attributes[3].value"), "#ead9b5");
         string memory image = vm.parseJsonString(json, ".image");
         assertEq(string(bytes(image).slice(0, 26)), "data:image/svg+xml;base64,");
     }
