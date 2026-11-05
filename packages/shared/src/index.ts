@@ -120,3 +120,6 @@ export type {
   ClientMessage,
   ServerMessage,
 } from "./schemas.js";
+
+export { COSMETICS_ABI } from "./abi/AvaClashCosmetics.js";
+export { COSMETIC_AUCTION_ABI } from "./abi/CosmeticAuction.js";
