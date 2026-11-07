@@ -1,17 +1,24 @@
 import type { NextConfig } from "next";
+import path from "node:path";
+import createNextIntlPlugin from "next-intl/plugin";
+import { securityHeaders } from "./src/config/security-headers";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  outputFileTracingRoot: path.resolve(__dirname, ".."),
   transpilePackages: ["@avaclash/shared"],
-  cacheComponents: true,
-  partialPrefetching: true,
-  turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
+  poweredByHeader: false,
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: securityHeaders({
+          chainId: process.env.NEXT_PUBLIC_CHAIN_ID,
+          rpcUrl: process.env.NEXT_PUBLIC_RPC_URL,
+          relayUrl: process.env.NEXT_PUBLIC_RELAY_URL,
+          isDev: process.env.NODE_ENV === "development",
+        }),
       },
-    },
+    ];
   },
   webpack: (config) => {
     // Wagmi includes optional third-party wallet connectors that are optional peer dependencies:
@@ -39,4 +46,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default createNextIntlPlugin()(nextConfig);
