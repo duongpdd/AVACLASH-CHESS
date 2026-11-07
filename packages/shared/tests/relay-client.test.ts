@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { RelayClient, type ConnectionStatus } from "../src/relay-client.js";
-import { buildJoinTypedData } from "../src/eip712.js";
 
 class MockWebSocket {
   public static instances: MockWebSocket[] = [];
@@ -52,13 +51,21 @@ class MockWebSocket {
 
   // Helper to simulate incoming server message
   public simulateServerMessage(data: any) {
+    if (data?.type === "auth_challenge")
+      data = {
+        chainId: 43113,
+        escrowAddress: "0x1234567890123456789012345678901234567890",
+        origin: "",
+        ...data,
+      };
     const raw = typeof data === "string" ? data : JSON.stringify(data);
     this.emit("message", { data: raw });
   }
 }
 
 describe("RelayClient (Turn 3c-2 Item 1)", () => {
-  const mockEscrow = "0x1234567890123456789012345678901234567890" as `0x${string}`;
+  const mockEscrow =
+    "0x1234567890123456789012345678901234567890" as `0x${string}`;
   const playerA = "0x1111111111111111111111111111111111111111" as `0x${string}`;
   const playerB = "0x2222222222222222222222222222222222222222" as `0x${string}`;
 
@@ -67,7 +74,9 @@ describe("RelayClient (Turn 3c-2 Item 1)", () => {
   });
 
   it("completes full auth flow: open -> challenge -> sign join -> send join_room -> room_state", async () => {
-    const signTypedData = vi.fn().mockResolvedValue("0xmocksignature" as `0x${string}`);
+    const signTypedData = vi
+      .fn()
+      .mockResolvedValue("0xmocksignature" as `0x${string}`);
     const getAddress = vi.fn().mockResolvedValue(playerA);
 
     const client = new RelayClient({
@@ -296,7 +305,12 @@ describe("RelayClient (Turn 3c-2 Item 1)", () => {
     client.on("resultProposal", (m) => proposals.push(m));
     client.on("clockSync", (m) => clockSyncs.push(m));
 
-    ws.simulateServerMessage({ type: "clock_sync", roomId: 105, whiteMs: 290000, blackMs: 295000 });
+    ws.simulateServerMessage({
+      type: "clock_sync",
+      roomId: 105,
+      whiteMs: 290000,
+      blackMs: 295000,
+    });
     ws.simulateServerMessage({ type: "draw_offer", roomId: 105 });
     ws.simulateServerMessage({ type: "resign", roomId: 105 });
     ws.simulateServerMessage({
@@ -344,5 +358,168 @@ describe("RelayClient (Turn 3c-2 Item 1)", () => {
 
     expect(client.isAuthenticated()).toBe(true);
     expect(client.getConnectionStatus()).toBe("connected");
+  });
+});
+
+describe("RelayClient session isolation regressions", () => {
+  const sessions: RelayClient[] = [];
+  const white = "0x1111111111111111111111111111111111111111" as const;
+  const black = "0x2222222222222222222222222222222222222222" as const;
+  const state = (roomId: number, moves: string[] = []) => ({
+    type: "room_state",
+    roomId,
+    white,
+    black,
+    moves,
+    whiteMs: 300000,
+    blackMs: 300000,
+    status: "active",
+  });
+  function create(signTypedData = vi.fn().mockResolvedValue("0x1234")) {
+    const client = new RelayClient({
+      url: "ws://localhost:8080",
+      WebSocketImpl: MockWebSocket,
+      signTypedData,
+      getAddress: () => white,
+      chainId: 43113,
+      escrowAddress: "0x1234567890123456789012345678901234567890",
+    });
+    sessions.push(client);
+    return client;
+  }
+  beforeEach(() => {
+    vi.useFakeTimers();
+    MockWebSocket.instances = [];
+  });
+  afterEach(() => {
+    sessions.splice(0).forEach((client) => client.disconnect());
+    vi.useRealTimers();
+  });
+  it("ignores room_state messages belonging to a different room", async () => {
+    const client = create();
+    client.connect(1);
+    await vi.advanceTimersByTimeAsync(20);
+    MockWebSocket.instances[0]!.simulateServerMessage(state(2, ["e2e4"]));
+    expect(client.getRoomState()).toBeUndefined();
+    expect(client.getMoves()).toEqual([]);
+  });
+  it("clears the transcript and terminal events when switching rooms", async () => {
+    const client = create();
+    client.connect(1);
+    await vi.advanceTimersByTimeAsync(20);
+    MockWebSocket.instances[0]!.simulateServerMessage(state(1, ["e2e4"]));
+    MockWebSocket.instances[0]!.simulateServerMessage({
+      type: "resign",
+      roomId: 1,
+      player: "b",
+    });
+    client.connect(2);
+    expect(client.getMoves()).toEqual([]);
+    expect(client.getSeenTerminalEvents()).toEqual({});
+    expect(client.getRoomState()).toBeUndefined();
+  });
+  it("does not send a delayed wallet signature to a replacement socket", async () => {
+    let resolveSignature!: (signature: `0x${string}`) => void;
+    const sign = vi.fn(
+      () =>
+        new Promise<`0x${string}`>((resolve) => {
+          resolveSignature = resolve;
+        }),
+    );
+    const client = create(sign);
+    client.connect(1);
+    await vi.advanceTimersByTimeAsync(20);
+    MockWebSocket.instances[0]!.simulateServerMessage({
+      type: "auth_challenge",
+      nonce: "0x" + "11".repeat(32),
+      expiresAt: 2000000000,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sign).toHaveBeenCalledTimes(1);
+    client.connect(2);
+    await vi.advanceTimersByTimeAsync(20);
+    resolveSignature("0x1234");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(MockWebSocket.instances[1]!.sentMessages).toEqual([]);
+  });
+  it("cancels a scheduled retry when the user reconnects immediately", async () => {
+    const client = create();
+    client.connect(1);
+    await vi.advanceTimersByTimeAsync(20);
+    MockWebSocket.instances[0]!.close(1006);
+    client.connect(1);
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(MockWebSocket.instances).toHaveLength(2);
+  });
+  it("rejects room IDs that cannot be represented by the wire protocol", () => {
+    const client = create();
+    expect(() => client.connect(NaN)).toThrow(/Room ID/);
+    expect(() => client.connect(1.5)).toThrow(/Room ID/);
+    expect(() => client.connect(Number.MAX_SAFE_INTEGER + 1)).toThrow(
+      /Room ID/,
+    );
+  });
+  it("shows wallet signing state and stops retries after authentication expires", async () => {
+    const sign = vi.fn(() => new Promise<`0x${string}`>(() => {}));
+    const client = create(sign);
+    const errors: string[] = [];
+    client.on("error", (error) => errors.push(error.message));
+    client.connect(6);
+    await vi.advanceTimersByTimeAsync(20);
+    const ws = MockWebSocket.instances[0]!;
+    ws.simulateServerMessage({
+      type: "auth_challenge",
+      nonce: "0x" + "11".repeat(32),
+      expiresAt: 2000000000,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.getConnectionStatus()).toBe("awaiting_signature");
+    ws.close(4001, "Auth timeout");
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(client.getConnectionStatus()).toBe("disconnected");
+    expect(MockWebSocket.instances).toHaveLength(1);
+    expect(errors[0]).toContain("Hết thời gian ký");
+  });
+  it("does not reconnect endlessly when another tab takes the same wallet seat", async () => {
+    const client = create();
+    client.connect(6);
+    await vi.advanceTimersByTimeAsync(20);
+    MockWebSocket.instances[0]!.close(4000, "Replaced by new connection");
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(client.getConnectionStatus()).toBe("disconnected");
+    expect(MockWebSocket.instances).toHaveLength(1);
+  });
+  it("stops automatic signing attempts after the user rejects the signature", async () => {
+    const client = create(
+      vi.fn().mockRejectedValue(new Error("User rejected")),
+    );
+    client.connect(6);
+    await vi.advanceTimersByTimeAsync(20);
+    MockWebSocket.instances[0]!.simulateServerMessage({
+      type: "auth_challenge",
+      nonce: "0x" + "11".repeat(32),
+      expiresAt: 2000000000,
+    });
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(client.getConnectionStatus()).toBe("disconnected");
+    expect(MockWebSocket.instances).toHaveLength(1);
+  });
+  it("never asks the wallet to sign a challenge for a different contract or origin", async () => {
+    const sign = vi.fn();
+    const client = create(sign);
+    const errors: string[] = [];
+    client.on("error", (e) => errors.push(e.message));
+    client.connect(6);
+    await vi.advanceTimersByTimeAsync(20);
+    MockWebSocket.instances[0]!.simulateServerMessage({
+      type: "auth_challenge",
+      nonce: `0x${"11".repeat(32)}`,
+      expiresAt: 2000000000,
+      origin: "https://wrong.example",
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sign).not.toHaveBeenCalled();
+    expect(client.getConnectionStatus()).toBe("disconnected");
+    expect(errors[0]).toContain("không khớp");
   });
 });

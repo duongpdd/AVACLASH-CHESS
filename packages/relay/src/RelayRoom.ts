@@ -1,11 +1,7 @@
 import type { WebSocket } from "ws";
 import {
   ChessGame,
-  computeMovesHash,
-  outcomeToCode,
-  reasonToCode,
   type ServerMessage,
-  type ClientMessage,
   type GameOutcome,
   type EndReason,
   type ResultMessage,
@@ -19,6 +15,12 @@ export interface PlayerConnection {
   warnings: number;
 }
 
+export interface TerminalState {
+  outcome: GameOutcome;
+  reason: EndReason;
+  winner: `0x${string}`;
+}
+
 export interface RelayRoomConfig {
   roomId: number;
   whiteAddress: `0x${string}`;
@@ -27,6 +29,8 @@ export interface RelayRoomConfig {
   initialTimeMs?: number; // Default 5 mins (300,000 ms)
   waitingTimeoutMs?: number; // Default 10 mins (600,000 ms)
   recoveryGraceMs?: number; // Grace period after restart before clock resumes (default 120s)
+  commit?: (room: RelayRoom, terminal?: TerminalState) => Promise<void>;
+  onStorageFailure?: () => void;
   onWaitingTimeout?: (room: RelayRoom) => void;
   onGameStarted?: (room: RelayRoom) => void;
   onMoveAccepted?: (room: RelayRoom) => void;
@@ -65,6 +69,13 @@ export class RelayRoom {
 
   private clockInterval?: NodeJS.Timeout;
   private waitingTimeoutTimer?: NodeJS.Timeout;
+  private commit?: RelayRoomConfig["commit"];
+  private onStorageFailure?: () => void;
+  private commandTail: Promise<unknown> = Promise.resolve();
+  private pendingSends?: Array<() => void>;
+  private pendingEffects?: Array<() => void>;
+  private pendingTerminal?: TerminalState;
+  private storageFailed = false;
   private onWaitingTimeout?: (room: RelayRoom) => void;
   private onGameStarted?: (room: RelayRoom) => void;
   private onMoveAccepted?: (room: RelayRoom) => void;
@@ -91,19 +102,28 @@ export class RelayRoom {
     this.whiteMs = initialTime;
     this.blackMs = initialTime;
     this.chess = new ChessGame();
-    this.onGameStarted = config.onGameStarted;
-    this.onMoveAccepted = config.onMoveAccepted;
-    this.onGameOver = config.onGameOver;
+    this.commit = config.commit;
+    this.onStorageFailure = config.onStorageFailure;
+    this.onGameStarted = (r) =>
+      this.afterCommit(() => config.onGameStarted?.(r));
+    this.onMoveAccepted = (r) =>
+      this.afterCommit(() => config.onMoveAccepted?.(r));
+    this.onGameOver = (r, outcome, reason, winner) => {
+      this.pendingTerminal = { outcome, reason, winner };
+      this.afterCommit(() => config.onGameOver?.(r, outcome, reason, winner));
+    };
     this.onWaitingTimeout = config.onWaitingTimeout;
 
     // Timeout waiting room after 10 minutes if opponent never joins
     const waitingMs = config.waitingTimeoutMs ?? 10 * 60 * 1000;
     this.waitingTimeoutTimer = setTimeout(() => {
-      if (this.status === "waiting") {
-        this.closeAllSockets("Waiting room timed out after 10m");
-        this.destroy();
-        this.onWaitingTimeout?.(this);
-      }
+      void this.run(() => {
+        if (this.status === "waiting") {
+          this.closeAllSockets("Waiting room timed out after 10m");
+          this.destroy();
+          this.onWaitingTimeout?.(this);
+        }
+      }).catch(() => {});
     }, waitingMs);
 
     if (config.recoveryGraceMs !== undefined) {
@@ -111,7 +131,63 @@ export class RelayRoom {
     }
   }
 
-  public setRecovered(recoveredAt: number = Date.now(), graceMs: number = 120_000): void {
+  private afterCommit(effect: () => void): void {
+    if (this.pendingEffects) this.pendingEffects.push(effect);
+    else effect();
+  }
+
+  /** Serialize timer/actions and withhold acknowledgements until durable commit. */
+  public run<T>(action: () => T, forceSave = false): Promise<T> {
+    if (!this.commit) {
+      try {
+        return Promise.resolve(action());
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    }
+    const operation = this.commandTail.then(async () => {
+      if (this.storageFailed) throw Error("Room storage unavailable.");
+      const before = `${this.status}:${this.seq}`;
+      this.pendingSends = [];
+      this.pendingEffects = [];
+      this.pendingTerminal = undefined;
+      try {
+        const result = action();
+        if (
+          (forceSave && this.status !== "finished") ||
+          before !== `${this.status}:${this.seq}`
+        )
+          await this.commit!(this, this.pendingTerminal);
+        const sends = this.pendingSends;
+        const effects = this.pendingEffects;
+        this.pendingSends = undefined;
+        this.pendingEffects = undefined;
+        for (const send of sends) send();
+        for (const effect of effects) effect();
+        return result;
+      } catch {
+        this.pendingSends = undefined;
+        this.pendingEffects = undefined;
+        this.failStorage();
+        throw Error("Could not save room. Reconnect after relay restart.");
+      }
+    });
+    this.commandTail = operation.catch(() => {});
+    return operation;
+  }
+
+  public failStorage(): void {
+    if (this.storageFailed) return;
+    this.storageFailed = true;
+    this.destroy();
+    this.closeAllSockets("Storage unavailable. Reconnect after relay restart.");
+    this.onStorageFailure?.();
+  }
+
+  public setRecovered(
+    recoveredAt: number = Date.now(),
+    graceMs: number = 120_000,
+  ): void {
     this.recoveredAt = recoveredAt;
     this.recoveryGraceMs = graceMs;
     this.lastClockUpdate = Date.now();
@@ -119,7 +195,7 @@ export class RelayRoom {
       clearTimeout(this.recoveryTimer);
     }
     this.recoveryTimer = setTimeout(() => {
-      this.clearRecovery();
+      void this.run(() => this.clearRecovery()).catch(() => {});
     }, graceMs);
   }
 
@@ -132,7 +208,10 @@ export class RelayRoom {
     this.lastClockUpdate = Date.now();
   }
 
-  public addPlayer(address: `0x${string}`, ws: WebSocket): "w" | "b" | "spectator" {
+  public addPlayer(
+    address: `0x${string}`,
+    ws: WebSocket,
+  ): "w" | "b" | "spectator" {
     const addr = address.toLowerCase() as `0x${string}`;
 
     if (addr === this.whiteAddress) {
@@ -143,7 +222,12 @@ export class RelayRoom {
           // ignore
         }
       }
-      this.whitePlayer = { address, ws, color: "w", warnings: this.whitePlayer?.warnings ?? 0 };
+      this.whitePlayer = {
+        address,
+        ws,
+        color: "w",
+        warnings: this.whitePlayer?.warnings ?? 0,
+      };
       if (this.blackPlayer) {
         if (this.status === "waiting") {
           this.startGame();
@@ -151,7 +235,6 @@ export class RelayRoom {
           if (this.recoveredAt !== undefined) {
             this.clearRecovery();
           }
-          this.lastClockUpdate = Date.now();
           if (!this.clockInterval) {
             this.startClock();
           }
@@ -168,7 +251,12 @@ export class RelayRoom {
           // ignore
         }
       }
-      this.blackPlayer = { address, ws, color: "b", warnings: this.blackPlayer?.warnings ?? 0 };
+      this.blackPlayer = {
+        address,
+        ws,
+        color: "b",
+        warnings: this.blackPlayer?.warnings ?? 0,
+      };
       if (this.whitePlayer) {
         if (this.status === "waiting") {
           this.startGame();
@@ -176,7 +264,6 @@ export class RelayRoom {
           if (this.recoveredAt !== undefined) {
             this.clearRecovery();
           }
-          this.lastClockUpdate = Date.now();
           if (!this.clockInterval) {
             this.startClock();
           }
@@ -205,7 +292,8 @@ export class RelayRoom {
   }
 
   public startGame(): void {
-    if (this.status !== "waiting" || !this.whitePlayer || !this.blackPlayer) return;
+    if (this.status !== "waiting" || !this.whitePlayer || !this.blackPlayer)
+      return;
 
     if (this.waitingTimeoutTimer) {
       clearTimeout(this.waitingTimeoutTimer);
@@ -225,40 +313,45 @@ export class RelayRoom {
     if (this.clockInterval) clearInterval(this.clockInterval);
 
     this.clockInterval = setInterval(() => {
-      if (this.status !== "active") {
-        if (this.clockInterval) clearInterval(this.clockInterval);
-        return;
-      }
-
-      // If in recovery grace period after server restart:
-      // Clock stays paused until both players are present OR grace timeout elapses
-      if (this.recoveredAt !== undefined) {
-        if (this.whitePlayer && this.blackPlayer) {
-          this.clearRecovery();
-        } else if (Date.now() >= this.recoveredAt + this.recoveryGraceMs) {
-          this.clearRecovery();
-        } else {
-          this.lastClockUpdate = Date.now();
+      void this.run(() => {
+        if (this.status !== "active") {
+          if (this.clockInterval) clearInterval(this.clockInterval);
           return;
         }
-      }
 
-      const now = Date.now();
-      const elapsed = now - this.lastClockUpdate;
-      this.lastClockUpdate = now;
+        // If in recovery grace period after server restart:
+        // Clock stays paused until both players are present OR grace timeout elapses
+        if (this.recoveredAt !== undefined) {
+          if (this.whitePlayer && this.blackPlayer) {
+            this.clearRecovery();
+          } else if (Date.now() >= this.recoveredAt + this.recoveryGraceMs) {
+            this.clearRecovery();
+          } else {
+            this.lastClockUpdate = Date.now();
+            return;
+          }
+        }
 
-      if (this.activeTurn === "w") {
-        this.whiteMs = Math.max(0, this.whiteMs - elapsed);
-        if (this.whiteMs === 0) {
-          this.handleTimeout("w");
-        }
-      } else {
-        this.blackMs = Math.max(0, this.blackMs - elapsed);
-        if (this.blackMs === 0) {
-          this.handleTimeout("b");
-        }
-      }
+        this.updateClock();
+      }).catch(() => {});
     }, 200);
+  }
+
+  /** Charge elapsed time before accepting an action, including between timer ticks. */
+  public updateClock(): boolean {
+    if (this.status !== "active") return false;
+    if (this.recoveredAt !== undefined) return true;
+    const now = Date.now();
+    const elapsed = Math.max(0, now - this.lastClockUpdate);
+    this.lastClockUpdate = now;
+    if (this.activeTurn === "w") {
+      this.whiteMs = Math.max(0, this.whiteMs - elapsed);
+      if (this.whiteMs === 0) this.handleTimeout("w");
+    } else {
+      this.blackMs = Math.max(0, this.blackMs - elapsed);
+      if (this.blackMs === 0) this.handleTimeout("b");
+    }
+    return this.status === "active";
   }
 
   public handleTimeout(loserColor: "w" | "b"): void {
@@ -282,29 +375,19 @@ export class RelayRoom {
     if (this.status !== "active") return false;
 
     // Check sender is the current turn player
-    const expectedPlayer = this.activeTurn === "w" ? this.whitePlayer : this.blackPlayer;
+    const expectedPlayer =
+      this.activeTurn === "w" ? this.whitePlayer : this.blackPlayer;
     if (!expectedPlayer || expectedPlayer.ws !== playerWs) return false;
 
     // Sequence must be strictly sequential
     if (seq !== this.seq) return false;
 
+    if (this.recoveredAt !== undefined) this.clearRecovery();
+    if (!this.updateClock()) return false;
+
     // Execute move on chess engine
     const success = this.chess.makeMove(uci);
     if (!success) return false;
-
-    // Update clocks
-    if (this.recoveredAt !== undefined) {
-      this.clearRecovery();
-    }
-    const now = Date.now();
-    const elapsed = now - this.lastClockUpdate;
-    this.lastClockUpdate = now;
-
-    if (this.activeTurn === "w") {
-      this.whiteMs = Math.max(0, this.whiteMs - elapsed);
-    } else {
-      this.blackMs = Math.max(0, this.blackMs - elapsed);
-    }
 
     this.moves.push(uci);
     this.seq++;
@@ -364,6 +447,8 @@ export class RelayRoom {
       return false;
     }
 
+    if (!this.updateClock()) return false;
+
     this.status = "finished";
     if (this.clockInterval) clearInterval(this.clockInterval);
 
@@ -409,6 +494,7 @@ export class RelayRoom {
     else return false;
 
     if (acceptor === this.drawOfferFrom) return false; // Cannot accept own offer
+    if (!this.updateClock()) return false;
 
     this.status = "finished";
     if (this.clockInterval) clearInterval(this.clockInterval);
@@ -418,13 +504,18 @@ export class RelayRoom {
       roomId: this.roomId,
     });
 
-    const zeroAddress: `0x${string}` = "0x0000000000000000000000000000000000000000";
+    const zeroAddress: `0x${string}` =
+      "0x0000000000000000000000000000000000000000";
     this.onGameOver?.(this, "draw", "draw_agreed", zeroAddress);
     return true;
   }
 
   public handleDrawDecline(playerWs: WebSocket): boolean {
     if (this.status !== "active" || !this.drawOfferFrom) return false;
+
+    const opponent =
+      this.drawOfferFrom === "w" ? this.blackPlayer : this.whitePlayer;
+    if (opponent?.ws !== playerWs) return false;
 
     this.drawOfferFrom = undefined;
     this.broadcast({
@@ -437,7 +528,7 @@ export class RelayRoom {
   public handleFocusWarning(
     playerWs: WebSocket,
     warningCount: number,
-    penaltyMs: number,
+    _penaltyMs: number,
   ): boolean {
     if (this.status !== "active") return false;
 
@@ -457,7 +548,7 @@ export class RelayRoom {
       type: "focus_warning",
       player: playerColor,
       warningCount,
-      penaltyMs,
+      penaltyMs: 0,
     });
 
     return true;
@@ -480,6 +571,14 @@ export class RelayRoom {
 
   public broadcast(msg: ServerMessage): void {
     const raw = JSON.stringify(msg);
+    if (this.pendingSends) {
+      this.pendingSends.push(() => this.broadcastRaw(raw));
+      return;
+    }
+    this.broadcastRaw(raw);
+  }
+
+  private broadcastRaw(raw: string): void {
     if (this.whitePlayer?.ws.readyState === 1) {
       this.whitePlayer.ws.send(raw);
     }
@@ -494,6 +593,13 @@ export class RelayRoom {
   }
 
   public send(ws: WebSocket, msg: ServerMessage): void {
+    if (this.pendingSends) {
+      const raw = JSON.stringify(msg);
+      this.pendingSends.push(() => {
+        if (ws.readyState === 1) ws.send(raw);
+      });
+      return;
+    }
     if (ws.readyState === 1) {
       ws.send(JSON.stringify(msg));
     }

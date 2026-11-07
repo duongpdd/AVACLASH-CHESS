@@ -14,7 +14,7 @@ import {
   type GameFinishedMessage,
   type FocusWarningMessage,
 } from "./schemas.js";
-import { buildJoinTypedData } from "./eip712.js";
+import { buildBoundJoinTypedData } from "./relay-auth.js";
 import { ReasonCode } from "./types.js";
 import type { SeenTerminalEvents } from "./verify-result.js";
 
@@ -30,6 +30,7 @@ export interface FinishedInfo {
 export type ConnectionStatus =
   | "idle"
   | "connecting"
+  | "awaiting_signature"
   | "connected"
   | "reconnecting"
   | "disconnected";
@@ -41,6 +42,7 @@ export interface RelayClientOptions {
   getAddress: () => Promise<`0x${string}`> | `0x${string}`;
   chainId: number;
   escrowAddress: `0x${string}`;
+  origin?: string;
 }
 
 export type RelayClientEventType =
@@ -107,7 +109,7 @@ export class RelayClient {
 
   public on<K extends keyof RelayClientEventMap>(
     event: K,
-    listener: RelayClientEventMap[K]
+    listener: RelayClientEventMap[K],
   ): () => void {
     if (!this.listeners[event]) {
       this.listeners[event] = [];
@@ -121,7 +123,7 @@ export class RelayClient {
 
   public off<K extends keyof RelayClientEventMap>(
     event: K,
-    listener: RelayClientEventMap[K]
+    listener: RelayClientEventMap[K],
   ): void {
     const list = this.listeners[event];
     if (!list) return;
@@ -138,7 +140,10 @@ export class RelayClient {
       try {
         (listener as any)(...args);
       } catch (err) {
-        console.error(`[RelayClient] Error in listener for event "${event}":`, err);
+        console.error(
+          `[RelayClient] Error in listener for event "${event}":`,
+          err,
+        );
       }
     }
   }
@@ -176,12 +181,17 @@ export class RelayClient {
     if (!this.roomState || !this.myAddress) return undefined;
     const addr = this.myAddress.toLowerCase();
     if (this.roomState.white.toLowerCase() === addr) return "w";
-    if (this.roomState.black && this.roomState.black.toLowerCase() === addr) return "b";
+    if (this.roomState.black && this.roomState.black.toLowerCase() === addr)
+      return "b";
     return "spectator";
   }
 
   public isMyTurn(): boolean {
-    if (!this.authenticated || !this.roomState || this.roomState.status !== "active") {
+    if (
+      !this.authenticated ||
+      !this.roomState ||
+      this.roomState.status !== "active"
+    ) {
       return false;
     }
     const myColor = this.getMyColor();
@@ -195,6 +205,21 @@ export class RelayClient {
   // --- Connection Management ---
 
   public connect(roomId: number): void {
+    if (!Number.isSafeInteger(roomId) || roomId < 0) {
+      throw new Error("Room ID must be a non-negative safe integer");
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (roomId !== this.roomId) {
+      this.roomState = undefined;
+      this.moves = [];
+      this.finishedInfo = null;
+      this.seenTerminalEvents = {};
+      this.lastClockSync = null;
+      this.myAddress = null;
+    }
     this.roomId = roomId;
     this.isManuallyClosed = false;
     this.reconnectAttempt = 0;
@@ -221,8 +246,10 @@ export class RelayClient {
 
   private initiateSocket(): void {
     if (this.ws) {
+      const previousSocket = this.ws;
+      this.ws = null;
       try {
-        this.ws.close();
+        previousSocket.close();
       } catch {
         // ignore
       }
@@ -244,12 +271,24 @@ export class RelayClient {
 
       const onMessage = (event: any) => {
         if (this.ws !== wsInstance) return;
-        const raw = typeof event.data === "string" ? event.data : event.data?.toString();
+        const raw =
+          typeof event.data === "string" ? event.data : event.data?.toString();
         this.handleIncomingRaw(raw);
       };
 
-      const onClose = () => {
+      const onClose = (event?: { code?: number } | number) => {
         if (this.ws !== wsInstance) return;
+        const code = typeof event === "number" ? event : event?.code;
+        if (code === 4001 || code === 4000) {
+          this.disconnect();
+          this.emit("error", {
+            message:
+              code === 4001
+                ? "Hết thời gian ký xác thực. Hãy hủy yêu cầu ký cũ trong MetaMask rồi bấm Kết nối lại."
+                : "Ví này đang kết nối phòng ở tab khác. Hãy giữ một tab thi đấu cho mỗi địa chỉ ví.",
+          });
+          return;
+        }
         this.handleSocketClose();
       };
 
@@ -272,7 +311,9 @@ export class RelayClient {
         wsInstance.on("error", onError);
       }
     } catch (err: any) {
-      this.emit("error", { message: `Failed to create WebSocket: ${err?.message}` });
+      this.emit("error", {
+        message: `Failed to create WebSocket: ${err?.message}`,
+      });
       this.handleSocketClose();
     }
   }
@@ -309,14 +350,18 @@ export class RelayClient {
     try {
       parsedJson = JSON.parse(raw);
     } catch {
-      this.emit("error", { message: "Malformed JSON message received from relay" });
+      this.emit("error", {
+        message: "Malformed JSON message received from relay",
+      });
       return;
     }
 
     const parseResult = serverMessageSchema.safeParse(parsedJson);
     if (!parseResult.success) {
       const issue = parseResult.error.issues[0]?.message ?? "Invalid schema";
-      this.emit("error", { message: `Relay message schema validation error: ${issue}` });
+      this.emit("error", {
+        message: `Relay message schema validation error: ${issue}`,
+      });
       return;
     }
 
@@ -327,11 +372,32 @@ export class RelayClient {
   private async handleServerMessage(msg: ServerMessage): Promise<void> {
     switch (msg.type) {
       case "auth_challenge": {
-        await this.handleAuthChallenge(msg.nonce as `0x${string}`, msg.expiresAt);
+        const origin =
+          this.options.origin ??
+          (typeof location !== "undefined" ? location.origin : "");
+        if (
+          msg.chainId !== this.options.chainId ||
+          msg.escrowAddress?.toLowerCase() !==
+            this.options.escrowAddress.toLowerCase() ||
+          msg.origin !== origin
+        ) {
+          this.disconnect();
+          this.emit("error", {
+            message:
+              "Relay không khớp mạng, hợp đồng hoặc website. Hãy kiểm tra cấu hình trước khi ký.",
+          });
+          break;
+        }
+        await this.handleAuthChallenge(
+          msg.nonce as `0x${string}`,
+          msg.expiresAt,
+          origin,
+        );
         break;
       }
 
       case "room_state": {
+        if (this.roomId !== null && msg.roomId !== this.roomId) return;
         this.roomState = msg;
         this.moves = [...msg.moves];
         this.authenticated = true;
@@ -438,10 +504,15 @@ export class RelayClient {
           moveCount: msg.moveCount,
           moves: msg.moves,
         };
-        const r = typeof msg.reason === "string" ? msg.reason.toLowerCase() : "";
+        const r =
+          typeof msg.reason === "string" ? msg.reason.toLowerCase() : "";
         if (r === "resign" || msg.reason === ReasonCode.Resign) {
           this.seenTerminalEvents.resignSeen = true;
-          if (!this.seenTerminalEvents.resignerColor && msg.winner && this.roomState) {
+          if (
+            !this.seenTerminalEvents.resignerColor &&
+            msg.winner &&
+            this.roomState
+          ) {
             const w = msg.winner.toLowerCase();
             if (this.roomState.white.toLowerCase() === w) {
               this.seenTerminalEvents.resignerColor = "b";
@@ -451,7 +522,11 @@ export class RelayClient {
           }
         } else if (r === "timeout" || msg.reason === ReasonCode.Timeout) {
           this.seenTerminalEvents.timeoutSeen = true;
-          if (!this.seenTerminalEvents.timeoutPlayer && msg.winner && this.roomState) {
+          if (
+            !this.seenTerminalEvents.timeoutPlayer &&
+            msg.winner &&
+            this.roomState
+          ) {
             const w = msg.winner.toLowerCase();
             if (this.roomState.white.toLowerCase() === w) {
               this.seenTerminalEvents.timeoutPlayer = "b";
@@ -492,35 +567,48 @@ export class RelayClient {
 
   private async handleAuthChallenge(
     nonce: `0x${string}`,
-    expiresAt: number
+    expiresAt: number,
+    origin: string,
   ): Promise<void> {
     if (this.roomId === null) return;
+    const socket = this.ws;
+    const roomId = this.roomId;
 
     try {
+      this.setStatus("awaiting_signature");
       const address = await this.options.getAddress();
+      if (this.ws !== socket || this.roomId !== roomId || this.isManuallyClosed)
+        return;
       this.myAddress = address;
 
-      const typedData = buildJoinTypedData(
-        this.roomId,
+      const typedData = buildBoundJoinTypedData(
+        roomId,
         address,
         nonce,
         expiresAt,
-        this.options.chainId
+        this.options.chainId,
+        { escrowAddress: this.options.escrowAddress, origin },
       );
 
       const signature = await this.options.signTypedData(typedData);
+      if (this.ws !== socket || this.roomId !== roomId || this.isManuallyClosed)
+        return;
 
+      this.setStatus("connecting");
       this.sendRaw({
         type: "join_room",
-        roomId: this.roomId,
+        roomId,
         role: "player",
         address,
         signature,
         nonce,
       });
     } catch (err: any) {
+      if (this.ws !== socket || this.roomId !== roomId || this.isManuallyClosed)
+        return;
+      this.disconnect();
       this.emit("error", {
-        message: `Failed to authenticate with relay: ${err?.message || "signing error"}`,
+        message: `Không thể ký xác thực relay: ${err?.message || "signing error"}. Hãy kiểm tra yêu cầu ký trong ví rồi kết nối lại.`,
       });
     }
   }
@@ -529,7 +617,9 @@ export class RelayClient {
 
   private sendRaw(data: any): void {
     if (!this.ws || this.ws.readyState !== 1) {
-      this.emit("error", { message: "Cannot send message: WebSocket is not open" });
+      this.emit("error", {
+        message: "Cannot send message: WebSocket is not open",
+      });
       return;
     }
     try {
@@ -583,7 +673,7 @@ export class RelayClient {
   public sendFocusWarning(
     player: "w" | "b",
     warningCount: number,
-    penaltyMs: number
+    penaltyMs: number,
   ): void {
     this.sendRaw({
       type: "focus_warning",

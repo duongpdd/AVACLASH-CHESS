@@ -7,7 +7,7 @@ import { recoverTypedDataAddress, type PrivateKeyAccount } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   buildResultTypedData,
-  buildJoinTypedData,
+  buildBoundJoinTypedData,
 } from "@avaclash/shared";
 import { RelayServer } from "../src/RelayServer.js";
 
@@ -15,6 +15,13 @@ const TEST_PORT = 9876;
 const RELAY_KEY = generatePrivateKey();
 const CONTRACT = "0x1234567890123456789012345678901234567890";
 const CHAIN_ID = 43113;
+const workspaceStatePaths = [
+  "results",
+  "active",
+  "packages/relay/results",
+  "packages/relay/active",
+].map((p) => path.resolve(process.cwd(), p));
+const existingStatePaths = workspaceStatePaths.filter((p) => fs.existsSync(p));
 
 const accountAlice = privateKeyToAccount(generatePrivateKey());
 const accountBob = privateKeyToAccount(generatePrivateKey());
@@ -41,7 +48,7 @@ function registerMockRoom(
   playerA: `0x${string}`,
   playerB: `0x${string}`,
   creatorIsWhite: boolean,
-  status: number = 1
+  status: number = 1,
 ) {
   mockRooms.set(BigInt(id), {
     id: BigInt(id),
@@ -72,7 +79,10 @@ function createTestClient(port: number = TEST_PORT): Promise<TestClient> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://localhost:${port}`);
     const messages: any[] = [];
-    const waiters: Array<{ predicate: (msg: any) => boolean; resolve: (val: any) => void }> = [];
+    const waiters: Array<{
+      predicate: (msg: any) => boolean;
+      resolve: (val: any) => void;
+    }> = [];
 
     ws.on("message", (raw: WebSocket.Data) => {
       try {
@@ -119,7 +129,7 @@ async function authenticateAndJoin(
     overrideExpiresAt?: number;
     overrideAddress?: string;
     role?: "player" | "spectator";
-  }
+  },
 ) {
   const challenge = await client.waitFor((m) => m.type === "auth_challenge");
   const nonce = options?.overrideNonce ?? challenge.nonce;
@@ -135,7 +145,14 @@ async function authenticateAndJoin(
     return challenge;
   }
 
-  const typedData = buildJoinTypedData(roomId, player, nonce as `0x${string}`, expiresAt, CHAIN_ID);
+  const typedData = buildBoundJoinTypedData(
+    roomId,
+    player,
+    nonce as `0x${string}`,
+    expiresAt,
+    CHAIN_ID,
+    { escrowAddress: CONTRACT, origin: challenge.origin },
+  );
   const signature = await account.signTypedData(typedData);
 
   client.send({
@@ -156,8 +173,12 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
   let tempActiveDir: string;
 
   beforeAll(async () => {
-    tempResultsDir = fs.mkdtempSync(path.join(os.tmpdir(), "relay-unit-results-"));
-    tempActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "relay-unit-active-"));
+    tempResultsDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "relay-unit-results-"),
+    );
+    tempActiveDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "relay-unit-active-"),
+    );
     server = new RelayServer({
       port: TEST_PORT,
       relayPrivateKey: RELAY_KEY,
@@ -180,10 +201,9 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     } catch {}
 
     // Item 7: Confirm no ./results or ./active created in workspace
-    expect(fs.existsSync(path.resolve(process.cwd(), "results"))).toBe(false);
-    expect(fs.existsSync(path.resolve(process.cwd(), "active"))).toBe(false);
-    expect(fs.existsSync(path.resolve(process.cwd(), "packages/relay/results"))).toBe(false);
-    expect(fs.existsSync(path.resolve(process.cwd(), "packages/relay/active"))).toBe(false);
+    expect(workspaceStatePaths.filter((p) => fs.existsSync(p))).toEqual(
+      existingStatePaths,
+    );
   });
 
   it("handles ping/pong", async () => {
@@ -208,8 +228,12 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     expect(stateA.status).toBe("waiting");
     expect(stateA.white.toLowerCase()).toBe(accountAlice.address.toLowerCase());
 
-    const activePromiseA = clientA.waitFor((m) => m.type === "room_state" && m.status === "active");
-    const activePromiseB = clientB.waitFor((m) => m.type === "room_state" && m.status === "active");
+    const activePromiseA = clientA.waitFor(
+      (m) => m.type === "room_state" && m.status === "active",
+    );
+    const activePromiseB = clientB.waitFor(
+      (m) => m.type === "room_state" && m.status === "active",
+    );
 
     await authenticateAndJoin(clientB, accountBob, roomId);
     const [actA, actB] = await Promise.all([activePromiseA, activePromiseB]);
@@ -219,7 +243,9 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     expect(actA.black?.toLowerCase()).toBe(accountBob.address.toLowerCase());
 
     // Alice moves e2e4 (seq: 0)
-    const movePromiseB = clientB.waitFor((m) => m.type === "move" && m.uci === "e2e4");
+    const movePromiseB = clientB.waitFor(
+      (m) => m.type === "move" && m.uci === "e2e4",
+    );
     clientA.send({ type: "move", roomId, seq: 0, uci: "e2e4" });
     const moveB = await movePromiseB;
     expect(moveB.uci).toBe("e2e4");
@@ -232,7 +258,9 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     expect(errA.type).toBe("error");
 
     // Bob replies e7e5 (seq: 1)
-    const movePromiseA = clientA.waitFor((m) => m.type === "move" && m.uci === "e7e5");
+    const movePromiseA = clientA.waitFor(
+      (m) => m.type === "move" && m.uci === "e7e5",
+    );
     clientB.send({ type: "move", roomId, seq: 1, uci: "e7e5" });
     const moveA = await movePromiseA;
     expect(moveA.uci).toBe("e7e5");
@@ -251,9 +279,13 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
 
     await authenticateAndJoin(clientA, accountAlice, roomId);
     await authenticateAndJoin(clientB, accountBob, roomId);
-    await clientB.waitFor((m) => m.type === "room_state" && m.status === "active");
+    await clientB.waitFor(
+      (m) => m.type === "room_state" && m.status === "active",
+    );
 
-    const proposalPromise = clientA.waitFor((m) => m.type === "result_proposal");
+    const proposalPromise = clientA.waitFor(
+      (m) => m.type === "result_proposal",
+    );
     const sigPromise = clientA.waitFor((m) => m.type === "result_signature");
 
     // Bob resigns
@@ -264,7 +296,9 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
 
     expect(proposal.type).toBe("result_proposal");
     expect(proposal.outcome).toBe(0); // WhiteWin
-    expect(proposal.winner.toLowerCase()).toBe(accountAlice.address.toLowerCase());
+    expect(proposal.winner.toLowerCase()).toBe(
+      accountAlice.address.toLowerCase(),
+    );
     expect(proposal.reason).toBe(1); // Resign
 
     // Verify 30 min deadline (1800s)
@@ -285,7 +319,7 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
         nonce: BigInt(proposal.nonce),
         deadline: BigInt(proposal.deadline),
       },
-      CHAIN_ID
+      CHAIN_ID,
     );
 
     const recovered = await recoverTypedDataAddress({
@@ -311,7 +345,9 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     });
 
     const err = await errPromise;
-    expect(err.message).toMatch(/Signature does not match declared player address/i);
+    expect(err.message).toMatch(
+      /Signature does not match declared player address/i,
+    );
     client.close();
   });
 
@@ -321,13 +357,16 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
 
     // 1. Invalid / tampered signature
     const client1 = await createTestClient();
-    const challenge1 = await client1.waitFor((m) => m.type === "auth_challenge");
+    const challenge1 = await client1.waitFor(
+      (m) => m.type === "auth_challenge",
+    );
     const errPromise1 = client1.waitFor((m) => m.type === "error");
     client1.send({
       type: "join_room",
       roomId,
       address: accountAlice.address,
-      signature: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1b",
+      signature:
+        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1b",
       nonce: challenge1.nonce,
     });
     const err1 = await errPromise1;
@@ -339,7 +378,14 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     const challenge2 = await authenticateAndJoin(client2, accountAlice, roomId);
 
     const errPromise2 = client2.waitFor((m) => m.type === "error");
-    const typedData2 = buildJoinTypedData(roomId, accountAlice.address, challenge2.nonce, challenge2.expiresAt, CHAIN_ID);
+    const typedData2 = buildBoundJoinTypedData(
+      roomId,
+      accountAlice.address,
+      challenge2.nonce,
+      challenge2.expiresAt,
+      CHAIN_ID,
+      { escrowAddress: CONTRACT, origin: challenge2.origin },
+    );
     const sig2 = await accountAlice.signTypedData(typedData2);
     client2.send({
       type: "join_room",
@@ -372,7 +418,9 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     const clientBob = await createTestClient();
     await authenticateAndJoin(clientAlice, accountAlice, roomId);
     await authenticateAndJoin(clientBob, accountBob, roomId);
-    await clientBob.waitFor((m) => m.type === "room_state" && m.status === "active");
+    await clientBob.waitFor(
+      (m) => m.type === "room_state" && m.status === "active",
+    );
 
     // Charlie (not a player in this room) tries to join as player
     const clientCharlie = await createTestClient();
@@ -383,8 +431,12 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
 
     // Charlie connects as spectator (no signature needed)
     const clientSpectator = await createTestClient();
-    const specStatePromise = clientSpectator.waitFor((m) => m.type === "room_state");
-    await authenticateAndJoin(clientSpectator, accountCharlie, roomId, { role: "spectator" });
+    const specStatePromise = clientSpectator.waitFor(
+      (m) => m.type === "room_state",
+    );
+    await authenticateAndJoin(clientSpectator, accountCharlie, roomId, {
+      role: "spectator",
+    });
     const specState = await specStatePromise;
     expect(specState.type).toBe("room_state");
     expect(specState.status).toBe("active");
@@ -393,7 +445,9 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     const moveErrPromise = clientSpectator.waitFor((m) => m.type === "error");
     clientSpectator.send({ type: "move", roomId, seq: 0, uci: "e2e4" });
     const moveErr = await moveErrPromise;
-    expect(moveErr.message).toMatch(/Spectators or unauthenticated users cannot send moves/i);
+    expect(moveErr.message).toMatch(
+      /Spectators or unauthenticated users cannot send moves/i,
+    );
 
     clientAlice.close();
     clientBob.close();
@@ -408,11 +462,13 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     const clientAlice1 = await createTestClient();
     await authenticateAndJoin(clientAlice1, accountAlice, roomId);
 
-    const closePromise = new Promise<{ code: number; reason: string }>((resolve) => {
-      clientAlice1.ws.on("close", (code, reason) => {
-        resolve({ code, reason: reason.toString() });
-      });
-    });
+    const closePromise = new Promise<{ code: number; reason: string }>(
+      (resolve) => {
+        clientAlice1.ws.on("close", (code, reason) => {
+          resolve({ code, reason: reason.toString() });
+        });
+      },
+    );
 
     // Alice connects from a new socket clientAlice2
     const clientAlice2 = await createTestClient();
@@ -433,7 +489,9 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     const clientBob = await createTestClient();
     await authenticateAndJoin(clientAlice, accountAlice, roomId);
     await authenticateAndJoin(clientBob, accountBob, roomId);
-    await clientBob.waitFor((m) => m.type === "room_state" && m.status === "active");
+    await clientBob.waitFor(
+      (m) => m.type === "room_state" && m.status === "active",
+    );
 
     // On-chain status changes to Settled (2) or Cancelled (3)
     mockRooms.get(BigInt(roomId)).status = 2;
@@ -469,13 +527,20 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     const statePromiseB1 = clientB1.waitFor((m) => m.type === "room_state");
     await authenticateAndJoin(clientB1, accountBob, roomTrue);
     const stateB1 = await statePromiseB1;
-    expect(stateB1.white.toLowerCase()).toBe(accountAlice.address.toLowerCase());
+    expect(stateB1.white.toLowerCase()).toBe(
+      accountAlice.address.toLowerCase(),
+    );
     expect(stateB1.black?.toLowerCase()).toBe(accountBob.address.toLowerCase());
     clientB1.close();
 
     // Case 2: creatorIsWhite = false -> PlayerA is Black, PlayerB is White
     const roomFalse = 602;
-    registerMockRoom(roomFalse, accountAlice.address, accountBob.address, false);
+    registerMockRoom(
+      roomFalse,
+      accountAlice.address,
+      accountBob.address,
+      false,
+    );
 
     const clientA2 = await createTestClient();
     // Alice connects FIRST
@@ -483,7 +548,9 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     await authenticateAndJoin(clientA2, accountAlice, roomFalse);
     const stateA2 = await statePromiseA2;
     expect(stateA2.white.toLowerCase()).toBe(accountBob.address.toLowerCase());
-    expect(stateA2.black?.toLowerCase()).toBe(accountAlice.address.toLowerCase());
+    expect(stateA2.black?.toLowerCase()).toBe(
+      accountAlice.address.toLowerCase(),
+    );
     clientA2.close();
   });
 
@@ -556,9 +623,13 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     expect(room).toBeDefined();
     expect(room?.status).toBe("waiting");
 
-    const closePromise = new Promise<{ code: number; reason: string }>((resolve) => {
-      clientAlice.ws.on("close", (code, reason) => resolve({ code, reason: reason.toString() }));
-    });
+    const closePromise = new Promise<{ code: number; reason: string }>(
+      (resolve) => {
+        clientAlice.ws.on("close", (code, reason) =>
+          resolve({ code, reason: reason.toString() }),
+        );
+      },
+    );
 
     // Trigger waiting timeout on the room
     (room as any).onWaitingTimeout?.(room);
@@ -571,10 +642,18 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
   });
 
   it("Item 5: only trusts x-forwarded-for when trustProxy is enabled", async () => {
-    const tmpResUntrusted = fs.mkdtempSync(path.join(os.tmpdir(), "untrusted-res-"));
-    const tmpActUntrusted = fs.mkdtempSync(path.join(os.tmpdir(), "untrusted-act-"));
-    const tmpResTrusted = fs.mkdtempSync(path.join(os.tmpdir(), "trusted-res-"));
-    const tmpActTrusted = fs.mkdtempSync(path.join(os.tmpdir(), "trusted-act-"));
+    const tmpResUntrusted = fs.mkdtempSync(
+      path.join(os.tmpdir(), "untrusted-res-"),
+    );
+    const tmpActUntrusted = fs.mkdtempSync(
+      path.join(os.tmpdir(), "untrusted-act-"),
+    );
+    const tmpResTrusted = fs.mkdtempSync(
+      path.join(os.tmpdir(), "trusted-res-"),
+    );
+    const tmpActTrusted = fs.mkdtempSync(
+      path.join(os.tmpdir(), "trusted-act-"),
+    );
 
     try {
       // 1. trustProxy = false (default)
@@ -607,10 +686,18 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       expect(serverTrusted.trustProxy).toBe(true);
       await serverTrusted.close();
     } finally {
-      try { fs.rmSync(tmpResUntrusted, { recursive: true, force: true }); } catch {}
-      try { fs.rmSync(tmpActUntrusted, { recursive: true, force: true }); } catch {}
-      try { fs.rmSync(tmpResTrusted, { recursive: true, force: true }); } catch {}
-      try { fs.rmSync(tmpActTrusted, { recursive: true, force: true }); } catch {}
+      try {
+        fs.rmSync(tmpResUntrusted, { recursive: true, force: true });
+      } catch {}
+      try {
+        fs.rmSync(tmpActUntrusted, { recursive: true, force: true });
+      } catch {}
+      try {
+        fs.rmSync(tmpResTrusted, { recursive: true, force: true });
+      } catch {}
+      try {
+        fs.rmSync(tmpActTrusted, { recursive: true, force: true });
+      } catch {}
     }
   });
 
@@ -629,8 +716,12 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       },
     };
 
-    const tempCachedDir = fs.mkdtempSync(path.join(os.tmpdir(), "cached-server-results-"));
-    const tempCachedActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "cached-server-active-"));
+    const tempCachedDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "cached-server-results-"),
+    );
+    const tempCachedActiveDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "cached-server-active-"),
+    );
     const portCached = TEST_PORT + 83;
     const cachedServer = new RelayServer({
       port: portCached,
@@ -648,7 +739,10 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       const clientAlice = await new Promise<TestClient>((res) => {
         const ws = new WebSocket(`ws://localhost:${portCached}`);
         const messages: any[] = [];
-        const waiters: Array<{ predicate: (msg: any) => boolean; resolve: (val: any) => void }> = [];
+        const waiters: Array<{
+          predicate: (msg: any) => boolean;
+          resolve: (val: any) => void;
+        }> = [];
         ws.on("message", (raw) => {
           try {
             const parsed = JSON.parse(raw.toString());
@@ -669,17 +763,23 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
             close: () => ws.close(),
             waitFor: (p) => {
               const idx = messages.findIndex(p);
-              if (idx !== -1) return Promise.resolve(messages.splice(idx, 1)[0]);
-              return new Promise((r) => waiters.push({ predicate: p, resolve: r }));
+              if (idx !== -1)
+                return Promise.resolve(messages.splice(idx, 1)[0]);
+              return new Promise((r) =>
+                waiters.push({ predicate: p, resolve: r }),
+              );
             },
-          })
+          }),
         );
       });
 
       const clientBob = await new Promise<TestClient>((res) => {
         const ws = new WebSocket(`ws://localhost:${portCached}`);
         const messages: any[] = [];
-        const waiters: Array<{ predicate: (msg: any) => boolean; resolve: (val: any) => void }> = [];
+        const waiters: Array<{
+          predicate: (msg: any) => boolean;
+          resolve: (val: any) => void;
+        }> = [];
         ws.on("message", (raw) => {
           try {
             const parsed = JSON.parse(raw.toString());
@@ -700,10 +800,13 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
             close: () => ws.close(),
             waitFor: (p) => {
               const idx = messages.findIndex(p);
-              if (idx !== -1) return Promise.resolve(messages.splice(idx, 1)[0]);
-              return new Promise((r) => waiters.push({ predicate: p, resolve: r }));
+              if (idx !== -1)
+                return Promise.resolve(messages.splice(idx, 1)[0]);
+              return new Promise((r) =>
+                waiters.push({ predicate: p, resolve: r }),
+              );
             },
-          })
+          }),
         );
       });
 
@@ -720,21 +823,34 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       // handleGameOver is called -> MUST bypass cache and read fresh on-chain (count becomes 2)
       const room = cachedServer.getRoom(801);
       expect(room).toBeDefined();
-      await (cachedServer as any).handleGameOver(room, "white", "checkmate", room!.whiteAddress);
+      await (cachedServer as any).handleGameOver(
+        room,
+        "white",
+        "checkmate",
+        room!.whiteAddress,
+      );
       expect(getRoomCallCount).toBe(2);
 
       clientAlice.close();
       clientBob.close();
     } finally {
       await cachedServer.close();
-      try { fs.rmSync(tempCachedDir, { recursive: true, force: true }); } catch {}
-      try { fs.rmSync(tempCachedActiveDir, { recursive: true, force: true }); } catch {}
+      try {
+        fs.rmSync(tempCachedDir, { recursive: true, force: true });
+      } catch {}
+      try {
+        fs.rmSync(tempCachedActiveDir, { recursive: true, force: true });
+      } catch {}
     }
   });
 
   it("Item 6: limits join_room requests per IP per minute", async () => {
-    const tmpResLimiter = fs.mkdtempSync(path.join(os.tmpdir(), "limiter-res-"));
-    const tmpActLimiter = fs.mkdtempSync(path.join(os.tmpdir(), "limiter-act-"));
+    const tmpResLimiter = fs.mkdtempSync(
+      path.join(os.tmpdir(), "limiter-res-"),
+    );
+    const tmpActLimiter = fs.mkdtempSync(
+      path.join(os.tmpdir(), "limiter-act-"),
+    );
     const portLimiter = TEST_PORT + 84;
     const limiterServer = new RelayServer({
       port: portLimiter,
@@ -755,7 +871,10 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       const client = await new Promise<TestClient>((res) => {
         const ws = new WebSocket(`ws://localhost:${portLimiter}`);
         const messages: any[] = [];
-        const waiters: Array<{ predicate: (msg: any) => boolean; resolve: (val: any) => void }> = [];
+        const waiters: Array<{
+          predicate: (msg: any) => boolean;
+          resolve: (val: any) => void;
+        }> = [];
         ws.on("message", (raw) => {
           try {
             const parsed = JSON.parse(raw.toString());
@@ -776,10 +895,13 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
             close: () => ws.close(),
             waitFor: (p) => {
               const idx = messages.findIndex(p);
-              if (idx !== -1) return Promise.resolve(messages.splice(idx, 1)[0]);
-              return new Promise((r) => waiters.push({ predicate: p, resolve: r }));
+              if (idx !== -1)
+                return Promise.resolve(messages.splice(idx, 1)[0]);
+              return new Promise((r) =>
+                waiters.push({ predicate: p, resolve: r }),
+              );
             },
-          })
+          }),
         );
       });
 
@@ -799,8 +921,12 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       client.close();
     } finally {
       await limiterServer.close();
-      try { fs.rmSync(tmpResLimiter, { recursive: true, force: true }); } catch {}
-      try { fs.rmSync(tmpActLimiter, { recursive: true, force: true }); } catch {}
+      try {
+        fs.rmSync(tmpResLimiter, { recursive: true, force: true });
+      } catch {}
+      try {
+        fs.rmSync(tmpActLimiter, { recursive: true, force: true });
+      } catch {}
     }
   });
 
@@ -824,9 +950,13 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       const ws = new WebSocket(`ws://localhost:${portDisconnect}`);
       await new Promise((r) => ws.on("open", r));
 
-      const closePromise = new Promise<{ code: number; reason: string }>((resolve) => {
-        ws.on("close", (code, reason) => resolve({ code, reason: reason.toString() }));
-      });
+      const closePromise = new Promise<{ code: number; reason: string }>(
+        (resolve) => {
+          ws.on("close", (code, reason) =>
+            resolve({ code, reason: reason.toString() }),
+          );
+        },
+      );
 
       // Send 10 rapid messages to trigger rate limit violations consecutively >= 3 times
       for (let i = 0; i < 10; i++) {
@@ -838,14 +968,22 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       expect(closeInfo.reason).toContain("Rate limit exceeded");
     } finally {
       await disconnectServer.close();
-      try { fs.rmSync(tmpResDisc, { recursive: true, force: true }); } catch {}
-      try { fs.rmSync(tmpActDisc, { recursive: true, force: true }); } catch {}
+      try {
+        fs.rmSync(tmpResDisc, { recursive: true, force: true });
+      } catch {}
+      try {
+        fs.rmSync(tmpActDisc, { recursive: true, force: true });
+      } catch {}
     }
   });
 
   it("Item 4: mid-game disconnection does NOT stop the clock; timeout signs loss for disconnected player", async () => {
-    const tempTimeoutDir = fs.mkdtempSync(path.join(os.tmpdir(), "relay-timeout-test-"));
-    const tempTimeoutActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "relay-timeout-act-"));
+    const tempTimeoutDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "relay-timeout-test-"),
+    );
+    const tempTimeoutActiveDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "relay-timeout-act-"),
+    );
     const portTimeout = TEST_PORT + 86;
     const timeoutServer = new RelayServer({
       port: portTimeout,
@@ -868,21 +1006,29 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       await clientAlice.waitFor((m) => m.type === "room_state");
 
       await authenticateAndJoin(clientBob, accountBob, 850);
-      await clientBob.waitFor((m) => m.type === "room_state" && m.status === "active");
+      await clientBob.waitFor(
+        (m) => m.type === "room_state" && m.status === "active",
+      );
 
       // Alice is White, turn is Alice's ('w'). Alice disconnects!
       clientAlice.close();
 
       // Bob listens for timeout / game over / result proposal
-      const proposalPromise = clientBob.waitFor((m) => m.type === "result_proposal");
-      const sigPromise = clientBob.waitFor((m) => m.type === "result_signature");
+      const proposalPromise = clientBob.waitFor(
+        (m) => m.type === "result_proposal",
+      );
+      const sigPromise = clientBob.waitFor(
+        (m) => m.type === "result_signature",
+      );
 
       // Clock should tick down while Alice is disconnected and time out
       const proposal = await proposalPromise;
       const sig = await sigPromise;
 
       expect(proposal.roomId).toBe(850);
-      expect(proposal.winner.toLowerCase()).toBe(accountBob.address.toLowerCase());
+      expect(proposal.winner.toLowerCase()).toBe(
+        accountBob.address.toLowerCase(),
+      );
       expect(proposal.reason).toBe(2); // ReasonCode.Timeout (2)
       expect(sig.signature).toMatch(/^0x[0-9a-fA-F]+$/);
 
@@ -899,7 +1045,9 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
   });
 
   it("Item 4: recovery after restart keeps clock paused until both connect or grace timeout elapses", async () => {
-    const tempActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "recovery-grace-test-"));
+    const tempActiveDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "recovery-grace-test-"),
+    );
     const portGrace = TEST_PORT + 87;
 
     try {
@@ -910,7 +1058,10 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       const roomId = 860;
       registerMockRoom(roomId, accountAlice.address, accountBob.address, true);
 
-      const activeFile = path.join(activeDir, `43113_${CONTRACT.toLowerCase()}_${roomId}.json`);
+      const activeFile = path.join(
+        activeDir,
+        `43113_${CONTRACT.toLowerCase()}_${roomId}.json`,
+      );
       fs.writeFileSync(
         activeFile,
         JSON.stringify({
@@ -925,7 +1076,7 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
           blackAddress: accountBob.address,
           status: "active",
           savedAt: Date.now(),
-        })
+        }),
       );
 
       const graceServer = new RelayServer({
@@ -963,13 +1114,19 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
         await graceServer.close();
       }
     } finally {
-      try { fs.rmSync(tempActiveDir, { recursive: true, force: true }); } catch {}
+      try {
+        fs.rmSync(tempActiveDir, { recursive: true, force: true });
+      } catch {}
     }
   });
 
   it("Item 7: active game file from previous run with different players is rejected, deleted, and NOT recovered", async () => {
-    const tempResultsDir = fs.mkdtempSync(path.join(os.tmpdir(), "mismatch-results-"));
-    const tempActiveDir = fs.mkdtempSync(path.join(os.tmpdir(), "mismatch-active-"));
+    const tempResultsDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "mismatch-results-"),
+    );
+    const tempActiveDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "mismatch-active-"),
+    );
     const portMismatch = TEST_PORT + 91;
 
     try {
@@ -977,7 +1134,10 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       registerMockRoom(roomId, accountAlice.address, accountBob.address, true);
 
       // Seed active game file with different players from previous run
-      const activeFile = path.join(tempActiveDir, `43113_${CONTRACT.toLowerCase()}_${roomId}.json`);
+      const activeFile = path.join(
+        tempActiveDir,
+        `43113_${CONTRACT.toLowerCase()}_${roomId}.json`,
+      );
       fs.writeFileSync(
         activeFile,
         JSON.stringify({
@@ -992,7 +1152,7 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
           blackAddress: "0x2222222222222222222222222222222222222222",
           status: "active",
           savedAt: Date.now(),
-        })
+        }),
       );
 
       const mismatchServer = new RelayServer({
@@ -1022,8 +1182,12 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
         await mismatchServer.close();
       }
     } finally {
-      try { fs.rmSync(tempResultsDir, { recursive: true, force: true }); } catch {}
-      try { fs.rmSync(tempActiveDir, { recursive: true, force: true }); } catch {}
+      try {
+        fs.rmSync(tempResultsDir, { recursive: true, force: true });
+      } catch {}
+      try {
+        fs.rmSync(tempActiveDir, { recursive: true, force: true });
+      } catch {}
     }
   });
 
@@ -1043,7 +1207,9 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       allowNoOrigin: false,
     });
 
-    const connectWithHeaders = (headers: Record<string, string>): Promise<{ ws: WebSocket; opened: boolean; error?: any }> => {
+    const connectWithHeaders = (
+      headers: Record<string, string>,
+    ): Promise<{ ws: WebSocket; opened: boolean; error?: any }> => {
       return new Promise((resolve) => {
         const ws = new WebSocket(`ws://127.0.0.1:${portOrigin}`, { headers });
         ws.on("open", () => resolve({ ws, opened: true }));
@@ -1059,7 +1225,9 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       evilRes.ws.close();
 
       // 2. Accepted when Origin is allowed
-      const goodRes = await connectWithHeaders({ Origin: "https://avaclash.app" });
+      const goodRes = await connectWithHeaders({
+        Origin: "https://avaclash.app",
+      });
       expect(goodRes.opened).toBe(true);
       goodRes.ws.close();
 
@@ -1070,14 +1238,22 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       noOriginRes.ws.close();
     } finally {
       await originServer.close();
-      try { fs.rmSync(tmpResOrigin, { recursive: true, force: true }); } catch {}
-      try { fs.rmSync(tmpActOrigin, { recursive: true, force: true }); } catch {}
+      try {
+        fs.rmSync(tmpResOrigin, { recursive: true, force: true });
+      } catch {}
+      try {
+        fs.rmSync(tmpActOrigin, { recursive: true, force: true });
+      } catch {}
     }
   });
 
   it("Item 6: TRUST_PROXY respects X-Forwarded-For taking the first IP when true, and ignores it when false", async () => {
-    const tmpResProxyTrue = fs.mkdtempSync(path.join(os.tmpdir(), "proxytrue-res-"));
-    const tmpActProxyTrue = fs.mkdtempSync(path.join(os.tmpdir(), "proxytrue-act-"));
+    const tmpResProxyTrue = fs.mkdtempSync(
+      path.join(os.tmpdir(), "proxytrue-res-"),
+    );
+    const tmpActProxyTrue = fs.mkdtempSync(
+      path.join(os.tmpdir(), "proxytrue-act-"),
+    );
     const portProxyTrue = TEST_PORT + 89;
     const serverProxyTrue = new RelayServer({
       port: portProxyTrue,
@@ -1105,9 +1281,13 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       const ws2 = new WebSocket(`ws://127.0.0.1:${portProxyTrue}`, {
         headers: { "X-Forwarded-For": "203.0.113.195, 192.168.1.1" },
       });
-      const ws2Close = await new Promise<{ code: number; reason: string }>((resolve) => {
-        ws2.on("close", (code, reason) => resolve({ code, reason: reason.toString() }));
-      });
+      const ws2Close = await new Promise<{ code: number; reason: string }>(
+        (resolve) => {
+          ws2.on("close", (code, reason) =>
+            resolve({ code, reason: reason.toString() }),
+          );
+        },
+      );
       expect(ws2Close.code).toBe(1008);
       expect(ws2Close.reason).toContain("Too many connections");
 
@@ -1124,13 +1304,21 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       ws3.close();
     } finally {
       await serverProxyTrue.close();
-      try { fs.rmSync(tmpResProxyTrue, { recursive: true, force: true }); } catch {}
-      try { fs.rmSync(tmpActProxyTrue, { recursive: true, force: true }); } catch {}
+      try {
+        fs.rmSync(tmpResProxyTrue, { recursive: true, force: true });
+      } catch {}
+      try {
+        fs.rmSync(tmpActProxyTrue, { recursive: true, force: true });
+      } catch {}
     }
 
     // Now test trustProxy: false -> X-Forwarded-For is completely ignored
-    const tmpResProxyFalse = fs.mkdtempSync(path.join(os.tmpdir(), "proxyfalse-res-"));
-    const tmpActProxyFalse = fs.mkdtempSync(path.join(os.tmpdir(), "proxyfalse-act-"));
+    const tmpResProxyFalse = fs.mkdtempSync(
+      path.join(os.tmpdir(), "proxyfalse-res-"),
+    );
+    const tmpActProxyFalse = fs.mkdtempSync(
+      path.join(os.tmpdir(), "proxyfalse-act-"),
+    );
     const portProxyFalse = TEST_PORT + 90;
     const serverProxyFalse = new RelayServer({
       port: portProxyFalse,
@@ -1159,17 +1347,25 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
       const wsB = new WebSocket(`ws://127.0.0.1:${portProxyFalse}`, {
         headers: { "X-Forwarded-For": "222.222.222.222" },
       });
-      const wsBClose = await new Promise<{ code: number; reason: string }>((resolve) => {
-        wsB.on("close", (code, reason) => resolve({ code, reason: reason.toString() }));
-      });
+      const wsBClose = await new Promise<{ code: number; reason: string }>(
+        (resolve) => {
+          wsB.on("close", (code, reason) =>
+            resolve({ code, reason: reason.toString() }),
+          );
+        },
+      );
       expect(wsBClose.code).toBe(1008);
       expect(wsBClose.reason).toContain("Too many connections");
 
       wsA.close();
     } finally {
       await serverProxyFalse.close();
-      try { fs.rmSync(tmpResProxyFalse, { recursive: true, force: true }); } catch {}
-      try { fs.rmSync(tmpActProxyFalse, { recursive: true, force: true }); } catch {}
+      try {
+        fs.rmSync(tmpResProxyFalse, { recursive: true, force: true });
+      } catch {}
+      try {
+        fs.rmSync(tmpActProxyFalse, { recursive: true, force: true });
+      } catch {}
     }
   });
 
@@ -1189,7 +1385,9 @@ describe("RelayServer WebSocket Daemon (Turn 2c)", () => {
     });
 
     const client = await createTestClient();
-    const gameFinishedPromise = client.waitFor((m: any) => m.type === "game_finished");
+    const gameFinishedPromise = client.waitFor(
+      (m: any) => m.type === "game_finished",
+    );
     await authenticateAndJoin(client, accountAlice, roomId);
 
     const gameFinishedMsg = await gameFinishedPromise;

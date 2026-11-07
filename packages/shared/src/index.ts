@@ -1,4 +1,5 @@
 // Core chess wrapper
+export { TOURNAMENT_ABI } from "./abi/TournamentPrizePool.js";
 export { ChessGame } from "./chess.js";
 
 // Replay engine
@@ -20,6 +21,7 @@ export {
 } from "./eip712.js";
 
 // Contract ABIs
+export { buildBoundJoinTypedData } from "./relay-auth.js";
 export { CHESS_ESCROW_ABI } from "./abi/ChessEscrow.js";
 export { AVA_CLASH_META_ABI } from "./abi/AvaClashMeta.js";
 
@@ -27,6 +29,7 @@ export { AVA_CLASH_META_ABI } from "./abi/AvaClashMeta.js";
 export {
   RelayClient,
   type ConnectionStatus,
+  type FinishedInfo,
   type RelayClientOptions,
   type RelayClientEventType,
   type RelayClientEventMap,
@@ -122,4 +125,3 @@ export type {
 } from "./schemas.js";
 
 export { COSMETICS_ABI } from "./abi/AvaClashCosmetics.js";
-export { COSMETIC_AUCTION_ABI } from "./abi/CosmeticAuction.js";

@@ -18,8 +18,7 @@ import {
   outcomeToCode,
   reasonToCode,
   buildResultTypedData,
-  getRelayEip712Domain,
-  RELAY_EIP712_TYPES,
+  buildBoundJoinTypedData,
   FUJI_CHAIN_ID,
   ZERO_ADDRESS,
   type ClientMessage,
@@ -29,7 +28,8 @@ import {
   type GameOutcome,
   type EndReason,
 } from "@avaclash/shared";
-import { RelayRoom } from "./RelayRoom.js";
+import { RelayRoom, type TerminalState } from "./RelayRoom.js";
+import { PostgresStore } from "./PostgresStore.js";
 import { CHESS_ESCROW_ABI } from "@avaclash/shared";
 
 export const ESCROW_ABI = CHESS_ESCROW_ABI;
@@ -76,6 +76,7 @@ export interface RelayServerOptions {
   minRelayBalance?: bigint;
   resultsDir?: string;
   activeDir?: string;
+  databaseUrl?: string;
   trustProxy?: boolean;
   maxPayload?: number; // bytes, default 4096 (4 KB)
   maxConnectionsPerIp?: number;
@@ -95,6 +96,7 @@ interface SocketSession {
     nonce: `0x${string}`;
     expiresAt: number; // Unix timestamp seconds
     used: boolean;
+    origin: string;
   };
   authenticatedAddress?: `0x${string}`;
   role?: "player" | "spectator";
@@ -119,6 +121,7 @@ export class RelayServer {
   public activeDir: string;
   public trustProxy: boolean;
   public savedResults: Map<string, SavedGameResult> = new Map();
+  private unpersistedResults: Set<string> = new Set();
   public maxJoinsPerIpPerMinute: number;
   public maxRateLimitViolations: number;
   public roomCacheTtlMs: number;
@@ -126,8 +129,73 @@ export class RelayServer {
   public allowedOrigins: string[];
   public allowNoOrigin: boolean;
   private ipJoinTimestamps: Map<string, number[]> = new Map();
+  public store?: PostgresStore;
+  public storageFailed = false;
+  private closing = false;
+  private commandQueues = new Map<number, Promise<void>>();
 
-  public async fetchOnChainRoom(roomId: number, bypassCache: boolean = false): Promise<any> {
+  public async initialize(): Promise<void> {
+    if (this.store) await this.store.check();
+  }
+
+  private failStorage(): void {
+    if (this.storageFailed) return;
+    this.storageFailed = true;
+    for (const room of this.rooms.values()) room.failStorage();
+    console.error(
+      "[Relay] Durable storage unavailable; gameplay stopped until restart.",
+    );
+  }
+
+  public snapshot(room: RelayRoom): ActiveGameState {
+    return {
+      chainId: this.chainId,
+      contractAddress: this.contractAddress,
+      roomId: room.roomId,
+      moves: [...room.moves],
+      whiteMs: room.whiteMs,
+      blackMs: room.blackMs,
+      activeTurn: room.activeTurn,
+      whiteAddress: room.whiteAddress,
+      blackAddress: room.blackAddress,
+      creatorIsWhite: room.creatorIsWhite,
+      status: room.status === "active" ? "active" : "waiting",
+      savedAt: Date.now(),
+    };
+  }
+
+  private terminalResult(
+    room: RelayRoom,
+    terminal: TerminalState,
+  ): SavedGameResult {
+    return {
+      chainId: this.chainId,
+      contractAddress: this.contractAddress,
+      roomId: room.roomId,
+      moves: [...room.moves],
+      ...terminal,
+      whiteAddress: room.whiteAddress,
+      blackAddress: room.blackAddress,
+      timestamp: Date.now(),
+    };
+  }
+
+  private async persistResult(result: SavedGameResult): Promise<boolean> {
+    if (!this.store) return this.saveGameResult(result);
+    try {
+      await this.store.saveResult(result);
+      this.savedResults.set(this.getResultKey(result.roomId), result);
+      return true;
+    } catch {
+      this.failStorage();
+      return false;
+    }
+  }
+
+  public async fetchOnChainRoom(
+    roomId: number,
+    bypassCache: boolean = false,
+  ): Promise<any> {
     if (!bypassCache) {
       const cached = this.roomCache.get(roomId);
       if (cached && Date.now() - cached.fetchedAt < this.roomCacheTtlMs) {
@@ -159,6 +227,21 @@ export class RelayServer {
     return `${this.chainId}:${this.contractAddress.toLowerCase()}:${roomId}`;
   }
 
+  /** Public tournament replay, served only for finalized local game records. */
+  public async readTournamentReplay(roomId: number) {
+    const result = this.store
+      ? (await this.store.read(roomId))?.result
+      : this.savedResults.get(this.getResultKey(roomId));
+    if (!result) return null;
+    return {
+      roomId,
+      moves: result.moves,
+      outcome: result.outcome,
+      reason: result.reason,
+      movesHash: computeMovesHash(result.moves),
+    };
+  }
+
   public getActiveGamesDir(): string {
     return this.activeDir;
   }
@@ -168,35 +251,38 @@ export class RelayServer {
     return path.join(this.getActiveGamesDir(), fileName);
   }
 
+  private writeJsonAtomically(filePath: string, value: unknown): void {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    const tmpPath = `${filePath}.${crypto.randomUUID()}.tmp`;
+    try {
+      fs.writeFileSync(tmpPath, JSON.stringify(value, null, 2), "utf-8");
+      fs.renameSync(tmpPath, filePath);
+    } finally {
+      if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+    }
+  }
+
   public saveActiveGameState(room: RelayRoom): void {
+    if (this.store)
+      throw Error("Use the asynchronous PostgreSQL commit for this relay.");
     try {
       const activeDir = this.getActiveGamesDir();
       if (!fs.existsSync(activeDir)) {
         fs.mkdirSync(activeDir, { recursive: true });
       }
-      const state: ActiveGameState = {
-        chainId: this.chainId,
-        contractAddress: this.contractAddress,
-        roomId: room.roomId,
-        moves: [...room.moves],
-        whiteMs: room.whiteMs,
-        blackMs: room.blackMs,
-        activeTurn: room.activeTurn,
-        whiteAddress: room.whiteAddress,
-        blackAddress: room.blackAddress,
-        creatorIsWhite: room.creatorIsWhite,
-        status: room.status === "active" ? "active" : "waiting",
-        savedAt: Date.now(),
-      };
+      const state = this.snapshot(room);
       const finalPath = this.getActiveGameFilePath(room.roomId);
       const tmpPath = path.join(
         activeDir,
-        `tmp_${room.roomId}_${Date.now()}_${Math.random().toString(36).slice(2)}.tmp`
+        `tmp_${room.roomId}_${Date.now()}_${Math.random().toString(36).slice(2)}.tmp`,
       );
       fs.writeFileSync(tmpPath, JSON.stringify(state, null, 2), "utf-8");
       fs.renameSync(tmpPath, finalPath);
     } catch (err) {
-      console.error(`[Relay] Error saving active game state for room ${room.roomId}:`, err);
+      console.error(
+        `[Relay] Error saving active game state for room ${room.roomId}:`,
+        err,
+      );
     }
   }
 
@@ -208,7 +294,10 @@ export class RelayServer {
         console.log(`[Relay] Removed active game file for room ${roomId}`);
       }
     } catch (err) {
-      console.warn(`[Relay] Error deleting active game state for room ${roomId}:`, err);
+      console.warn(
+        `[Relay] Error deleting active game state for room ${roomId}:`,
+        err,
+      );
     }
   }
 
@@ -226,7 +315,7 @@ export class RelayServer {
       (process.env.RELAY_PRIVATE_KEY as `0x${string}` | undefined);
     if (!rawKey) {
       throw new Error(
-        "Missing required Relay private key. Please set RELAY_PRIVATE_KEY environment variable or pass relayPrivateKey in options."
+        "Missing required Relay private key. Please set RELAY_PRIVATE_KEY environment variable or pass relayPrivateKey in options.",
       );
     }
     const privateKey = rawKey.startsWith("0x")
@@ -239,9 +328,7 @@ export class RelayServer {
       (process.env.ESCROW_ADDRESS as `0x${string}` | undefined) ??
       (process.env.CHESS_ESCROW_ADDRESS as `0x${string}` | undefined);
     if (!contract || contract.toLowerCase() === ZERO_ADDRESS.toLowerCase()) {
-      throw new Error(
-        "ESCROW_ADDRESS is required and cannot be zero address."
-      );
+      throw new Error("ESCROW_ADDRESS is required and cannot be zero address.");
     }
     this.contractAddress = contract;
 
@@ -258,11 +345,13 @@ export class RelayServer {
     this.trustProxy =
       options.trustProxy !== undefined
         ? options.trustProxy
-        : (process.env.TRUST_PROXY === "true");
+        : process.env.TRUST_PROXY === "true";
 
     const envOrigins = process.env.ALLOWED_ORIGINS;
     if (options.allowedOrigins) {
-      this.allowedOrigins = options.allowedOrigins.map((o) => o.trim().toLowerCase());
+      this.allowedOrigins = options.allowedOrigins.map((o) =>
+        o.trim().toLowerCase(),
+      );
     } else if (envOrigins) {
       this.allowedOrigins = envOrigins
         .split(",")
@@ -275,11 +364,12 @@ export class RelayServer {
     this.allowNoOrigin =
       options.allowNoOrigin !== undefined
         ? options.allowNoOrigin
-        : (process.env.ALLOW_NO_ORIGIN === "true" || process.env.NODE_ENV === "test");
+        : process.env.ALLOW_NO_ORIGIN === "true" ||
+          process.env.NODE_ENV === "test";
 
     this.signalGameStartedEnabled =
       options.signalGameStartedEnabled ??
-      (process.env.SIGNAL_GAME_STARTED_ENABLED !== "false");
+      process.env.SIGNAL_GAME_STARTED_ENABLED !== "false";
 
     const envMinBal = process.env.RELAY_MIN_BALANCE;
     this.minRelayBalance =
@@ -310,17 +400,29 @@ export class RelayServer {
       }
     }
 
-    this.resultsDir = options.resultsDir ?? process.env.RESULTS_DIR ?? "./results";
-    this.activeDir = options.activeDir ?? process.env.ACTIVE_DIR ?? path.join(this.resultsDir, "active");
-    this.loadAndPruneResults();
+    this.resultsDir =
+      options.resultsDir ?? process.env.RESULTS_DIR ?? "./results";
+    this.activeDir =
+      options.activeDir ??
+      process.env.ACTIVE_DIR ??
+      path.join(this.resultsDir, "active");
+    if (options.databaseUrl) {
+      this.store = new PostgresStore(
+        options.databaseUrl,
+        this.chainId,
+        this.contractAddress,
+      );
+      this.store.onFailure = () => this.failStorage();
+    } else this.loadAndPruneResults();
 
     const maxPayload = options.maxPayload ?? 4 * 1024; // 4 KB maxPayload
 
     const verifyClient = (
       info: { origin: string; secure: boolean; req: IncomingMessage },
-      cb: (res: boolean, code?: number, message?: string) => void
+      cb: (res: boolean, code?: number, message?: string) => void,
     ) => {
-      const originHeader = info.origin || (info.req.headers["origin"] as string | undefined);
+      const originHeader =
+        info.origin || (info.req.headers["origin"] as string | undefined);
       if (!originHeader) {
         if (this.allowNoOrigin) {
           return cb(true);
@@ -343,9 +445,17 @@ export class RelayServer {
     };
 
     if (options.server) {
-      this.wss = new WebSocketServer({ server: options.server, maxPayload, verifyClient });
+      this.wss = new WebSocketServer({
+        server: options.server,
+        maxPayload,
+        verifyClient,
+      });
     } else {
-      this.wss = new WebSocketServer({ port: options.port ?? 8080, maxPayload, verifyClient });
+      this.wss = new WebSocketServer({
+        port: options.port ?? 8080,
+        maxPayload,
+        verifyClient,
+      });
     }
 
     this.setupWss();
@@ -371,10 +481,10 @@ export class RelayServer {
       if (trustProxy) {
         const xff = req.headers["x-forwarded-for"];
         if (typeof xff === "string" && xff.trim().length > 0) {
-          const first = xff.split(",")[0].trim();
+          const first = xff.split(",")[0]?.trim();
           if (first) ip = first;
         } else if (Array.isArray(xff) && xff.length > 0) {
-          const first = xff[0].split(",")[0].trim();
+          const first = xff[0]?.split(",")[0]?.trim();
           if (first) ip = first;
         }
       }
@@ -388,24 +498,30 @@ export class RelayServer {
       this.ipConnectionCounts.set(ip, currentIpCount + 1);
 
       // Create session with auth challenge
-      const nonce = ("0x" + crypto.randomBytes(32).toString("hex")) as `0x${string}`;
+      const nonce = ("0x" +
+        crypto.randomBytes(32).toString("hex")) as `0x${string}`;
       const expiresAt = Math.floor(Date.now() / 1000) + 60; // 60 seconds validity
 
       const session: SocketSession = {
         ip,
-        authChallenge: { nonce, expiresAt, used: false },
+        authChallenge: {
+          nonce,
+          expiresAt,
+          used: false,
+          origin: req.headers.origin ?? "",
+        },
         messageCountInWindow: 0,
         windowStart: Date.now(),
         rateLimitViolations: 0,
         authTimeoutTimer: setTimeout(() => {
           if (!session.authenticatedAddress && session.role !== "spectator") {
             try {
-              ws.close(4001, "Auth timeout: unauthenticated connection closed after 10s");
+              ws.close(4001, "Auth timeout: Join signature expired after 60s");
             } catch {
               // ignore
             }
           }
-        }, 10000),
+        }, 60_000),
       };
 
       this.socketSessions.set(ws, session);
@@ -415,6 +531,9 @@ export class RelayServer {
         type: "auth_challenge",
         nonce,
         expiresAt,
+        chainId: this.chainId,
+        escrowAddress: this.contractAddress,
+        origin: session.authChallenge!.origin,
       });
 
       ws.on("message", (raw: string | Buffer) => {
@@ -425,7 +544,11 @@ export class RelayServer {
         // Handle socket errors (e.g. maxPayload exceeded) cleanly without uncaught exception
       });
 
-      ws.on("close", () => {
+      ws.on("close", (code) => {
+        if (code === 4001)
+          console.warn(
+            "[Relay] Join authentication expired before wallet signature was received.",
+          );
         if (session.authTimeoutTimer) {
           clearTimeout(session.authTimeoutTimer);
         }
@@ -472,7 +595,10 @@ export class RelayServer {
 
     const parseResult = clientMessageSchema.safeParse(parsedJson);
     if (!parseResult.success) {
-      this.sendError(ws, `Validation error: ${parseResult.error.issues[0]?.message ?? "Invalid message"}`);
+      this.sendError(
+        ws,
+        `Validation error: ${parseResult.error.issues[0]?.message ?? "Invalid message"}`,
+      );
       return;
     }
 
@@ -485,8 +611,38 @@ export class RelayServer {
   public async routeMessage(
     ws: WebSocket,
     msg: ClientMessage,
-    session: SocketSession
+    session: SocketSession,
   ): Promise<void> {
+    if (this.closing || this.storageFailed) {
+      this.sendError(
+        ws,
+        "Relay restarting or storage unavailable. Reconnect shortly.",
+      );
+      return;
+    }
+    const roomId = "roomId" in msg ? msg.roomId : this.findRoomIdForSocket(ws);
+    if (!this.store || roomId === undefined)
+      return this.dispatchMessage(ws, msg, session);
+    // Joining a room also takes this queue, so two simultaneous joins cannot recreate it twice.
+    const previous = this.commandQueues.get(roomId) ?? Promise.resolve();
+    const current = previous
+      .catch(() => {})
+      .then(() => this.dispatchMessage(ws, msg, session));
+    this.commandQueues.set(roomId, current);
+    try {
+      await current;
+    } finally {
+      if (this.commandQueues.get(roomId) === current)
+        this.commandQueues.delete(roomId);
+    }
+  }
+
+  private async dispatchMessage(
+    ws: WebSocket,
+    msg: ClientMessage,
+    session: SocketSession,
+  ): Promise<void> {
+    if (this.closing || this.storageFailed) return;
     switch (msg.type) {
       case "ping": {
         this.send(ws, { type: "pong" });
@@ -505,10 +661,13 @@ export class RelayServer {
           return;
         }
         if (session.role === "spectator" || !session.authenticatedAddress) {
-          this.sendError(ws, "Spectators or unauthenticated users cannot send moves");
+          this.sendError(
+            ws,
+            "Spectators or unauthenticated users cannot send moves",
+          );
           return;
         }
-        const ok = room.handleMove(ws, msg.seq, msg.uci);
+        const ok = await room.run(() => room.handleMove(ws, msg.seq, msg.uci));
         if (!ok) {
           this.sendError(ws, "Invalid move or out of turn");
         }
@@ -525,25 +684,28 @@ export class RelayServer {
           this.sendError(ws, "Spectators cannot resign");
           return;
         }
-        room.handleResign(ws);
+        await room.run(() => room.handleResign(ws));
         break;
       }
 
       case "draw_offer": {
         const room = this.rooms.get(msg.roomId);
-        if (room && session.role !== "spectator") room.handleDrawOffer(ws);
+        if (room && session.role !== "spectator")
+          await room.run(() => room.handleDrawOffer(ws));
         break;
       }
 
       case "draw_accept": {
         const room = this.rooms.get(msg.roomId);
-        if (room && session.role !== "spectator") room.handleDrawAccept(ws);
+        if (room && session.role !== "spectator")
+          await room.run(() => room.handleDrawAccept(ws));
         break;
       }
 
       case "draw_decline": {
         const room = this.rooms.get(msg.roomId);
-        if (room && session.role !== "spectator") room.handleDrawDecline(ws);
+        if (room && session.role !== "spectator")
+          await room.run(() => room.handleDrawDecline(ws));
         break;
       }
 
@@ -551,7 +713,9 @@ export class RelayServer {
         if (session.role === "spectator") return;
         const room = this.rooms.get(this.findRoomIdForSocket(ws) ?? -1);
         if (room) {
-          room.handleFocusWarning(ws, msg.warningCount, msg.penaltyMs);
+          await room.run(() =>
+            room.handleFocusWarning(ws, msg.warningCount, msg.penaltyMs),
+          );
         }
         break;
       }
@@ -574,19 +738,26 @@ export class RelayServer {
           const typedData = buildResultTypedData(
             this.contractAddress,
             room.lastResultMessage,
-            this.chainId
+            this.chainId,
           );
           const signer = await recoverTypedDataAddress({
             ...typedData,
             signature: msg.signature as `0x${string}`,
           });
-          if (signer.toLowerCase() !== session.authenticatedAddress.toLowerCase()) {
-            this.sendError(ws, "Signature recovered address does not match player address");
+          if (
+            signer.toLowerCase() !== session.authenticatedAddress.toLowerCase()
+          ) {
+            this.sendError(
+              ws,
+              "Signature recovered address does not match player address",
+            );
             return;
           }
 
-          const isWhite = signer.toLowerCase() === room.whiteAddress.toLowerCase();
-          const isBlack = signer.toLowerCase() === room.blackAddress.toLowerCase();
+          const isWhite =
+            signer.toLowerCase() === room.whiteAddress.toLowerCase();
+          const isBlack =
+            signer.toLowerCase() === room.blackAddress.toLowerCase();
           if (!isWhite && !isBlack) {
             this.sendError(ws, "Signer is not a player of this room");
             return;
@@ -608,8 +779,10 @@ export class RelayServer {
       case "timeout": {
         const room = this.rooms.get(msg.roomId);
         if (room && room.status === "active" && session.role !== "spectator") {
-          if (room.whiteMs <= 0) room.handleTimeout("w");
-          else if (room.blackMs <= 0) room.handleTimeout("b");
+          await room.run(() => {
+            if (room.whiteMs <= 0) room.handleTimeout("w");
+            else if (room.blackMs <= 0) room.handleTimeout("b");
+          });
         }
         break;
       }
@@ -640,14 +813,17 @@ export class RelayServer {
       signature?: string;
       nonce?: string;
     },
-    session: SocketSession
+    session: SocketSession,
   ): Promise<void> {
     const isSpectator = msg.role === "spectator";
 
     if (!isSpectator) {
       // Validate Player Authentication via EIP-712 signature
       if (!msg.address || !msg.signature || !msg.nonce) {
-        this.sendError(ws, "Missing required player credentials: address, signature, and nonce");
+        this.sendError(
+          ws,
+          "Missing required player credentials: address, signature, and nonce",
+        );
         return;
       }
 
@@ -680,15 +856,14 @@ export class RelayServer {
       let recoveredAddress: `0x${string}`;
       try {
         recoveredAddress = await recoverTypedDataAddress({
-          domain: getRelayEip712Domain(this.chainId),
-          types: RELAY_EIP712_TYPES,
-          primaryType: "Join",
-          message: {
-            roomId: BigInt(msg.roomId),
-            player: msg.address as `0x${string}`,
-            nonce: msg.nonce as `0x${string}`,
-            expiresAt: BigInt(challenge.expiresAt),
-          },
+          ...buildBoundJoinTypedData(
+            msg.roomId,
+            msg.address as `0x${string}`,
+            msg.nonce as `0x${string}`,
+            challenge.expiresAt,
+            this.chainId,
+            { escrowAddress: this.contractAddress, origin: challenge.origin },
+          ),
           signature: msg.signature as `0x${string}`,
         });
       } catch (err: any) {
@@ -720,7 +895,7 @@ export class RelayServer {
     // Rate limiting join_room per IP per minute
     const now = Date.now();
     const timestamps = (this.ipJoinTimestamps.get(session.ip) ?? []).filter(
-      (t) => now - t < 60000
+      (t) => now - t < 60000,
     );
     if (timestamps.length >= this.maxJoinsPerIpPerMinute) {
       this.recordRateLimitViolation(ws, session);
@@ -751,7 +926,10 @@ export class RelayServer {
     if (!isSpectator) {
       const playerAddr = session.authenticatedAddress!;
       if (playerAddr !== playerA && playerAddr !== playerB) {
-        this.sendError(ws, "Address is not a player of this room. Join as spectator instead.");
+        this.sendError(
+          ws,
+          "Address is not a player of this room. Join as spectator instead.",
+        );
         return;
       }
     }
@@ -760,13 +938,20 @@ export class RelayServer {
     // do NOT create a new RelayRoom; send game_finished and only allow request_result.
     // Only allow when address is a player of the room.
     const resultKey = this.getResultKey(msg.roomId);
-    const existingResult = this.savedResults.get(resultKey);
+    const storedResult = this.store
+      ? (await this.store.read(msg.roomId))?.result
+      : undefined;
+    if (storedResult) this.savedResults.set(resultKey, storedResult);
+    const existingResult = storedResult ?? this.savedResults.get(resultKey);
     const existingRoom = this.rooms.get(msg.roomId);
     const isRoomActive = existingRoom && existingRoom.status === "active";
 
     if (existingResult && !isRoomActive) {
       if (isSpectator || !session.authenticatedAddress) {
-        this.sendError(ws, "Game has finished. Only room players can access this room.");
+        this.sendError(
+          ws,
+          "Game has finished. Only room players can access this room.",
+        );
         return;
       }
       const playerAddr = session.authenticatedAddress.toLowerCase();
@@ -774,9 +959,10 @@ export class RelayServer {
         this.sendError(ws, "Address is not a player of this room.");
         return;
       }
-      const outcomeCode = typeof existingResult.outcome === "number"
-        ? existingResult.outcome
-        : outcomeToCode(existingResult.outcome);
+      const outcomeCode =
+        typeof existingResult.outcome === "number"
+          ? existingResult.outcome
+          : outcomeToCode(existingResult.outcome);
       this.send(ws, {
         type: "game_finished",
         roomId: msg.roomId,
@@ -799,45 +985,96 @@ export class RelayServer {
 
       // Check if an active game state file exists for this room (Turn 3b Item 2 / Q19 / Turn 3b-verify Item 7)
       const activeFilePath = this.getActiveGameFilePath(msg.roomId);
+      const claimed = this.store
+        ? await this.store.claim(msg.roomId)
+        : undefined;
+      if (claimed?.result) {
+        this.savedResults.set(resultKey, claimed.result);
+        this.sendError(ws, "Game has finished. Request its saved result.");
+        return;
+      }
       let recoveredState: ActiveGameState | null = null;
-      if (fs.existsSync(activeFilePath)) {
+      if (this.store ? claimed?.active_state : fs.existsSync(activeFilePath)) {
         try {
-          const raw = fs.readFileSync(activeFilePath, "utf-8");
-          const parsed = JSON.parse(raw) as ActiveGameState;
+          const parsed = this.store
+            ? claimed!.active_state!
+            : (JSON.parse(
+                fs.readFileSync(activeFilePath, "utf-8"),
+              ) as ActiveGameState);
 
-          const expectedWhite = (roomData.creatorIsWhite ? roomData.playerA : roomData.playerB as string).toLowerCase();
-          const expectedBlack = (roomData.creatorIsWhite ? roomData.playerB : roomData.playerA as string).toLowerCase();
+          const expectedWhite = (
+            roomData.creatorIsWhite
+              ? roomData.playerA
+              : (roomData.playerB as string)
+          ).toLowerCase();
+          const expectedBlack = (
+            roomData.creatorIsWhite
+              ? roomData.playerB
+              : (roomData.playerA as string)
+          ).toLowerCase();
 
           const chainMatches = parsed.chainId === this.chainId;
-          const contractMatches = parsed.contractAddress.toLowerCase() === this.contractAddress.toLowerCase();
+          const contractMatches =
+            parsed.contractAddress.toLowerCase() ===
+            this.contractAddress.toLowerCase();
           const roomMatches = parsed.roomId === msg.roomId;
           const statusMatches = Number(roomData.status) === 1; // Room must be Active
-          const whiteMatches = parsed.whiteAddress && parsed.whiteAddress.toLowerCase() === expectedWhite;
-          const blackMatches = parsed.blackAddress && parsed.blackAddress.toLowerCase() === expectedBlack;
-          const creatorMatches = parsed.creatorIsWhite === undefined || parsed.creatorIsWhite === roomData.creatorIsWhite;
+          const whiteMatches =
+            parsed.whiteAddress &&
+            parsed.whiteAddress.toLowerCase() === expectedWhite;
+          const blackMatches =
+            parsed.blackAddress &&
+            parsed.blackAddress.toLowerCase() === expectedBlack;
+          const creatorMatches =
+            parsed.creatorIsWhite === undefined ||
+            parsed.creatorIsWhite === roomData.creatorIsWhite;
 
-          if (chainMatches && contractMatches && roomMatches && statusMatches && whiteMatches && blackMatches && creatorMatches) {
+          if (
+            chainMatches &&
+            contractMatches &&
+            roomMatches &&
+            statusMatches &&
+            whiteMatches &&
+            blackMatches &&
+            creatorMatches
+          ) {
             recoveredState = parsed;
           } else {
+            if (this.store)
+              throw Error("Stored game does not match its on-chain players.");
             console.warn(
-              `[Relay] Active game file mismatch with on-chain room ${msg.roomId}: chain=${chainMatches}, contract=${contractMatches}, room=${roomMatches}, status=${statusMatches}(${roomData.status}), white=${whiteMatches}, black=${blackMatches}, creatorIsWhite=${creatorMatches}. Deleting stale active file.`
+              `[Relay] Active game file mismatch with on-chain room ${msg.roomId}: chain=${chainMatches}, contract=${contractMatches}, room=${roomMatches}, status=${statusMatches}(${roomData.status}), white=${whiteMatches}, black=${blackMatches}, creatorIsWhite=${creatorMatches}. Deleting stale active file.`,
             );
             try {
               fs.unlinkSync(activeFilePath);
             } catch (err) {
-              console.warn(`[Relay] Failed to delete stale active file ${activeFilePath}:`, err);
+              console.warn(
+                `[Relay] Failed to delete stale active file ${activeFilePath}:`,
+                err,
+              );
             }
           }
         } catch (err) {
-          console.warn(`[Relay] Failed to read active game file for room ${msg.roomId}:`, err);
+          if (this.store) {
+            this.failStorage();
+            throw Error("Stored game cannot be recovered safely.");
+          }
+          console.warn(
+            `[Relay] Failed to read active game file for room ${msg.roomId}:`,
+            err,
+          );
           try {
             fs.unlinkSync(activeFilePath);
           } catch {}
         }
       }
 
-      const whiteAddr = roomData.creatorIsWhite ? roomData.playerA : roomData.playerB;
-      const blackAddr = roomData.creatorIsWhite ? roomData.playerB : roomData.playerA;
+      const whiteAddr = roomData.creatorIsWhite
+        ? roomData.playerA
+        : roomData.playerB;
+      const blackAddr = roomData.creatorIsWhite
+        ? roomData.playerB
+        : roomData.playerA;
 
       room = new RelayRoom({
         roomId: msg.roomId,
@@ -845,27 +1082,44 @@ export class RelayServer {
         blackAddress: blackAddr as `0x${string}`,
         creatorIsWhite: roomData.creatorIsWhite,
         initialTimeMs: this.initialTimeMs,
+        commit: this.store
+          ? async (r, terminal) => {
+              if (terminal)
+                await this.store!.saveResult(this.terminalResult(r, terminal));
+              else await this.store!.saveActive(this.snapshot(r));
+            }
+          : undefined,
+        onStorageFailure: () => this.failStorage(),
         onMoveAccepted: (r) => {
-          this.saveActiveGameState(r);
+          if (!this.store) this.saveActiveGameState(r);
         },
         onGameStarted: (r) => {
-          this.saveActiveGameState(r);
+          if (!this.store) this.saveActiveGameState(r);
           // Không gọi lại signalGameStarted nếu on-chain đã gameStarted
           if (!roomData.gameStarted) {
             this.handleGameStarted(r).catch((err) => {
-              console.error(`[Relay] handleGameStarted error for room ${r.roomId}:`, err);
+              console.error(
+                `[Relay] handleGameStarted error for room ${r.roomId}:`,
+                err,
+              );
             });
           }
         },
         onWaitingTimeout: (r) => {
           this.rooms.delete(r.roomId);
-          this.deleteActiveGameState(r.roomId);
-          console.log(`[Relay] Removed stale waiting room ${r.roomId} after 10m timeout`);
+          if (this.store)
+            void this.store.release(r.roomId).catch(() => this.failStorage());
+          else this.deleteActiveGameState(r.roomId);
+          console.log(
+            `[Relay] Removed stale waiting room ${r.roomId} after 10m timeout`,
+          );
         },
         onGameOver: (r, outcome, reason, winner) => {
-          this.deleteActiveGameState(r.roomId);
           this.handleGameOver(r, outcome, reason, winner).catch((err) => {
-            console.error(`[Relay] handleGameOver unhandled rejection for room ${r.roomId}:`, err);
+            console.error(
+              `[Relay] handleGameOver unhandled rejection for room ${r.roomId}:`,
+              err,
+            );
           });
         },
       });
@@ -878,6 +1132,10 @@ export class RelayServer {
           if (ok) {
             room.moves.push(mv);
             room.seq++;
+          } else if (this.store) {
+            room.destroy();
+            this.failStorage();
+            throw Error("Invalid saved transcript.");
           }
         }
         // 2. Restore clocks without deducting downtime
@@ -891,7 +1149,7 @@ export class RelayServer {
           room.startClock();
         }
         console.log(
-          `[Relay] Restored active room ${room.roomId} from disk (${room.moves.length} moves, whiteMs=${room.whiteMs}, blackMs=${room.blackMs}, turn=${room.activeTurn})`
+          `[Relay] Restored active room ${room.roomId} from ${this.store ? "PostgreSQL" : "disk"} (${room.moves.length} moves, whiteMs=${room.whiteMs}, blackMs=${room.blackMs}, turn=${room.activeTurn})`,
         );
       }
 
@@ -899,11 +1157,18 @@ export class RelayServer {
     }
 
     if (isSpectator) {
-      room.addSpectator(ws);
-      room.broadcastRoomState();
+      await room.run(() => {
+        room!.addSpectator(ws);
+        room!.broadcastRoomState();
+      });
     } else {
-      room.addPlayer(msg.address as `0x${string}`, ws);
-      room.broadcastRoomState();
+      await room.run(() => {
+        room!.addPlayer(msg.address as `0x${string}`, ws);
+        room!.broadcastRoomState();
+      }, !!this.store);
+      console.log(
+        `[Relay] Player authenticated in room ${msg.roomId}; status=${room.status}`,
+      );
     }
   }
 
@@ -914,16 +1179,17 @@ export class RelayServer {
     winnerAddress: `0x${string}`,
   ): Promise<void> {
     try {
-      this.deleteActiveGameState(room.roomId);
       const resultKey = this.getResultKey(room.roomId);
       // Turn 3b Item 1d: nếu đã có kết quả lưu cho phòng này thì không ghi đè và không ký ván thứ hai
       if (this.savedResults.has(resultKey)) {
-        console.warn(`[Relay] Room ${room.roomId} already has a saved result. Refusing to sign a second game.`);
+        console.warn(
+          `[Relay] Room ${room.roomId} already has a saved result. Refusing to sign a second game.`,
+        );
         return;
       }
 
       // Turn 3b-fix Item 5: Lưu kết quả NGAY khi ván kết thúc, trước khi đọc chain/ký
-      this.saveGameResult({
+      const persisted = await this.persistResult({
         chainId: this.chainId,
         contractAddress: this.contractAddress,
         roomId: room.roomId,
@@ -935,9 +1201,28 @@ export class RelayServer {
         blackAddress: room.blackAddress,
         timestamp: Date.now(),
       });
+      if (this.store && !persisted) return;
 
-      if (!this.contractAddress || this.contractAddress.toLowerCase() === ZERO_ADDRESS.toLowerCase()) {
-        console.warn("[Relay] contractAddress not configured. Skipping co-signature.");
+      // Publish the terminal state even when RPC is unavailable. Signing requires durable storage.
+      room.broadcast({
+        type: "game_finished",
+        roomId: room.roomId,
+        outcome: outcomeToCode(outcome),
+        reason,
+        winner: winnerAddress,
+        moveCount: room.moves.length,
+        moves: [...room.moves],
+      });
+      if (!persisted) return;
+      if (!this.store) this.deleteActiveGameState(room.roomId);
+
+      if (
+        !this.contractAddress ||
+        this.contractAddress.toLowerCase() === ZERO_ADDRESS.toLowerCase()
+      ) {
+        console.warn(
+          "[Relay] contractAddress not configured. Skipping co-signature.",
+        );
         return;
       }
 
@@ -954,10 +1239,12 @@ export class RelayServer {
           break; // RPC read successful
         } catch (err: any) {
           console.warn(
-            `[Relay] Failed to query on-chain room ${room.roomId} (${err?.message || err}). Retrying in ${delayMs}ms...`
+            `[Relay] Failed to query on-chain room ${room.roomId} (${err?.message || err}). Retrying in ${delayMs}ms...`,
           );
           if (Date.now() - startTime + delayMs >= maxRetryMs) {
-            console.error(`[Relay] RPC retry timeout (5m) exceeded for room ${room.roomId}`);
+            console.error(
+              `[Relay] RPC retry timeout (5m) exceeded for room ${room.roomId}`,
+            );
             break;
           }
           await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -967,14 +1254,14 @@ export class RelayServer {
 
       if (!roomData) {
         console.error(
-          `[Relay] Could not query on-chain room ${room.roomId} after retries. Result is saved; players can use request_result once RPC recovers.`
+          `[Relay] Could not query on-chain room ${room.roomId} after retries. Result is saved; players can use request_result once RPC recovers.`,
         );
         return;
       }
 
       if (Number(roomData.status) !== 1) {
         console.warn(
-          `[Relay] Room ${room.roomId} is no longer Active on-chain (status=${roomData?.status}). Refusing to sign.`
+          `[Relay] Room ${room.roomId} is no longer Active on-chain (status=${roomData?.status}). Refusing to sign.`,
         );
         return;
       }
@@ -998,7 +1285,11 @@ export class RelayServer {
       };
 
       // 1. Build and sign EIP-712 Typed Data using Relay Signer account
-      const typedData = buildResultTypedData(this.contractAddress, resultMessage, this.chainId);
+      const typedData = buildResultTypedData(
+        this.contractAddress,
+        resultMessage,
+        this.chainId,
+      );
       const relaySignature = await this.relayAccount.signTypedData(typedData);
 
       // 2. Broadcast result proposal
@@ -1038,26 +1329,36 @@ export class RelayServer {
       };
       room.broadcast(gameFinishedMsg);
     } catch (err) {
-      console.error(`[Relay] Error in handleGameOver for room ${room.roomId}:`, err);
+      console.error(
+        `[Relay] Error in handleGameOver for room ${room.roomId}:`,
+        err,
+      );
     } finally {
       // 4. Schedule automatic room cleanup after 10 minutes in finally block
-      setTimeout(() => {
-        const r = this.rooms.get(room.roomId);
-        if (r && r.status === "finished") {
-          r.destroy();
-          this.rooms.delete(room.roomId);
-        }
-      }, 10 * 60 * 1000);
+      setTimeout(
+        () => {
+          const r = this.rooms.get(room.roomId);
+          if (r && r.status === "finished") {
+            r.destroy();
+            this.rooms.delete(room.roomId);
+          }
+        },
+        10 * 60 * 1000,
+      );
     }
   }
 
   public async handleGameStarted(room: RelayRoom): Promise<void> {
     if (!this.signalGameStartedEnabled) {
-      console.log(`[Relay] signalGameStarted disabled; skipping on-chain call for room ${room.roomId}`);
+      console.log(
+        `[Relay] signalGameStarted disabled; skipping on-chain call for room ${room.roomId}`,
+      );
       return;
     }
     if (!this.walletClient) {
-      console.warn(`[Relay] walletClient not configured; skipping signalGameStarted for room ${room.roomId}`);
+      console.warn(
+        `[Relay] walletClient not configured; skipping signalGameStarted for room ${room.roomId}`,
+      );
       return;
     }
 
@@ -1069,26 +1370,36 @@ export class RelayServer {
     while (Date.now() - startTime < maxDurationMs) {
       attempt++;
       try {
-        console.log(`[Relay] Calling signalGameStarted for room ${room.roomId} (attempt ${attempt})...`);
+        console.log(
+          `[Relay] Calling signalGameStarted for room ${room.roomId} (attempt ${attempt})...`,
+        );
         const txHash = await this.walletClient.writeContract({
           address: this.contractAddress,
           abi: CHESS_ESCROW_ABI,
           functionName: "signalGameStarted",
           args: [BigInt(room.roomId)],
         });
-        console.log(`[Relay] signalGameStarted tx sent for room ${room.roomId}: ${txHash}. Waiting receipt...`);
+        console.log(
+          `[Relay] signalGameStarted tx sent for room ${room.roomId}: ${txHash}. Waiting receipt...`,
+        );
         const receipt = await this.publicClient.waitForTransactionReceipt({
           hash: txHash,
           timeout: 30_000,
         });
         if (receipt.status === "success") {
-          console.log(`[Relay] signalGameStarted confirmed on-chain for room ${room.roomId} in tx ${txHash}`);
+          console.log(
+            `[Relay] signalGameStarted confirmed on-chain for room ${room.roomId} in tx ${txHash}`,
+          );
           return;
         } else {
-          console.warn(`[Relay] signalGameStarted tx reverted for room ${room.roomId}: ${txHash}`);
+          console.warn(
+            `[Relay] signalGameStarted tx reverted for room ${room.roomId}: ${txHash}`,
+          );
         }
       } catch (err: any) {
-        console.warn(`[Relay] signalGameStarted attempt ${attempt} for room ${room.roomId} failed: ${err.message}`);
+        console.warn(
+          `[Relay] signalGameStarted attempt ${attempt} for room ${room.roomId} failed: ${err.message}`,
+        );
         if (
           err.message?.includes("GameAlreadyStarted") ||
           err.message?.includes("RoomNotActive") ||
@@ -1105,18 +1416,24 @@ export class RelayServer {
       delayMs = Math.min(delayMs * 2, 10_000);
     }
 
-    console.error(`[Relay] signalGameStarted timed out after 150s for room ${room.roomId}`);
+    console.error(
+      `[Relay] signalGameStarted timed out after 150s for room ${room.roomId}`,
+    );
   }
 
   public async checkRelayBalance(): Promise<bigint> {
     try {
-      if (!this.publicClient || typeof this.publicClient.getBalance !== "function") return 0n;
+      if (
+        !this.publicClient ||
+        typeof this.publicClient.getBalance !== "function"
+      )
+        return 0n;
       const balance = await this.publicClient.getBalance({
         address: this.relayAccount.address,
       });
       if (balance < this.minRelayBalance) {
         console.warn(
-          `[Relay] WARNING: Relay account balance (${balance} wei) is below minimum threshold (${this.minRelayBalance} wei)!`
+          `[Relay] WARNING: Relay account balance (${balance} wei) is below minimum threshold (${this.minRelayBalance} wei)!`,
         );
       }
       return balance;
@@ -1133,46 +1450,53 @@ export class RelayServer {
         return;
       }
       const files = fs.readdirSync(this.resultsDir);
-      const now = Date.now();
-      const maxAgeMs = 48 * 60 * 60 * 1000; // 48 hours
-
       for (const file of files) {
         if (!file.endsWith(".json")) continue;
         const filePath = path.join(this.resultsDir, file);
         try {
           const raw = fs.readFileSync(filePath, "utf-8");
           const data: SavedGameResult = JSON.parse(raw);
-          if (now - data.timestamp > maxAgeMs) {
-            fs.unlinkSync(filePath);
-            console.log(`[Relay] Pruned expired result (>48h): ${file}`);
-          }
+          // Keep terminal records even after signature expiry: an Active on-chain room
+          // must never be recreated just because the relay's transcript aged out.
 
           // Item 1a: Khi nạp, bỏ qua file khác chainId hoặc contract
           const baseName = path.basename(file, ".json");
-          const separator = baseName.includes(":") ? ":" : baseName.includes("_") ? "_" : null;
+          const separator = baseName.includes(":")
+            ? ":"
+            : baseName.includes("_")
+              ? "_"
+              : null;
           if (separator) {
             const parts = baseName.split(separator);
             if (parts.length === 3) {
               const [fileChainId, fileContract] = parts;
               if (
                 Number(fileChainId) !== this.chainId ||
-                fileContract.toLowerCase() !== this.contractAddress.toLowerCase()
+                fileContract?.toLowerCase() !==
+                  this.contractAddress.toLowerCase()
               ) {
-                console.log(`[Relay] Skipping result ${file}: chainId or contract mismatch in filename`);
+                console.log(
+                  `[Relay] Skipping result ${file}: chainId or contract mismatch in filename`,
+                );
                 continue;
               }
             }
           }
 
           if (data.chainId !== undefined && data.chainId !== this.chainId) {
-            console.log(`[Relay] Skipping result ${file}: chainId mismatch (${data.chainId} !== ${this.chainId})`);
+            console.log(
+              `[Relay] Skipping result ${file}: chainId mismatch (${data.chainId} !== ${this.chainId})`,
+            );
             continue;
           }
           if (
             data.contractAddress &&
-            data.contractAddress.toLowerCase() !== this.contractAddress.toLowerCase()
+            data.contractAddress.toLowerCase() !==
+              this.contractAddress.toLowerCase()
           ) {
-            console.log(`[Relay] Skipping result ${file}: contractAddress mismatch (${data.contractAddress} !== ${this.contractAddress})`);
+            console.log(
+              `[Relay] Skipping result ${file}: contractAddress mismatch (${data.contractAddress} !== ${this.contractAddress})`,
+            );
             continue;
           }
 
@@ -1183,32 +1507,74 @@ export class RelayServer {
         }
       }
     } catch (err) {
-      console.warn(`[Relay] Error loading results from ${this.resultsDir}:`, err);
+      console.warn(
+        `[Relay] Error loading results from ${this.resultsDir}:`,
+        err,
+      );
+    }
+
+    // A terminal checkpoint survives a failed result write and takes precedence over an active snapshot.
+    if (fs.existsSync(this.activeDir)) {
+      for (const file of fs.readdirSync(this.activeDir)) {
+        if (!file.endsWith(".finished.json")) continue;
+        try {
+          const result = JSON.parse(
+            fs.readFileSync(path.join(this.activeDir, file), "utf-8"),
+          ) as SavedGameResult;
+          if (
+            result.chainId === this.chainId &&
+            result.contractAddress?.toLowerCase() ===
+              this.contractAddress.toLowerCase()
+          ) {
+            this.savedResults.set(this.getResultKey(result.roomId), result);
+          }
+        } catch (err) {
+          console.error(
+            `[Relay] Failed to load terminal checkpoint ${file}:`,
+            err,
+          );
+        }
+      }
     }
   }
 
-  public saveGameResult(result: SavedGameResult): void {
+  public saveGameResult(result: SavedGameResult): boolean {
+    if (this.store)
+      throw Error(
+        "Use the asynchronous PostgreSQL result commit for this relay.",
+      );
+    const key = this.getResultKey(result.roomId);
+    this.savedResults.set(key, result);
+    this.unpersistedResults.add(key);
+    const checkpoint = `${this.getActiveGameFilePath(result.roomId)}.finished.json`;
     try {
-      const key = this.getResultKey(result.roomId);
-      this.savedResults.set(key, result);
-      if (!fs.existsSync(this.resultsDir)) {
-        fs.mkdirSync(this.resultsDir, { recursive: true });
-      }
+      this.writeJsonAtomically(checkpoint, result);
       const cId = result.chainId ?? this.chainId;
-      const cAddr = (result.contractAddress ?? this.contractAddress).toLowerCase();
+      const cAddr = (
+        result.contractAddress ?? this.contractAddress
+      ).toLowerCase();
       const fileName = `${cId}_${cAddr}_${result.roomId}.json`;
       const filePath = path.join(this.resultsDir, fileName);
-      fs.writeFileSync(filePath, JSON.stringify(result, null, 2), "utf-8");
-      console.log(`[Relay] Saved game result for room ${result.roomId} to ${filePath}`);
+      this.writeJsonAtomically(filePath, result);
+      fs.unlinkSync(checkpoint);
+      this.unpersistedResults.delete(key);
+      console.log(
+        `[Relay] Saved game result for room ${result.roomId} to ${filePath}`,
+      );
+      return true;
     } catch (err) {
-      console.error(`[Relay] Error saving game result for room ${result.roomId}:`, err);
+      console.error(
+        `[Relay] Error saving game result for room ${result.roomId}:`,
+        err,
+      );
+      return false;
     }
   }
 
   public async handleRequestResult(
     ws: WebSocket,
     session: SocketSession,
-    roomId: number
+    roomId: number,
   ): Promise<void> {
     if (!session.authenticatedAddress) {
       this.sendError(ws, "Authentication required to request result");
@@ -1219,13 +1585,19 @@ export class RelayServer {
     try {
       roomData = await this.fetchOnChainRoom(roomId, false);
     } catch (err: any) {
-      this.sendError(ws, `Failed to fetch on-chain room ${roomId}: ${err.message}`);
+      this.sendError(
+        ws,
+        `Failed to fetch on-chain room ${roomId}: ${err.message}`,
+      );
       return;
     }
 
     // Room must still be Active on-chain (status == 1)
     if (Number(roomData.status) !== 1) {
-      this.sendError(ws, `Room ${roomId} is not Active on-chain (status=${roomData.status})`);
+      this.sendError(
+        ws,
+        `Room ${roomId} is not Active on-chain (status=${roomData.status})`,
+      );
       return;
     }
 
@@ -1234,28 +1606,45 @@ export class RelayServer {
     const pA = (roomData.playerA as string).toLowerCase();
     const pB = (roomData.playerB as string).toLowerCase();
     if (caller !== pA && caller !== pB) {
-      this.sendError(ws, `Address ${session.authenticatedAddress} is not a player of room ${roomId}`);
+      this.sendError(
+        ws,
+        `Address ${session.authenticatedAddress} is not a player of room ${roomId}`,
+      );
       return;
     }
 
     // Must have saved result
     const resultKey = this.getResultKey(roomId);
-    const saved = this.savedResults.get(resultKey);
+    const saved = this.store
+      ? (await this.store.read(roomId))?.result
+      : this.savedResults.get(resultKey);
     if (!saved) {
       this.sendError(ws, `No saved result found for room ${roomId}`);
       return;
     }
+    if (this.unpersistedResults.has(resultKey) && !this.saveGameResult(saved)) {
+      this.sendError(
+        ws,
+        "Result storage is unavailable. Retry after durable storage recovers.",
+      );
+      return;
+    }
 
     // Turn 3b Item 1c: đối chiếu địa chỉ trắng/đen đã lưu với getRoom/creatorIsWhite hiện tại; không khớp thì từ chối và ghi log.
-    const expectedWhite = (roomData.creatorIsWhite ? roomData.playerA : roomData.playerB as string).toLowerCase();
-    const expectedBlack = (roomData.creatorIsWhite ? roomData.playerB : roomData.playerA as string).toLowerCase();
+    const expectedWhite = (
+      roomData.creatorIsWhite ? roomData.playerA : (roomData.playerB as string)
+    ).toLowerCase();
+    const expectedBlack = (
+      roomData.creatorIsWhite ? roomData.playerB : (roomData.playerA as string)
+    ).toLowerCase();
 
     if (
-      (saved.whiteAddress && saved.whiteAddress.toLowerCase() !== expectedWhite) ||
+      (saved.whiteAddress &&
+        saved.whiteAddress.toLowerCase() !== expectedWhite) ||
       (saved.blackAddress && saved.blackAddress.toLowerCase() !== expectedBlack)
     ) {
       console.error(
-        `[Relay] Player address mismatch for room ${roomId}. Saved white=${saved.whiteAddress}, black=${saved.blackAddress}. Expected white=${expectedWhite}, black=${expectedBlack}`
+        `[Relay] Player address mismatch for room ${roomId}. Saved white=${saved.whiteAddress}, black=${saved.blackAddress}. Expected white=${expectedWhite}, black=${expectedBlack}`,
       );
       this.sendError(ws, "Player address mismatch with saved game result");
       return;
@@ -1284,7 +1673,7 @@ export class RelayServer {
       const typedData = buildResultTypedData(
         this.contractAddress,
         resultMessage,
-        this.chainId
+        this.chainId,
       );
       const relaySignature = await this.relayAccount.signTypedData(typedData);
 
@@ -1316,7 +1705,10 @@ export class RelayServer {
         room.lastResultMessage = resultMessage;
       }
     } catch (err: any) {
-      this.sendError(ws, `Failed to re-sign result for room ${roomId}: ${err.message}`);
+      this.sendError(
+        ws,
+        `Failed to re-sign result for room ${roomId}: ${err.message}`,
+      );
     }
   }
 
@@ -1330,11 +1722,24 @@ export class RelayServer {
     this.send(ws, { type: "error", message });
   }
 
-  public close(): Promise<void> {
-    return new Promise((resolve) => {
-      for (const room of this.rooms.values()) {
-        room.destroy();
-      }
+  public async close(): Promise<void> {
+    this.closing = true;
+    await Promise.allSettled([...this.commandQueues.values()]);
+    for (const room of this.rooms.values()) {
+      if (this.store) {
+        if (!this.storageFailed) {
+          try {
+            await room.run(() => {
+              if (room.status === "active") room.updateClock();
+            }, room.status !== "finished");
+          } catch {
+            /* Last acknowledged state is already durable. */
+          }
+        }
+      } else if (room.status !== "finished") this.saveActiveGameState(room);
+      room.destroy();
+    }
+    await new Promise<void>((resolve) => {
       this.rooms.clear();
       for (const [ws, session] of this.socketSessions.entries()) {
         if (session.authTimeoutTimer) clearTimeout(session.authTimeoutTimer);
@@ -1348,5 +1753,6 @@ export class RelayServer {
       this.ipConnectionCounts.clear();
       this.wss.close(() => resolve());
     });
+    if (this.store) await this.store.close();
   }
 }

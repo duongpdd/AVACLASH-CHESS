@@ -14,9 +14,9 @@ const uciMoveSchema = z
   .string()
   .regex(/^[a-h][1-8][a-h][1-8][qrbn]?$/, "Invalid UCI move");
 
-const roomIdSchema = z.number().int().nonnegative();
+const roomIdSchema = z.number().int().nonnegative().safe();
 
-const seqSchema = z.number().int().nonnegative();
+const seqSchema = z.number().int().nonnegative().safe();
 
 // --- WebSocket message schemas ---
 
@@ -24,6 +24,9 @@ export const authChallengeSchema = z.object({
   type: z.literal("auth_challenge"),
   nonce: bytes32Schema,
   expiresAt: z.number().int().nonnegative(),
+  chainId: z.number().int().positive().optional(),
+  escrowAddress: addressSchema.optional(),
+  origin: z.string().optional(),
 });
 
 export const joinRoomSchema = z.object({
@@ -31,7 +34,10 @@ export const joinRoomSchema = z.object({
   roomId: roomIdSchema,
   role: z.enum(["player", "spectator"]).optional(),
   address: addressSchema.optional(),
-  signature: z.string().regex(/^0x[a-fA-F0-9]+$/, "Invalid signature hex").optional(),
+  signature: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]+$/, "Invalid signature hex")
+    .optional(),
   nonce: bytes32Schema.optional(),
 });
 
@@ -87,10 +93,10 @@ export const resultProposalSchema = z.object({
   winner: addressSchema,
   outcome: z.number().int().min(0).max(2),
   reason: z.number().int().min(0).max(7),
-  moveCount: z.number().int().nonnegative(),
+  moveCount: z.number().int().nonnegative().max(65535),
   movesHash: bytes32Schema,
-  nonce: z.number().int().nonnegative(),
-  deadline: z.number().int().nonnegative(),
+  nonce: z.number().int().nonnegative().safe(),
+  deadline: z.number().int().nonnegative().safe(),
 });
 
 export const resultSignatureSchema = z.object({
@@ -122,7 +128,7 @@ export const timeoutSchema = z.object({
 export const focusWarningSchema = z.object({
   type: z.literal("focus_warning"),
   player: z.enum(["w", "b"]),
-  warningCount: z.number().int().min(1).max(3),
+  warningCount: z.number().int().min(1).safe(),
   penaltyMs: z.number().int().nonnegative(),
 });
 
@@ -167,11 +173,13 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
 export const gameFinishedSchema = z.object({
   type: z.literal("game_finished"),
   roomId: roomIdSchema,
-  outcome: z.union([z.number().int().min(0).max(2), z.enum(["w", "b", "draw"])]).optional(),
+  outcome: z
+    .union([z.number().int().min(0).max(2), z.enum(["w", "b", "draw"])])
+    .optional(),
   reason: z.union([z.string(), z.number()]).optional(),
   winner: addressSchema.optional(),
   moveCount: z.number().int().nonnegative().optional(),
-  moves: z.array(z.string()).optional(),
+  moves: z.array(uciMoveSchema).optional(),
 });
 
 /**
@@ -213,7 +221,9 @@ export type PongMessage = z.infer<typeof pongSchema>;
 export type ErrorMessage = z.infer<typeof errorSchema>;
 export type TimeoutMessage = z.infer<typeof timeoutSchema>;
 export type FocusWarningMessage = z.infer<typeof focusWarningSchema>;
-export type SpectatorPoolUpdateMessage = z.infer<typeof spectatorPoolUpdateSchema>;
+export type SpectatorPoolUpdateMessage = z.infer<
+  typeof spectatorPoolUpdateSchema
+>;
 export type RequestResultMessage = z.infer<typeof requestResultSchema>;
 export type GameFinishedMessage = z.infer<typeof gameFinishedSchema>;
 export type ClientMessage = z.infer<typeof clientMessageSchema>;

@@ -21,18 +21,18 @@ export const COSMETICS_ABI = [
     "name": "approve",
     "inputs": [
       {
-        "name": "to",
+        "name": "",
         "type": "address",
         "internalType": "address"
       },
       {
-        "name": "tokenId",
+        "name": "",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "pure"
   },
   {
     "type": "function",
@@ -745,18 +745,18 @@ export const COSMETICS_ABI = [
     "name": "setApprovalForAll",
     "inputs": [
       {
-        "name": "operator",
+        "name": "",
         "type": "address",
         "internalType": "address"
       },
       {
-        "name": "approved",
+        "name": "",
         "type": "bool",
         "internalType": "bool"
       }
     ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "pure"
   },
   {
     "type": "function",
@@ -1350,5 +1350,10 @@ export const COSMETICS_ABI = [
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "TrophyNonTransferable",
+    "inputs": []
   }
 ] as const;

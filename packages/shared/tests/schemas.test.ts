@@ -209,9 +209,7 @@ describe("clientMessageSchema (discriminated union)", () => {
   });
 
   it("should reject unknown type", () => {
-    expect(() =>
-      clientMessageSchema.parse({ type: "unknown_type" }),
-    ).toThrow();
+    expect(() => clientMessageSchema.parse({ type: "unknown_type" })).toThrow();
   });
 });
 
@@ -252,7 +250,8 @@ describe("serverMessageSchema (discriminated union)", () => {
       outcome: 0,
       reason: 0,
       moveCount: 10,
-      movesHash: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+      movesHash:
+        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd",
       nonce: 1,
       deadline: 1700000000,
     });
@@ -272,12 +271,22 @@ describe("focusWarningSchema", () => {
     expect(clientMessageSchema.parse(msg)).toEqual(msg);
   });
 
-  it("should reject invalid warning count (> 3 or < 1)", () => {
-    expect(() =>
+  it("should accept advisory warning counts above three without a forfeit", () => {
+    expect(
       serverMessageSchema.parse({
         type: "focus_warning",
         player: "b",
         warningCount: 4,
+        penaltyMs: 0,
+      }).type,
+    ).toBe("focus_warning");
+  });
+  it("should reject warning counts below one", () => {
+    expect(() =>
+      serverMessageSchema.parse({
+        type: "focus_warning",
+        player: "b",
+        warningCount: 0,
         penaltyMs: 10000,
       }),
     ).toThrow();
@@ -345,4 +354,3 @@ describe("gameFinishedSchema (Turn 3c-5 Item 6a)", () => {
     ).toThrow();
   });
 });
-

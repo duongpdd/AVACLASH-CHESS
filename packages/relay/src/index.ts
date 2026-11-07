@@ -2,6 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { RelayServer } from "./RelayServer.js";
+import { createServer } from "node:http";
+import { checkReadiness } from "./readiness.js";
+import { TOURNAMENT_ABI } from "@avaclash/shared";
+import {
+  assertRailwayDeployment,
+  assertRenderDeployment,
+} from "./deployment.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,42 +32,195 @@ for (const envFile of candidateEnvFiles) {
   }
 }
 
-const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 8080;
-const chainId = process.env.CHAIN_ID ? parseInt(process.env.CHAIN_ID, 10) : 43113;
-
-let relayPrivateKey = process.env.RELAY_PRIVATE_KEY as `0x${string}` | undefined;
-
-// Fallback for local Anvil devnet (Chain ID 31337): use well-known Anvil Account 1 key
-if (!relayPrivateKey && chainId === 31337) {
-  relayPrivateKey = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+try {
+  assertRailwayDeployment(process.env);
+  assertRenderDeployment(process.env);
+} catch (error) {
+  console.error(
+    "FATAL:",
+    error instanceof Error
+      ? error.message
+      : "Invalid deployment configuration.",
+  );
+  process.exit(1);
 }
+
+const port = Number(process.env.PORT ?? process.env.RELAY_PORT ?? 8080);
+const chainId = process.env.CHAIN_ID
+  ? parseInt(process.env.CHAIN_ID, 10)
+  : 43113;
+
+if (![31337, 43113].includes(chainId)) {
+  console.error("FATAL: Only Anvil (31337) or Fuji (43113) is supported.");
+  process.exit(1);
+}
+
+const relayPrivateKey = process.env.RELAY_PRIVATE_KEY as
+  `0x${string}` | undefined;
 
 if (!relayPrivateKey) {
   console.error("FATAL: RELAY_PRIVATE_KEY environment variable is required.");
   process.exit(1);
 }
 
-const contractAddress = (process.env.ESCROW_ADDRESS ?? process.env.CHESS_ESCROW_ADDRESS) as `0x${string}` | undefined;
-if (!contractAddress || contractAddress === "0x0000000000000000000000000000000000000000") {
-  console.error("FATAL: ESCROW_ADDRESS environment variable is required and cannot be zero address.");
+const tournamentAddress = process.env.TOURNAMENT_ADDRESS as
+  `0x${string}` | undefined;
+const contractAddress = (tournamentAddress ??
+  process.env.ESCROW_ADDRESS ??
+  process.env.CHESS_ESCROW_ADDRESS) as `0x${string}` | undefined;
+if (
+  !contractAddress ||
+  contractAddress === "0x0000000000000000000000000000000000000000"
+) {
+  console.error(
+    "FATAL: ESCROW_ADDRESS environment variable is required and cannot be zero address.",
+  );
   process.exit(1);
 }
-const rpcUrl = process.env.RPC_URL ?? (chainId === 31337 ? "http://127.0.0.1:8545" : undefined);
+const rpcUrl =
+  process.env.RPC_URL ??
+  (chainId === 31337 ? "http://127.0.0.1:8545" : undefined);
 if (!rpcUrl) {
   console.error("FATAL: RPC_URL environment variable is required.");
   process.exit(1);
 }
 
+let readiness: Promise<void> | undefined;
+let lastReadinessAt = 0;
+let replayRequests = 0;
+async function verifyDependencies() {
+  await Promise.all([
+    checkReadiness(server),
+    tournamentAddress
+      ? server.publicClient.readContract({
+          address: tournamentAddress,
+          abi: TOURNAMENT_ABI,
+          functionName: "nextTournamentId",
+        })
+      : undefined,
+  ]);
+}
+function cachedReadiness() {
+  if (!readiness || Date.now() - lastReadinessAt > 3000) {
+    lastReadinessAt = Date.now();
+    readiness = verifyDependencies();
+  }
+  return readiness;
+}
+const httpServer = createServer(async (req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Cache-Control", "no-store");
+  const replay =
+    req.method === "GET" && tournamentAddress
+      ? /^\/tournament\/replay\/(0|[1-9]\d{0,15})$/.exec(req.url ?? "")
+      : null;
+  if (replay && Number.isSafeInteger(Number(replay[1]))) {
+    const origin = req.headers.origin;
+    res.setHeader("Vary", "Origin");
+    if (origin && !server.allowedOrigins.includes(origin.toLowerCase())) {
+      res.writeHead(403).end('{"status":"forbidden"}');
+      return;
+    }
+    if (origin) res.setHeader("Access-Control-Allow-Origin", origin);
+    if (replayRequests >= 6) {
+      res.writeHead(429).end('{"status":"busy"}');
+      return;
+    }
+    replayRequests++;
+    try {
+      if (server.storageFailed) throw Error("Storage unavailable");
+      const result = await server.readTournamentReplay(Number(replay[1]));
+      if (!result) res.writeHead(404).end('{"status":"not_found"}');
+      else {
+        res.setHeader("Cache-Control", "public, max-age=30");
+        res.end(JSON.stringify(result));
+      }
+    } catch {
+      res.writeHead(503).end('{"status":"unavailable"}');
+    } finally {
+      replayRequests--;
+    }
+    return;
+  }
+  if (
+    req.method !== "GET" ||
+    !["/healthz", "/readyz"].includes(req.url ?? "")
+  ) {
+    res.writeHead(404);
+    res.end('{"status":"not_found"}');
+    return;
+  }
+  if (req.url === "/healthz") {
+    if (server.storageFailed) {
+      res.writeHead(503);
+      res.end('{"status":"restart_required"}');
+      return;
+    }
+    res.end('{"status":"alive"}');
+    return;
+  }
+  try {
+    await cachedReadiness();
+    res.end('{"status":"ready"}');
+  } catch {
+    res.writeHead(503);
+    res.end('{"status":"unavailable"}');
+  }
+});
 const server = new RelayServer({
-  port,
+  server: httpServer,
   relayPrivateKey,
   contractAddress,
   rpcUrl,
   chainId,
+  // The tournament has no spectator wager to lock; playing needs no relay transaction.
+  ...(tournamentAddress
+    ? { signalGameStartedEnabled: false, minRelayBalance: 0n }
+    : {}),
+  databaseUrl:
+    process.env.STORAGE_DRIVER === "postgres"
+      ? process.env.DATABASE_URL
+      : undefined,
 });
+try {
+  if (process.env.STORAGE_DRIVER === "postgres" && !process.env.DATABASE_URL)
+    throw Error("DATABASE_URL is required with STORAGE_DRIVER=postgres.");
+  if (
+    process.env.STORAGE_DRIVER &&
+    !["postgres", "file"].includes(process.env.STORAGE_DRIVER)
+  )
+    throw Error("Unknown STORAGE_DRIVER; use postgres or file.");
+  await server.initialize();
+  await verifyDependencies();
+} catch (error) {
+  console.error(
+    "FATAL: Relay readiness check failed:",
+    server.store
+      ? "Database or chain dependency unavailable; check configuration and migration."
+      : error instanceof Error
+        ? error.message
+        : "dependency failure",
+  );
+  await server.close();
+  process.exit(1);
+}
+httpServer.listen(port, process.env.HOST ?? "127.0.0.1");
+let shuttingDown = false;
+for (const signal of ["SIGINT", "SIGTERM"] as const)
+  process.on(signal, async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    const deadline = setTimeout(() => process.exit(1), 5000);
+    deadline.unref();
+    httpServer.close();
+    await server.close();
+    clearTimeout(deadline);
+  });
 
 console.log(`[AvaClash Relay] Running on ws://localhost:${port}`);
 console.log(`[AvaClash Relay] Signer address: ${server.relayAddress}`);
-console.log(`[AvaClash Relay] Contract: ${contractAddress} (Chain: ${chainId})`);
+console.log(
+  `[AvaClash Relay] Contract: ${contractAddress} (Chain: ${chainId})`,
+);
 
 export { RelayServer };
