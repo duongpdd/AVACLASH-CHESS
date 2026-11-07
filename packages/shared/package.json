@@ -24,7 +24,7 @@
   "dependencies": {
     "chess.js": "^1.0.0-beta.8",
     "viem": "^2.21.0",
-    "zod": "^3.23.0"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
