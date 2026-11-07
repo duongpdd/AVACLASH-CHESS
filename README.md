@@ -1,102 +1,146 @@
-# AvaClash Chess
+# AvaClash Cup
 
-AvaClash Cup là bản nâng cấp cho giải cờ vua 5+0 miễn phí tham dự: nhà tài trợ nạp quỹ riêng từng giải, trọng tài duyệt kết quả và người thắng nhận thưởng trên mạng thử nghiệm. [Mở AvaClash Cup trên Fuji](https://avaclash-chess.vercel.app/tournaments) hoặc xem [hướng dẫn chạy demo và triển khai Fuji](docs/TOURNAMENT_DEMO.md).
+Giải cờ vua online miễn phí tham dự, quỹ thưởng do nhà tài trợ nạp trước và được giải ngân bằng hợp đồng thông minh trên Avalanche Fuji.
 
-Bên dưới là tài liệu kỹ thuật của bản 1v1 ký quỹ cũ. Web và relay công khai hiện chạy AvaClash Cup. Phát triển và kiểm thử cục bộ bằng **Anvil (31337)**; hợp đồng Cup chỉ hỗ trợ Anvil và **Avalanche Fuji (43113)**.
+|                           |                                                                                                                                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Dùng thử**              | [avaclash-chess.vercel.app](https://avaclash-chess.vercel.app)                                                                                |
+| **Mạng**                  | Avalanche Fuji C-Chain (chain ID 43113), chỉ dùng token thử nghiệm                                                                            |
+| **Hợp đồng giải**         | [`0x268F6034175750791AAaA20FD04F658BDDAcB9F9`](https://explorer-test.avax.network/c-chain/address/0x268F6034175750791AAaA20FD04F658BDDAcB9F9) |
+| **Giải mẫu đã chơi thật** | [Giải #1 ASTAR](https://avaclash-chess.vercel.app/tournaments?id=1)                                                                           |
+| **Video demo**            | Cập nhật trước khi nộp                                                                                                                        |
+| **Slide**                 | Cập nhật trước khi nộp                                                                                                                        |
 
-## Bắt đầu
+Dự án tham gia [Team1 Vietnam UniHack: 30 days to build on Avalanche](https://team1vn.xyz).
 
-Yêu cầu Node.js 20.12 trở lên (hoặc 22/24), pnpm 9.15 và Foundry (`forge`, `anvil`, `cast`). Thư mục monorepo là `avaclash-chess`, không phải thư mục cha PRJ1.
+## Vấn đề và giải pháp
 
-```powershell
-cd avaclash-chess
+Giải cờ online nhỏ thường do một người giữ tiền thưởng và tự đối soát kết quả. Nhà tài trợ khó kiểm tra tiền đã đi đâu, còn kỳ thủ chỉ biết tin vào lời hứa của ban tổ chức.
+
+AvaClash Cup tách các quyền đó ra và ghi lại trên chuỗi:
+
+- **Nhà tài trợ** nạp quỹ vào hợp đồng trước khi giải mở đăng ký.
+- **Kỳ thủ** tham dự miễn phí, không đặt cược. Người thua không mất tiền cho người thắng.
+- **Relay** kiểm luật cờ và ký biên bản ván, nên kỳ thủ không thể tự khai kết quả.
+- **Trọng tài** duyệt kết quả và giải quyết khiếu nại, là ví riêng khác ban tổ chức.
+- **Hợp đồng** tính bảng thưởng theo điểm đã duyệt. Người được thưởng tự nhận trong 30 ngày, phần chưa dùng được hoàn lại nhà tài trợ.
+
+## Luồng một giải
+
+```mermaid
+flowchart LR
+  A[Ban tổ chức tạo giải] --> B[Nhà tài trợ nạp quỹ]
+  B --> C[Kỳ thủ đăng ký miễn phí]
+  C --> D[Bắt đầu giải, tạo lịch vòng tròn]
+  D --> E[Chơi 5+0 qua relay]
+  E --> F[Kỳ thủ gửi biên bản relay đã ký]
+  F --> G[Trọng tài duyệt]
+  G --> H{Có khiếu nại?}
+  H -- Có --> I[Trọng tài giải quyết, mở lại thời gian khiếu nại]
+  I --> H
+  H -- Hết hạn, không còn khiếu nại --> J[Chốt bảng thưởng]
+  J --> K[Người thắng nhận thưởng]
+```
+
+Điểm: thắng 1, hòa ½, thua 0. Giải 2 kỳ thủ chia 70/30; giải 3 đến 8 kỳ thủ chia 60/30/10. Đồng điểm thì chia đều phần thưởng của các hạng liên quan.
+
+## Dùng Avalanche ở đâu
+
+Toàn bộ dòng tiền và trạng thái giải nằm trong hợp đồng [`TournamentPrizePool`](contracts/src/TournamentPrizePool.sol) trên Fuji C-Chain:
+
+| Thành phần         | Cách hoạt động                                                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Quỹ thưởng         | `fund` nhận AVAX test vào quỹ riêng của từng giải, ví kỳ thủ và trọng tài không được nạp                                 |
+| Tách quyền         | Ban tổ chức, trọng tài, relay và kỳ thủ phải là các ví khác nhau, hợp đồng kiểm tra khi tạo giải và đăng ký              |
+| Biên bản ván       | Chữ ký EIP-712 của relay gồm người thắng, lý do, số nước và hash nước đi; `reportResult` khôi phục chữ ký trước khi nhận |
+| Duyệt và khiếu nại | `review`, `appeal`, `resolveAppeal` lưu mã kiểm chứng và phát sự kiện công khai                                          |
+| Giải ngân          | `finalize` tính theo điểm đã duyệt, chặn khi còn khiếu nại mở; `claim` chống nhận trùng                                  |
+| Đăng nhập          | Ký thông điệp bằng ví, máy chủ xác minh chữ ký trước khi cấp phiên                                                       |
+
+## Kiến trúc
+
+```mermaid
+flowchart TB
+  W[Web: Next.js, Phaser, Wagmi] -- WebSocket, chữ ký ví --> R[Relay: Node.js]
+  W -- Giao dịch, đọc dữ liệu --> C[TournamentPrizePool trên Fuji]
+  R -- signalGameStarted --> C
+  R -- Lưu ván --> D[(PostgreSQL)]
+  S[packages/shared: luật cờ, schema, ABI] --> W
+  S --> R
+```
+
+| Thư mục                              | Nội dung                                                   |
+| ------------------------------------ | ---------------------------------------------------------- |
+| [`contracts`](contracts)             | Solidity 0.8.24, OpenZeppelin, kiểm thử bằng Foundry       |
+| [`packages/relay`](packages/relay)   | Xác thực ví, kiểm luật và thứ tự nước, đồng hồ, ký kết quả |
+| [`packages/shared`](packages/shared) | Luật cờ, replay, hash nước đi, schema Zod, ABI             |
+| [`web`](web)                         | Giao diện tiếng Việt và tiếng Anh                          |
+
+## Dùng thử
+
+**Không cần ví:** [giải thế cờ](https://avaclash-chess.vercel.app/practice) và [chơi cùng thiết bị](https://avaclash-chess.vercel.app/hotseat).
+
+**Xem kết quả có sẵn:** mở [giải #1 ASTAR](https://avaclash-chess.vercel.app/tournaments?id=1), vào **Lịch ván** để xem biên bản, hash đối chiếu và tải PGN.
+
+**Chạy trọn một giải** cần 4 ví MetaMask hoặc Core trên Fuji, lấy AVAX test tại [faucet](https://build.avax.network/console/primary-network/faucet):
+
+1. Ví ban tổ chức [tạo giải](https://avaclash-chess.vercel.app/tournaments/new) 2 kỳ thủ, nhập ví trọng tài khác ví của mình, rồi nạp quỹ.
+2. Hai ví kỳ thủ mở link giải và bấm **Đăng ký miễn phí**.
+3. Ví ban tổ chức bấm **Bắt đầu giải**.
+4. Hai kỳ thủ bấm **Vào trận**, ký xác thực và chơi. Hết ván, một người gửi biên bản lên chuỗi.
+5. Ví trọng tài mở ván, chọn kết quả và bấm **Duyệt ván**.
+6. Hết thời gian khiếu nại (ít nhất 1 giờ), bấm **Chốt bảng thưởng** rồi **Nhận thưởng**.
+
+## Chạy cục bộ
+
+Cần Node.js 20.12 trở lên, pnpm 9.15 và [Foundry](https://getfoundry.sh).
+
+```bash
+git clone --recurse-submodules https://github.com/duongpdd/AVACLASH-CHESS.git
+cd AVACLASH-CHESS
 pnpm install --frozen-lockfile
-forge build --root contracts
-pnpm --filter @avaclash/shared build
+node scripts/dev-tournament.mjs --seed
 ```
 
-Các thư viện Foundry nằm trong `contracts/lib`. Nếu checkout chưa có chúng, khôi phục các dependency/submodule của repository trước khi build.
+Mở `http://127.0.0.1:13000/tournaments`. Lệnh này dựng Anvil, deploy hợp đồng, tạo giải 8 kỳ thủ đã có lịch và chạy relay. Xem chi tiết tài khoản thử nghiệm và cách triển khai Fuji tại [hướng dẫn demo](docs/TOURNAMENT_DEMO.md).
 
-Để dựng môi trường cục bộ:
+## Kiểm thử
 
-```powershell
-pnpm dev:local
-```
-
-Lệnh này mở Anvil trên `127.0.0.1:8545`, deploy hai hợp đồng **chỉ trên Anvil**, tạo và cấp tiền cho ví relay ngẫu nhiên, sinh ABI/build shared, cập nhật `web/.env.local` và `packages/relay/.env.local`. Anvil lưu state vào `.local/anvil-state.json` mỗi 5 giây; lần chạy tiếp theo khôi phục khi state/config khớp. Mỗi chain mới dùng thư mục relay riêng. Anvil chạy tới khi nhấn Ctrl+C. Script không in khóa relay và không gắn khóa mẫu vào mã nguồn.
-
-Mở hai terminal khác tại monorepo:
-
-```powershell
-pnpm --filter @avaclash/relay start
-```
-
-```powershell
-pnpm dev
-```
-
-Mở `http://localhost:3000` bằng hai hồ sơ trình duyệt/ví riêng. Thêm mạng RPC `http://127.0.0.1:8545`, chain ID `31337`. Dùng tài khoản Anvil số 4 và 5 cho hai kỳ thủ; các tài khoản Anvil là tài khoản thử nghiệm công khai, không dùng với tài sản thật.
-
-## Luồng PvP
-
-1. Người A kết nối ví, chọn Trắng hoặc Đen, tạo phòng với cược 0.01–0.1 ETH trên Anvil hoặc AVAX trên Fuji theo giới hạn UI mặc định (hợp đồng cho tối đa 1 đơn vị).
-2. Người B xem đúng mã phòng, màu và mức cược rồi gửi cùng số tiền để tham gia. Mã phòng bắt đầu từ **0**.
-3. Hai người mở phòng, ký challenge Join để xác thực relay. Trong lúc chơi không có giao dịch cho từng nước đi. Relay tự gửi giao dịch `signalGameStarted` khi hai ghế sẵn sàng.
-4. Hết ván, client replay lịch sử, ký Result v2 và dùng chữ ký relay để nộp kết quả 2-trong-3.
-5. Sau receipt thành công, người thắng rút `95% × tổng cược` qua `withdraw()`. Hòa hoàn mỗi người 100% cược, không thu phí. Hủy phòng Open cũng dùng số dư chờ rút.
-
-Nếu chưa có đối thủ, phòng on-chain vẫn Open và chưa mở kết nối thi đấu relay. Reload hoặc kết nối lại nhận lịch sử từ relay; web lưu thêm bản sao nước đi đã xác nhận trong localStorage.
-
-## Cấu hình Fuji
-
-Web và relay hiện dùng địa chỉ Cup trong [hướng dẫn Fuji](docs/TOURNAMENT_DEMO.md). Cấu hình bên dưới áp dụng cho bản 1v1 cũ; [bằng chứng triển khai 1v1](docs/benchmarks/online-deployment.json) được lưu để tham khảo. Các hướng dẫn [Railway](docs/RAILWAY_DEPLOY.md) và [Docker/Caddy trên VPS](docs/VERCEL_DEPLOY.md) được giữ làm phương án khác.
-
-Sao chép `.env.example` cho cấu hình deploy, `packages/relay/.env.example` thành `.env.local` tại relay, và `web/.env.example` thành `web/.env.local`. Tệp root không tự cấu hình thay cho Next.js; các biến web phải nằm trong `web/.env.local` hoặc môi trường build.
-
-| Thành phần | Biến cần thiết                                                                                                                         |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Deploy     | `FUJI_RPC_URL`, `RELAY_SIGNER_ADDRESS`, `ARBITER_ADDRESS`, `TREASURY_ADDRESS` (ba địa chỉ khác nhau)                                   |
-| Relay      | `RELAY_PRIVATE_KEY`, `ESCROW_ADDRESS`, `RPC_URL`, `CHAIN_ID=43113`, `PORT=8080`, `ALLOWED_ORIGINS`                                     |
-| Web        | `NEXT_PUBLIC_ESCROW_ADDRESS`, `NEXT_PUBLIC_META_ADDRESS`, `NEXT_PUBLIC_CHAIN_ID=43113`, `NEXT_PUBLIC_RPC_URL`, `NEXT_PUBLIC_RELAY_URL` |
-
-Relay tự đọc `.env.local`/`.env` của package. `RELAY_PORT` và `CHESS_ESCROW_ADDRESS` chỉ là tên tương thích cũ; ưu tiên `PORT` và `ESCROW_ADDRESS`. Biến `NEXT_PUBLIC_CONTRACT_ADDRESS` cũ không được dùng. Không đưa private key vào biến `NEXT_PUBLIC_*`.
-
-Deploy Fuji bằng keystore, chạy từ `contracts` sau khi export các biến môi trường công khai:
-
-```powershell
-cast wallet import avaclash-deployer --interactive
-forge script script/Deploy.s.sol:DeployScript --rpc-url $env:FUJI_RPC_URL --account avaclash-deployer
-```
-
-Sau khi xem kết quả mô phỏng và sẵn sàng deploy, thêm `--broadcast`. Lưu địa chỉ hai hợp đồng vào web và relay, sinh lại ABI và build shared. Deploy mới có thể cần thiết để sử dụng các sửa đổi hợp đồng; mã nguồn cục bộ không thay đổi bytecode đã triển khai trước đó.
-
-Khi public web qua HTTPS, dùng relay `wss://`, đặt `ALLOWED_ORIGINS` đúng origin của web. Chỉ bật `TRUST_PROXY=true` khi relay nằm sau proxy tin cậy có ghi đè `X-Forwarded-For`. Giữ `ALLOW_NO_ORIGIN=false`. Render bắt buộc `STORAGE_DRIVER=postgres` và `DATABASE_URL` Neon; máy chủ dùng file thì phải mount ổ bền vững cho `RESULTS_DIR`/`ACTIVE_DIR`. Ví relay cần AVAX testnet trả gas cho tín hiệu bắt đầu.
-
-## Kiểm tra
-
-```powershell
+```bash
+forge test --root contracts --no-match-path "test/audit/**"
 pnpm test
+pnpm test:tournament
 pnpm typecheck
 pnpm lint
-pnpm build
-pnpm --filter web check:build
-forge test --root contracts --no-match-path "test/audit/**"
 ```
 
-Build/test của web và relay build lại shared để ABI trong `dist` khớp artifact mới. Test tích hợp cần mở cổng localhost và tạo/đổi tên tệp tạm; sandbox chặn các thao tác này có thể gây lỗi môi trường. Foundry và node_modules cần được cài trước.
+Số bài kiểm thử gần nhất, ngày 07/11/2026:
 
-Giữ phiên bản pnpm 9.15 đã khóa trong `packageManager`. Không bỏ qua phiên bản này bằng pnpm mới: một số bản có thể tự cài lại hoặc đổi liên kết dependency khi chạy lệnh. Với môi trường offline, dùng CLI đã cài trong `node_modules` hoặc chuẩn bị pnpm đúng phiên bản từ trước.
+| Phần                                   | Kết quả                                        |
+| -------------------------------------- | ---------------------------------------------- |
+| Hợp đồng                               | 189 đạt                                        |
+| Web                                    | 213 đạt                                        |
+| Shared                                 | 133 đạt                                        |
+| Relay                                  | 89 đạt, 3 bài cần PostgreSQL riêng được bỏ qua |
+| Trọn giải trên Anvil và WebSocket thật | Đạt                                            |
 
-## Phạm vi và giới hạn
+CI chạy trên mỗi lần push: [GitHub Actions](https://github.com/duongpdd/AVACLASH-CHESS/actions).
 
-- Có PvP, Hot-seat tại `/hotseat`, UI gửi/rút Vault và nhận thưởng mùa. Giao dịch spectator vẫn đóng; hợp đồng mặc định tắt cược khán giả.
-- Focus telemetry chỉ cảnh báo sau khi rời màn hình quá 2 giây trong lượt đi, không phạt giờ hoặc xử thua và không chứng minh người chơi không dùng engine.
-- Result dùng cơ chế hai chữ ký trong `{A, B, relay}`. Hợp đồng không replay cờ; hai kỳ thủ thông đồng vẫn có thể ký kết quả giả ảnh hưởng pool khán giả. Timeout/đầu hàng cần tin relay khi đối thủ không cùng ký.
-- Single-signed tắt mặc định. Nếu quản trị bật, cơ chế optimistic challenge vẫn có rủi ro claim giả và trọng tài không phản hồi; đây không phải fraud-proof.
-- `seasonPrizePool` có phân phối Merkle theo danh sách công bố, chờ 2 ngày, claim 90 ngày; owner được tin cậy khi phân bổ. Vault chưa tạo lợi suất và không tự tạo quyền nhận giải tuần.
-- ELO khởi điểm 1200; chỉ cập nhật khi đủ 20 half-move; giảm điểm tăng theo cặp ví/ngày chưa chống Sybil nhiều ví.
-- Dự án chưa qua audit độc lập. Dùng token testnet cho bản Cup trên Fuji; bài kiểm thử trọn giải đã chạy trên Anvil.
+## Phần có sẵn và phần xây trong cuộc thi
 
-Xem [danh mục tài liệu](docs/README.md), [kiến trúc](docs/ARCHITECTURE.md), [giao thức](docs/PROTOCOL.md), [tiến độ](docs/PROGRESS.md) và [báo cáo rà soát](docs/REVIEW_2026-11-01.md).
+Thể lệ cho phép dùng dự án có sẵn, nên nhóm khai rõ:
 
-Hướng dẫn bổ sung: [triển khai Fuji](docs/FUJI_DEPLOY.md), [vận hành/sao lưu](docs/OPERATIONS.md), [thưởng mùa](docs/SEASON_REWARDS.md), [nghiệm thu bổ sung](docs/IMPLEMENTATION_2026-11-01.md). Chạy `pnpm test:campaign` để đo 20 trận Node/Anvil riêng, `pnpm test:tools` để kiểm tra công cụ và `pnpm check:fuji` để kiểm tra điều kiện triển khai.
+- **Có từ trước (từ 10/2026):** bản cờ 1v1 có cược gồm `ChessEscrow`, `AvaClashMeta`, relay, bàn cờ và ví. Xem [tài liệu bản cũ](docs/LEGACY_1V1.md).
+- **Xây trong kỳ thi (từ 02/11/2026):** chuyển sang mô hình miễn phí tham dự và có tài trợ, gồm hợp đồng `TournamentPrizePool`, luồng trọng tài và khiếu nại, giao diện giải đấu, bảng Elo, giải thế cờ. Lý do chuyển hướng nằm trong [nghiên cứu sản phẩm](docs/TOURNAMENT_PIVOT_RESEARCH_2026-11-03.md).
+
+## Giới hạn hiện tại
+
+- Chỉ chạy trên testnet, hợp đồng chưa qua audit độc lập.
+- Hash nước đi chứng minh biên bản không bị sửa, không chứng minh kỳ thủ không dùng engine. Việc này thuộc về trọng tài.
+- Relay và trọng tài là các bên được tin cậy. Hợp đồng không tự kiểm luật cờ.
+- Relay chạy trên gói miễn phí của Render nên lần kết nối đầu có thể chậm.
+- Bản thương mại với tiền thật cần thẩm định pháp lý riêng, xem [nghiên cứu sản phẩm](docs/TOURNAMENT_PIVOT_RESEARCH_2026-11-03.md).
+
+## Tài liệu
+
+[Danh mục tài liệu](docs/README.md) · [Kiến trúc](docs/ARCHITECTURE.md) · [Giao thức relay](docs/PROTOCOL.md) · [Hướng dẫn demo](docs/TOURNAMENT_DEMO.md) · [Triển khai Render](docs/RENDER_DEPLOY.md) · [Vận hành](docs/OPERATIONS.md)

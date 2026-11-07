@@ -17,6 +17,7 @@ results/
 .env.*
 !.env.example
 *.log
+*_out.txt
 *.tsbuildinfo
 
 # Foundry
@@ -39,3 +40,6 @@ edge_profile_mobile/
 # Test coverage
 coverage/
 lcov.info
+
+# Local screenshots
+web-preview.png

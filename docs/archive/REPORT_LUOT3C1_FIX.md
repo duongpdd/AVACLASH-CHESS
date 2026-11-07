@@ -36,14 +36,14 @@ Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 2.21s (4.12ms C
 ```
 
 #### 3. Code sửa nguyên văn kèm số dòng thật
-- **Khai báo lỗi custom `RoomNotFound`** trong [`contracts/src/ChessEscrow.sol`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/src/ChessEscrow.sol#L221):
+- **Khai báo lỗi custom `RoomNotFound`** trong [`contracts/src/ChessEscrow.sol`](../../contracts/src/ChessEscrow.sol#L221):
 ```solidity
 220:     error RenounceOwnershipDisabled();
 221:     error RoomNotFound();
 222: 
 ```
 
-- **Thêm lệnh chặn trong `joinRoom`** trong [`contracts/src/ChessEscrow.sol`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/src/ChessEscrow.sol#L261-L267):
+- **Thêm lệnh chặn trong `joinRoom`** trong [`contracts/src/ChessEscrow.sol`](../../contracts/src/ChessEscrow.sol#L261-L267):
 ```solidity
 261:     function joinRoom(uint256 roomId) external payable whenNotPaused {
 262:         if (roomId >= nextRoomId) revert RoomNotFound();
@@ -55,7 +55,7 @@ Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 2.21s (4.12ms C
 Tương tự, kiểm tra `if (roomId >= nextRoomId) revert RoomNotFound();` được bổ sung vào 10 hàm: `cancelRoom`, `signalGameStarted`, `abortRoom`, `refundOnTimeout`, `submitResult`, `submitSingleSigned`, `challenge`, `resolveChallenge`, `resolveDefaultChallenge`, và `finalizeSingleSigned`.
 
 - **Thêm action vào Invariant Handler chiếm $\ge 3\%$ calls**:
-Bổ sung Action 19: `tryNonExistentRoomActions` trong [`contracts/test/invariants/ChessEscrowHandler.sol`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/test/invariants/ChessEscrowHandler.sol#L618-L625):
+Bổ sung Action 19: `tryNonExistentRoomActions` trong [`contracts/test/invariants/ChessEscrowHandler.sol`](../../contracts/test/invariants/ChessEscrowHandler.sol#L618-L625):
 ```solidity
 618:     function tryNonExistentRoomActions(uint256 actorIdx, uint256 funcChoice, uint256 offset) external {
 619:         tracker.incCall();
@@ -72,14 +72,14 @@ Hành động `tryNonExistentRoomActions` được gọi **543 lần** trên t�
 ### Mục 2: Tách logic thuần ra `web/src/utils/room.ts` và khóa phòng không tồn tại
 
 #### 1. Cấu trúc logic thuần
-Các hàm thuần túy được tách độc lập tại [`web/src/utils/room.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web/src/utils/room.ts):
+Các hàm thuần túy được tách độc lập tại [`web/src/utils/room.ts`](../../web/src/utils/room.ts):
 - `validateStake(stakeStr, minStake, maxStake, uiMax)`: Kiểm tra định dạng số, dương, ngưỡng hợp đồng và trần an toàn giao diện.
 - `getJoinerColor(room)`: Trả về quân đối thủ (người tạo Trắng $\to$ người vào Đen; người tạo Đen $\to$ người vào Trắng).
 - `doesRoomExist(room, nextRoomId, roomId)`: Kiểm tra `targetId < nextRoomId` và `playerA !== ZERO_ADDRESS`.
 - `getRoomJoinableError(room, nextRoomId, address, roomId)`: Trả về thông báo tiếng Việt cụ thể nếu không thể vào phòng.
 - `isRoomJoinable(...)`: Boolean helper phục vụ disable nút giao dịch.
 
-Đoạn code nguyên văn [`web/src/utils/room.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web/src/utils/room.ts#L63-L85):
+Đoạn code nguyên văn [`web/src/utils/room.ts`](../../web/src/utils/room.ts#L63-L85):
 ```typescript
 63: export function doesRoomExist(
 64:   room: RoomLike | null | undefined,
@@ -109,7 +109,7 @@ Các hàm thuần túy được tách độc lập tại [`web/src/utils/room.ts
 #### 2. Áp dụng vào UI & Hook
 - `useJoinRoom`, `useRoom`, `useOpenRooms`, `RoomLobbyWidget.tsx` import trực tiếp từ `room.ts`.
 - Phòng không tồn tại (`targetJoinId >= nextRoomId` hoặc `playerA === address(0)`) lập tức hiển thị thông báo: `"Phòng không tồn tại"`, nút xác nhận bị vô hiệu hóa (`disabled`), và hook hoàn toàn không gửi giao dịch on-chain với `value = 0`.
-- Tạo 19 unit test trong [`web/src/__tests__/room-utils.test.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web/src/__tests__/room-utils.test.ts) (100% PASS).
+- Tạo 19 unit test trong [`web/src/__tests__/room-utils.test.ts`](../../web/src/__tests__/room-utils.test.ts) (100% PASS).
 
 ---
 
@@ -117,7 +117,7 @@ Các hàm thuần túy được tách độc lập tại [`web/src/utils/room.ts
 
 #### 1. Cải tiến Hook
 - **Trích xuất `createdRoomId` từ Event Receipt**: Thay vì đọc `nextRoomId` trước khi gửi giao dịch (dễ bị race condition khi có người khác tạo phòng cùng lúc), `useCreateRoom` sử dụng `parseEventLogs` của `viem` để quét log sự kiện `RoomCreated` và lọc theo `creator === address`:
-Trích đoạn nguyên văn [`web/src/hooks/useCreateRoom.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web/src/hooks/useCreateRoom.ts#L58-L76):
+Trích đoạn nguyên văn [`web/src/hooks/useCreateRoom.ts`](../../web/src/hooks/useCreateRoom.ts#L58-L76):
 ```typescript
 58:       } else if (receipt.status === "success") {
 59:         try {
@@ -143,7 +143,7 @@ Trích đoạn nguyên văn [`web/src/hooks/useCreateRoom.ts`](file:///c:/Users/
 - **Xử lý `receipt.status === "reverted"`**: Khi giao dịch bị revert on-chain, hook chuyển `step` về `error` với thông báo tiếng Việt kèm hướng dẫn mở Explorer thay vì báo success.
 
 #### 2. Mock Test với `@testing-library/react` (`renderHook`)
-Tạo 7 test cases toàn diện trong [`web/src/__tests__/hooks-wagmi.test.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web/src/__tests__/hooks-wagmi.test.ts):
+Tạo 7 test cases toàn diện trong [`web/src/__tests__/hooks-wagmi.test.ts`](../../web/src/__tests__/hooks-wagmi.test.ts):
 1. Tạo phòng lần 1 thành công (Room ID = 42 từ log), reset về idle, tạo phòng lần 2 thành công (Room ID = 43 từ log).
 2. Xử lý receipt reverted hiển thị lỗi kèm đề xuất explorer.
 3. Người dùng từ chối ký ví (`UserRejectedRequestError`).
@@ -159,19 +159,19 @@ Tạo 7 test cases toàn diện trong [`web/src/__tests__/hooks-wagmi.test.ts`](
 > **Giải trình kỹ thuật:** Hai địa chỉ cũ trước đây (`0x54101e4a2d3c9071c775efcf4bbbeea8dc5057a1` và `0x34d58ba25fae3d1fa82ec9860b73c9f28cb7b093`) được tạo ngẫu nhiên trong commit `0ac7135` làm giá trị mẫu để hoàn thiện cú pháp ví dụ. **Chúng hoàn toàn không phải là địa chỉ đã deploy thật trên Avalanche Fuji hay bất kỳ mạng lưới nào.**
 
 #### 2. Cập nhật Placeholder & Startup Validation
-- Đặt lại placeholder trong [`web/.env.example`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web/.env.example):
+- Đặt lại placeholder trong [`web/.env.example`](../../web/.env.example):
 ```env
 NEXT_PUBLIC_ESCROW_ADDRESS=0x0000000000000000000000000000000000000000
 NEXT_PUBLIC_META_ADDRESS=0x0000000000000000000000000000000000000000
 ```
-- Viết test FAIL trước trong [`web/src/__tests__/env-guard.test.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web/src/__tests__/env-guard.test.ts):
+- Viết test FAIL trước trong [`web/src/__tests__/env-guard.test.ts`](../../web/src/__tests__/env-guard.test.ts):
 ```text
 FAIL  src/__tests__/env-guard.test.ts > Env Address Validation > rejects undefined or empty address
 TypeError: validateAddressConfig is not a function
 FAIL  src/__tests__/env-guard.test.ts > Env Address Validation > rejects zero address 0x0000000000000000000000000000000000000000
 TypeError: validateAddressConfig is not a function
 ```
-- Cập nhật hàm kiểm tra khi khởi động trong [`web/src/config/env.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web/src/config/env.ts#L29-L37):
+- Cập nhật hàm kiểm tra khi khởi động trong [`web/src/config/env.ts`](../../web/src/config/env.ts#L29-L37):
 ```typescript
 29: export function validateAddressConfig(addr: string | undefined): { valid: boolean; error?: string } {
 30:   if (!addr || !isAddress(addr)) {
@@ -185,8 +185,8 @@ TypeError: validateAddressConfig is not a function
 ```
 
 #### 3. Bytecode Guard & Khóa Toàn Bộ Thao Tác
-- Hook [`web/src/hooks/useContractBytecodeGuard.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web/src/hooks/useContractBytecodeGuard.ts#L9-L38) gọi `publicClient.getCode({ address: targetAddress })`.
-- Nếu địa chỉ là 0x0 hoặc bytecode rỗng (`0x` / `undefined`), hook trả về `isBlocked: true` và kích hoạt component [`web/src/components/ConfigErrorBanner.tsx`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web/src/components/ConfigErrorBanner.tsx) hiển thị cảnh báo đỏ nổi bật trên trang chủ:
+- Hook [`web/src/hooks/useContractBytecodeGuard.ts`](../../web/src/hooks/useContractBytecodeGuard.ts#L9-L38) gọi `publicClient.getCode({ address: targetAddress })`.
+- Nếu địa chỉ là 0x0 hoặc bytecode rỗng (`0x` / `undefined`), hook trả về `isBlocked: true` và kích hoạt component [`web/src/components/ConfigErrorBanner.tsx`](../../web/src/components/ConfigErrorBanner.tsx) hiển thị cảnh báo đỏ nổi bật trên trang chủ:
   `🛑 LỖI CẤU HÌNH SMART CONTRACT: Không tìm thấy bytecode tại địa chỉ ESCROW_ADDRESS (0x...). Hợp đồng chưa được deploy lên RPC này hoặc chưa khởi chạy. Mọi thao tác đã bị khóa để bảo vệ tài sản.`
 - Nút Tạo phòng, nút Vào phòng trong `RoomLobbyWidget.tsx` và nút Rút tiền trong `WalletBar.tsx` lập tức chuyển sang trạng thái disabled với nhãn `"Bị khóa: Lỗi cấu hình Smart Contract"`.
 - Các hook `useCreateRoom`, `useJoinRoom`, `useWithdraw` đồng thời bổ sung chốt chặn phòng thủ không bao giờ gửi transaction khi địa chỉ cấu hình chưa hợp lệ.
@@ -196,14 +196,14 @@ TypeError: validateAddressConfig is not a function
 ### Mục 5: FujiTestnetBanner Hiển Thị Linh Hoạt Theo Cấu Hình Mạng
 
 #### 1. Viết test FAIL trên code cũ trước khi sửa (Output FAIL nguyên văn)
-Tạo test [`web/src/__tests__/banner.test.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web/src/__tests__/banner.test.ts) kiểm tra khi `CHAIN_ID = 31337`:
+Tạo test [`web/src/__tests__/banner.test.ts`](../../web/src/__tests__/banner.test.ts) kiểm tra khi `CHAIN_ID = 31337`:
 ```text
  FAIL  src/__tests__/banner.test.ts > FujiTestnetBanner Network Display > displays 'Anvil local' when CHAIN_ID is 31337
 TestingLibraryElementError: Unable to find an element with the text: /Anvil local/i.
 ```
 
 #### 2. Code sửa nguyên văn kèm số dòng thật
-Trích đoạn nguyên văn [`web/src/components/FujiTestnetBanner.tsx`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web/src/components/FujiTestnetBanner.tsx#L3-L22):
+Trích đoạn nguyên văn [`web/src/components/FujiTestnetBanner.tsx`](../../web/src/components/FujiTestnetBanner.tsx#L3-L22):
 ```typescript
 3: import { CHAIN_ID } from "@/config/env";
 4: 
@@ -233,7 +233,7 @@ Sau khi sửa, cả 2 test case cho Anvil (31337) và Fuji (43113) đều pass 1
 ### Mục 6: Tối Ưu Hóa Script Sinh ABI & Test So Khớp Artifact
 
 #### 1. Xử lý khi thiếu thư mục `contracts/out`
-Trong [`packages/shared/scripts/generate-abi.mjs`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/shared/scripts/generate-abi.mjs#L26-L39):
+Trong [`packages/shared/scripts/generate-abi.mjs`](../../packages/shared/scripts/generate-abi.mjs#L26-L39):
 ```javascript
 26: // If contracts/out directory does not exist, warn and gracefully skip without error
 27: if (!fs.existsSync(contractsOutDir)) {
@@ -253,7 +253,7 @@ Trong [`packages/shared/scripts/generate-abi.mjs`](file:///c:/Users/Admin/Deskto
 Script bỏ qua êm dịu (`process.exit(0)`) và phát cảnh báo thay vì làm đứt chuỗi build/test khi `contracts/out` chưa được biên dịch.
 
 #### 2. Điều kiện hóa test so khớp trong Shared và Relay
-Trong [`packages/shared/tests/abi.test.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/shared/tests/abi.test.ts#L20-L31) và [`packages/relay/tests/abi.test.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/relay/tests/abi.test.ts#L20-L31):
+Trong [`packages/shared/tests/abi.test.ts`](../../packages/shared/tests/abi.test.ts#L20-L31) và [`packages/relay/tests/abi.test.ts`](../../packages/relay/tests/abi.test.ts#L20-L31):
 ```typescript
 describe("@avaclash/shared ABI sync with Foundry artifacts", () => {
   it.runIf(hasEscrowArtifact)(
@@ -281,16 +281,16 @@ Sử dụng `it.runIf(hasArtifact)` giúp các test chỉ chạy khi tệp artif
 
 Đã xuất đầy đủ 3 tệp nhật ký kiểm thử thô định dạng UTF-8 theo đúng yêu cầu:
 
-1. **Foundry Test Suite**: [`contracts/forge_out.txt`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/forge_out.txt) (17,979 bytes)
+1. **Foundry Test Suite**: [`contracts/forge_out.txt`](../../contracts/forge_out.txt) (17,979 bytes)
    - Lệnh thực thi: `cmd /c "cd /d C:\Users\Admin\Desktop\PRJ1\avaclash-chess\contracts && forge test -vv > forge_out.txt 2>&1"`
    - Kết quả: **164/164 test cases passed, 0 failed, 0 skipped**.
    - Invariant Solvency: 20 runs, 10,000 calls, 0 reverts, bảo toàn chính xác từng wei số dư escrow.
 
-2. **Monorepo Vitest Suite**: [`vitest_out.txt`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/vitest_out.txt) (27,320 bytes)
+2. **Monorepo Vitest Suite**: [`vitest_out.txt`](../../vitest_out.txt) (27,320 bytes)
    - Lệnh thực thi: `cmd /c "cd /d C:\Users\Admin\Desktop\PRJ1\avaclash-chess && pnpm test > vitest_out.txt 2>&1"`
    - Kết quả: **199/199 test cases passed** (Shared: 97, Relay: 38, Web: 64).
 
-3. **Web Production Build**: [`web_build_out.txt`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web_build_out.txt) (1,061 bytes)
+3. **Web Production Build**: [`web_build_out.txt`](../../web_build_out.txt) (1,061 bytes)
    - Lệnh thực thi: `cmd /c "cd /d C:\Users\Admin\Desktop\PRJ1\avaclash-chess && pnpm --filter web build > web_build_out.txt 2>&1"`
    - Kết quả: **Exit code 0**, TypeScript & Next.js production prerender 5/5 static pages sạch hoàn toàn.
 

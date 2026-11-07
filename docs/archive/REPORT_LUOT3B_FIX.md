@@ -28,18 +28,18 @@
 
 #### 1. Dẫn chứng file:dòng
 - **Nơi `ChessEscrow` tính và truyền `winningOption` sang Meta:**
-  - [ChessEscrow.sol:864](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/src/ChessEscrow.sol#L864):
+  - [ChessEscrow.sol:864](../../contracts/src/ChessEscrow.sol#L864):
     ```solidity
     uint8 winningOption = outcome == 0
         ? (creatorIsWhite ? 1 : 2)
         : (outcome == 1 ? (creatorIsWhite ? 2 : 1) : 3);
     ```
-  - [ChessEscrow.sol:886](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/src/ChessEscrow.sol#L886):
+  - [ChessEscrow.sol:886](../../contracts/src/ChessEscrow.sol#L886):
     ```solidity
     metaContract.resolvePrediction(roomId, winningOption, moveCount);
     ```
 - **Nơi `AvaClashMeta` kiểm tra tính hợp lệ của tham số:**
-  - [AvaClashMeta.sol:274-275](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/src/AvaClashMeta.sol#L274-L275):
+  - [AvaClashMeta.sol:274-275](../../contracts/src/AvaClashMeta.sol#L274-L275):
     ```solidity
     if (winningOption == 0 || winningOption > 3) revert InvalidOption();
     ```
@@ -258,7 +258,7 @@ Ran 1 test suite in 12.91s (12.91s CPU time): 2 tests passed, 0 failed, 0 skippe
 ### Mục 4: Cơ Chế Đồng Hồ Relay Khi Mất Kết Nối (`b28214a`)
 
 #### 1. Dẫn chứng file:dòng hành vi cũ
-- [RelayRoom.ts:194-198](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/relay/src/RelayRoom.ts#L194-L198):
+- [RelayRoom.ts:194-198](../../packages/relay/src/RelayRoom.ts#L194-L198):
   ```typescript
   if (!this.whiteWs || !this.blackWs) {
     this.pauseClock();
@@ -291,7 +291,7 @@ AssertionError: expected 1 to be 2
 ### Mục 5: Lưu Kết Quả `handleGameOver` Ngay Lập Tức & Retry Backoff RPC (`4febbca`)
 
 #### 1. Dẫn chứng file:dòng hành vi cũ
-- [RelayServer.ts:842-847](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/relay/src/RelayServer.ts#L842-L847):
+- [RelayServer.ts:842-847](../../packages/relay/src/RelayServer.ts#L842-L847):
   ```typescript
   // Code cũ: Đọc on-chain và ký chữ ký trước, sau đó mới gọi saveGameResult
   const roomData = await this.publicClient.readContract(...);
@@ -341,7 +341,7 @@ stdout | tests/anvil-integration.test.ts > RelayServer Anvil End-to-End Integrat
      - Nếu `Origin` có mặt: Bắt buộc phải thuộc danh sách `options.allowedOrigins` (phân tách bằng dấu phẩy). Nếu không khớp, gọi `done(false, 403, "Forbidden Origin")`.
      - Nếu `Origin` không có mặt (ví dụ non-browser client / script): Chỉ cho phép khi `ALLOW_NO_ORIGIN=true` hoặc `NODE_ENV=test`. Mặc định từ chối kết nối.
 3. **Hướng dẫn Caddy & Nginx Reverse Proxy:**
-   - Đã cập nhật chi tiết cấu hình `Caddyfile` và `nginx.conf` vào [README.md](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/README.md) hỗ trợ giao thức bảo mật `wss://` và header `X-Forwarded-For`.
+   - Đã cập nhật chi tiết cấu hình `Caddyfile` và `nginx.conf` vào [README.md](../../README.md) hỗ trợ giao thức bảo mật `wss://` và header `X-Forwarded-For`.
 
 #### Output FAIL trên code cũ trước khi sửa
 Khi kết nối từ `Origin: https://malicious-attacker.com` vào WebSocket server chưa có `verifyClient`:

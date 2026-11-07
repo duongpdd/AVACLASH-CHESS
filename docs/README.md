@@ -4,6 +4,8 @@ Giao diện cập nhật: [bố cục, điều hướng và kiểm chứng UI](U
 
 Triển khai đã chọn: [Render Free + Neon Free + Vercel](RENDER_DEPLOY.md). Phương án khác: [Railway](RAILWAY_DEPLOY.md), [Vercel + relay Docker/Caddy trên VPS](VERCEL_DEPLOY.md).
 
+Bài dự thi hiện là AvaClash Cup: [hướng dẫn demo](TOURNAMENT_DEMO.md), [nghiên cứu sản phẩm](TOURNAMENT_PIVOT_RESEARCH_2026-11-03.md). Bản 1v1 cũ nằm ở [LEGACY_1V1.md](LEGACY_1V1.md).
+
 Cập nhật ngày 01/11/2026. Dự án hiện hướng tới **Avalanche Fuji Testnet** và Anvil cục bộ.
 
 Đọc theo thứ tự:
@@ -16,7 +18,7 @@ Cập nhật ngày 01/11/2026. Dự án hiện hướng tới **Avalanche Fuji T
 6. [`REVIEW_2026-11-01.md`](REVIEW_2026-11-01.md): kết quả rà soát, thay đổi và kiểm chứng đợt này.
 7. [`BENCHMARK.md`](BENCHMARK.md): trạng thái đo hiệu năng, không dùng số ước lượng.
 
-Các tệp `REPORT_LUOT*.md`, `LUOT3B_VERIFY_*.md`, `AUDIT_NOTES.md` và phần cũ của `IMPROVEMENT_PLAN.md` ghi lại từng thời điểm triển khai. Số test và tuyên bố hoàn thành trong đó không đại diện cho phiên bản hiện tại.
+Thư mục [`archive/`](archive/) chứa `REPORT_LUOT*.md`, `LUOT3B_VERIFY_*.md`, `AUDIT_NOTES.md` và `IMPROVEMENT_PLAN.md`, ghi lại từng thời điểm triển khai. Số test và tuyên bố hoàn thành trong đó không đại diện cho phiên bản hiện tại.
 
 Các bản đề bài, kiến trúc và mẫu giao diện trong thư mục cha là tài liệu đầu vào. Khi khác với ADR mới hơn, áp dụng ADR mới: Result v2, người tạo chọn màu, telemetry chỉ cảnh báo, thị trường Trắng/Đen/Hòa và single-signed tắt mặc định. Mã giao diện mẫu cần được điều chỉnh theo các luồng thực tế.
 

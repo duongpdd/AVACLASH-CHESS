@@ -13,14 +13,14 @@ Khảo sát trực tiếp trên file hiện tại (không dùng diff):
 ### 1.1. Hàm xử lý `join` có xác thực địa chỉ bằng chữ ký không?
 - **Kết luận:** **KHÔNG CÓ XÁC THỰC BẰNG CHỮ KÝ**.
 - **Dẫn chứng mã nguồn:**
-  - Trong [`packages/relay/src/RelayServer.ts:109-112`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/relay/src/RelayServer.ts#L109-L112):
+  - Trong [`packages/relay/src/RelayServer.ts:109-112`](../../packages/relay/src/RelayServer.ts#L109-L112):
     ```typescript
     case "join_room": {
       this.handleJoinRoom(ws, msg.roomId, msg.address as `0x${string}`);
       break;
     }
     ```
-  - Trong [`packages/relay/src/RelayServer.ts:187-202`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/relay/src/RelayServer.ts#L187-L202):
+  - Trong [`packages/relay/src/RelayServer.ts:187-202`](../../packages/relay/src/RelayServer.ts#L187-L202):
     ```typescript
     public handleJoinRoom(ws: WebSocket, roomId: number, address: `0x${string}`): void {
       let room = this.rooms.get(roomId);
@@ -39,7 +39,7 @@ Khảo sát trực tiếp trên file hiện tại (không dùng diff):
       room.broadcastRoomState();
     }
     ```
-  - Schema validate trong [`packages/shared/src/schemas.ts:31-36`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/shared/src/schemas.ts#L31-L36) chỉ kiểm tra chuỗi `address` có đúng định dạng hex 42 ký tự (`0x...`).
+  - Schema validate trong [`packages/shared/src/schemas.ts:31-36`](../../packages/shared/src/schemas.ts#L31-L36) chỉ kiểm tra chuỗi `address` có đúng định dạng hex 42 ký tự (`0x...`).
   - **Hệ quả an ninh:** Client chỉ gửi chuỗi địa chỉ trần mà không có chữ ký mật mã (EIP-4361 SIWE hay cryptographic challenge-response). Bất kỳ kẻ tấn công nào kết nối WebSocket đều có thể giả mạo địa chỉ của người khác khi gửi gói tin `join_room`.
 
 ---
@@ -47,7 +47,7 @@ Khảo sát trực tiếp trên file hiện tại (không dùng diff):
 ### 1.2. Có kiểm tra `roomId` và địa chỉ với on-chain (`playerA`/`playerB`, trạng thái `Active`) không?
 - **Kết luận:** **HOÀN TOÀN KHÔNG CÓ BẤT KỲ KIỂM TRA ON-CHAIN NÀO**.
 - **Dẫn chứng mã nguồn:**
-  - Trong toàn bộ [`packages/relay/src/RelayServer.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/relay/src/RelayServer.ts): Không hề import `createPublicClient` từ `viem` hay khởi tạo bất kỳ RPC Provider nào kết nối tới Avalanche Fuji RPC.
+  - Trong toàn bộ [`packages/relay/src/RelayServer.ts`](../../packages/relay/src/RelayServer.ts): Không hề import `createPublicClient` từ `viem` hay khởi tạo bất kỳ RPC Provider nào kết nối tới Avalanche Fuji RPC.
   - Biến `contractAddress` và `chainId` chỉ được lưu trong instance (`RelayServer.ts:32-33`) để phục vụ việc bọc domain EIP-712 khi ký kết quả cuối ván (`handleGameOver`, dòng 228), hoàn toàn không có hàm đọc hợp đồng.
   - Khi client gửi `join_room`, server không hề gọi `ChessEscrow.getRoom(roomId)` để đối chiếu:
     1. Phòng có tồn tại trên blockchain hay không.
@@ -60,7 +60,7 @@ Khảo sát trực tiếp trên file hiện tại (không dùng diff):
 ### 1.3. Seed chọn màu quân (Q3) nằm ở đâu?
 - **Kết luận:** **HOÀN TOÀN CHƯA CÓ SEED CHỌN MÀU QUÂN (Q3 CHƯA ĐƯỢC TRIỂN KHAI TRONG MÃ NGUỒN)**.
 - **Dẫn chứng mã nguồn:**
-  - Trong [`packages/relay/src/RelayRoom.ts:80-89`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/relay/src/RelayRoom.ts#L80-L89):
+  - Trong [`packages/relay/src/RelayRoom.ts:80-89`](../../packages/relay/src/RelayRoom.ts#L80-L89):
     ```typescript
     if (!this.whitePlayer) {
       this.whitePlayer = { address, ws, color: "w", warnings: 0 };
@@ -81,7 +81,7 @@ Khảo sát trực tiếp trên file hiện tại (không dùng diff):
 ### 1.4. Ai gọi `signalGameStarted`?
 - **Kết luận:** **KHÔNG CÓ AI (KHÔNG CÓ DAEMON HAY SERVER NÀO) GỌI `signalGameStarted` NGOẠI TRỪ UNIT TEST**.
 - **Dẫn chứng mã nguồn:**
-  - Hàm `signalGameStarted(uint256 roomId)` được định nghĩa tại [`contracts/src/ChessEscrow.sol:307-313`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/src/ChessEscrow.sol#L307-L313):
+  - Hàm `signalGameStarted(uint256 roomId)` được định nghĩa tại [`contracts/src/ChessEscrow.sol:307-313`](../../contracts/src/ChessEscrow.sol#L307-L313):
     ```solidity
     function signalGameStarted(uint256 roomId) external {
         if (msg.sender != relaySigner) revert InvalidSignature();
@@ -92,7 +92,7 @@ Khảo sát trực tiếp trên file hiện tại (không dùng diff):
     }
     ```
   - Trong toàn bộ codebase (`packages/relay`, `packages/shared`, `web`): **Không có bất kỳ dòng code nào gọi hàm này lên blockchain**.
-  - Các vị trí duy nhất trong repo gọi `signalGameStarted` là trong test suite Foundry tại [`contracts/test/ChessEscrow.t.sol:216, 228, 238`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/test/ChessEscrow.t.sol#L216).
+  - Các vị trí duy nhất trong repo gọi `signalGameStarted` là trong test suite Foundry tại [`contracts/test/ChessEscrow.t.sol:216, 228, 238`](../../contracts/test/ChessEscrow.t.sol#L216).
   - **Hệ quả thực tế:** Trên hợp đồng thông minh, biến `room.gameStarted` luôn luôn có giá trị mặc định là `false`. Bất kỳ người chơi nào sau 3 phút đều có thể gọi `abortRoom(roomId)` để rút 100% tiền cược (vấn đề G2 trong `AUDIT_NOTES.md`).
 
 ---
@@ -133,7 +133,7 @@ Trong báo cáo `REPORT_LUOT2.md`, commit `fda0f5e` xuất hiện tại 2 mục 
 Trước khi Lượt 2 bắt đầu (điểm gốc `c404574^` tức commit `f681e0e`), cây làm việc có nhiều tệp của Phase 4 chưa được commit riêng rẽ. Cụ thể:
 
 1. **Bị gộp vào commit `c404574` (`feat(escrow): G8a isolate Escrow calls to Meta`):**
-   - File [`contracts/src/ChessEscrow.sol`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/src/ChessEscrow.sol) có tới 528 dòng thêm mới và 81 dòng xóa. Phần lớn các thay đổi này là code của Phase 4 (các hàm tích hợp Meta, cấu trúc single-signed, challenge window) chưa từng được commit trước đó.
+   - File [`contracts/src/ChessEscrow.sol`](../../contracts/src/ChessEscrow.sol) có tới 528 dòng thêm mới và 81 dòng xóa. Phần lớn các thay đổi này là code của Phase 4 (các hàm tích hợp Meta, cấu trúc single-signed, challenge window) chưa từng được commit trước đó.
 
 2. **Bị gộp vào commit `fda0f5e` (`feat(relay): G4 telemetry warning-only`):**
    - Toàn bộ 3 tệp nguồn và test của Relay chưa từng được đưa vào git:

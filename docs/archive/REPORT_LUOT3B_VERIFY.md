@@ -11,12 +11,12 @@
 Hai tệp log kiểm thử thô đã được chuyển hướng đầu ra bằng lệnh `cmd /c` (không dùng PowerShell 5 redirection để bảo toàn UTF-8 byte stream):
 
 1. **Foundry Smart Contract Test Output (`forge test -vv`):**  
-   [contracts/forge_out.txt](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/forge_out.txt)  
+   [contracts/forge_out.txt](../../contracts/forge_out.txt)  
    - Kết quả: **154 tests passed, 0 failed, 0 skipped**.  
    - Toàn bộ 5 test suites (`ChessEscrowTest`, `AvaClashMetaTest`, `ChessEscrowMetaIntegrationTest`, `ChessEscrowMetaTryCatchTest`, `ChessEscrowInvariantTest`) đều thành công 100%.
 
 2. **TypeScript Monorepo Test Output (`pnpm test`):**  
-   [vitest_out.txt](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/vitest_out.txt)  
+   [vitest_out.txt](../../vitest_out.txt)  
    - Kết quả: **150 tests passed, 0 failed** (6 suites trong `packages/shared`, 3 suites trong `packages/relay`, 1 suite trong `web`).  
    - Toàn bộ các kiểm thử WebSocket daemon, Anvil local fork, EIP-712 hashing/signing, và GameState đều thành công 100%. Cảnh báo `[DEP0190]` đã bị loại bỏ hoàn toàn.
 
@@ -31,16 +31,16 @@ Hai tệp log kiểm thử thô đã được chuyển hướng đầu ra bằng
   - Cửa 3 = Hòa
   - Ánh xạ tuyệt đối theo màu cờ bàn cờ, **hoàn toàn không phụ thuộc** vào việc người tạo phòng (`creator`) chọn cầm quân Trắng hay Đen.
 - **Bằng chứng mã nguồn hiện tại đã chuẩn xác theo Q13:**
-  - File: dòng trong [`ChessEscrow.sol`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/src/ChessEscrow.sol#L890-L891):
+  - File: dòng trong [`ChessEscrow.sol`](../../contracts/src/ChessEscrow.sol#L890-L891):
     ```solidity
                 address whitePlayer = room.creatorIsWhite ? room.playerA : room.playerB;
                 uint8 winningOption = (winner == whitePlayer) ? 1 : 2;
     ```
-  - Khi hòa trận ([`ChessEscrow.sol:868`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/src/ChessEscrow.sol#L868)):
+  - Khi hòa trận ([`ChessEscrow.sol:868`](../../contracts/src/ChessEscrow.sol#L868)):
     ```solidity
                 try IAvaClashMeta(metaContract).resolvePrediction(roomId, 3, moveCount) {}
     ```
-  - File: dòng trong [`ChessEscrowMetaIntegration.t.sol`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/test/ChessEscrowMetaIntegration.t.sol#L227-L295):
+  - File: dòng trong [`ChessEscrowMetaIntegration.t.sol`](../../contracts/test/ChessEscrowMetaIntegration.t.sol#L227-L295):
     - Khi `creatorIsWhite = false` và Trắng thắng (Trắng là joiner `bob`):
       `ChessEscrowMetaIntegration.t.sol:258-294` (`test_Matrix_CreatorBlack_WhiteWin_MovesGE20`): Khán giả cược cửa 1 nhận thưởng đầy đủ, cửa 2 và 3 thua.
     - Khi `creatorIsWhite = false` và Đen thắng (Đen là creator `alice`):
@@ -52,7 +52,7 @@ Hai tệp log kiểm thử thô đã được chuyển hướng đầu ra bằng
 ### Mục 7: Cô Lập Trạng Thái Giữa Các Lần Chạy & Bảo Vệ File Active Cũ
 - **Commit:** `43401e2` (*feat(relay): isolate test state with activeDir, validate restored active file against chain, and delete stale files on mismatch*)
 - **Giải pháp thực hiện:**
-  1. Bổ sung tham số `activeDir` độc lập vào [`RelayServerOptions`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/relay/src/RelayServer.ts#L41), tách biệt với `resultsDir`.
+  1. Bổ sung tham số `activeDir` độc lập vào [`RelayServerOptions`](../../packages/relay/src/RelayServer.ts#L41), tách biệt với `resultsDir`.
   2. Mọi test suite (`tests/relay.test.ts`, `tests/anvil-integration.test.ts`) đều sử dụng thư mục tạm riêng thông qua `fs.mkdtempSync` và dọn dẹp sạch sẽ trong `afterAll`.
   3. Thêm kiểm tra cuối mỗi bộ test khẳng định tuyệt đối không có thư mục `./results` hoặc `./active` nào xuất hiện trong thư mục làm việc.
   4. Cơ chế khôi phục từ file active đối chiếu trực tiếp với blockchain:
@@ -73,14 +73,14 @@ Hai tệp log kiểm thử thô đã được chuyển hướng đầu ra bằng
   - Sau đó phục hồi RPC node, người chơi gửi `request_result`, nhận chữ ký Relay hợp lệ và thực hiện `submitResult` thanh toán thành công 100% trên Anvil.
 - **Tái hiện FAIL trên mã nguồn cũ (trước commit `4febbca` / commit `b28214a`):**
   - Khi chưa lưu file trước khi đọc chain, hàm `handleGameOver` cố đọc on-chain trước khi ghi file, dẫn đến việc crash do RPC lỗi và tệp kết quả không tồn tại trên đĩa.
-  - Output lỗi nguyên văn được lưu tại tài liệu đối chiếu [`docs/LUOT3B_VERIFY_ITEM2_FAIL_OUTPUTS.md`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/docs/LUOT3B_VERIFY_ITEM2_FAIL_OUTPUTS.md).
+  - Output lỗi nguyên văn được lưu tại tài liệu đối chiếu [`docs/LUOT3B_VERIFY_ITEM2_FAIL_OUTPUTS.md`](../../docs/LUOT3B_VERIFY_ITEM2_FAIL_OUTPUTS.md).
 
 ---
 
 ### Mục 2: Output FAIL Thật Của Các Mục 4, 5, 6 Lượt 3b-fix
 - **Commit:** `84e13f8` (*docs: document verbatim FAIL outputs reproducing Items 4, 5, and 6 of Luot 3b-fix*)
 - Toàn bộ output FAIL nguyên văn không chen giải thích được lưu trữ đầy đủ tại:  
-  [docs/LUOT3B_VERIFY_ITEM2_FAIL_OUTPUTS.md](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/docs/LUOT3B_VERIFY_ITEM2_FAIL_OUTPUTS.md)
+  [docs/LUOT3B_VERIFY_ITEM2_FAIL_OUTPUTS.md](../../docs/LUOT3B_VERIFY_ITEM2_FAIL_OUTPUTS.md)
   1. **Item 4 (Disconnection Timeout):** Tái hiện trên commit `70b5f55`. Lỗi: `Test timed out in 5000ms` do đồng hồ cờ bị ngắt khi người chơi mất kết nối thay vì tiếp tục chạy.
   2. **Item 5 (Save Result Before RPC Query):** Tái hiện trên commit `b28214a`. Lỗi: `AssertionError: expected 'No saved result found for room 0' to be undefined` do kết quả ván đấu chưa được lưu trước khi gọi RPC.
   3. **Item 6 (Origin Verification & DNS Rebinding Protection):** Tái hiện trên commit `4febbca`. Lỗi: `AssertionError: expected true to be false` tại dòng 1057 do server chấp nhận WebSocket handshake từ unauthorized Origin.
@@ -90,20 +90,20 @@ Hai tệp log kiểm thử thô đã được chuyển hướng đầu ra bằng
 ### Mục 3: Bảng Đối Chiếu Test Từ Lượt 3a Đến Hiện Tại
 - **Commit:** `753c859` (*docs: add real test mapping table from Luot 3a commit 2441952 to current locations*)
 - Trích xuất từ commit `2441952:contracts/test/ChessEscrowMetaTryCatch.t.sol`:
-  - Toàn bộ 8 bài test gốc của Lượt 3a được đối chiếu chi tiết sang vị trí hiện tại trong [`contracts/test/ChessEscrowMetaTryCatch.t.sol`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/test/ChessEscrowMetaTryCatch.t.sol).
+  - Toàn bộ 8 bài test gốc của Lượt 3a được đối chiếu chi tiết sang vị trí hiện tại trong [`contracts/test/ChessEscrowMetaTryCatch.t.sol`](../../contracts/test/ChessEscrowMetaTryCatch.t.sol).
   - Bổ sung 5 test mở rộng bảo vệ lỗi revert của Meta (nâng tổng số lên 13 test).
-  - Chi tiết lưu tại: [docs/LUOT3B_VERIFY_ITEM3_TEST_MAPPING.md](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/docs/LUOT3B_VERIFY_ITEM3_TEST_MAPPING.md).
+  - Chi tiết lưu tại: [docs/LUOT3B_VERIFY_ITEM3_TEST_MAPPING.md](../../docs/LUOT3B_VERIFY_ITEM3_TEST_MAPPING.md).
 
 ---
 
 ### Mục 4: Cấu Hình Invariant Test & Khẳng Định Ghost Counters Trên Tổng Campaign
 - **Commit:** `5140245` (*test(invariants): configure runs=20 depth=500 in foundry.toml, add profile ci, assert >=20 ghost counters across campaign, and update proof wording*)
-- **Điều chỉnh cấu hình [`contracts/foundry.toml`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/foundry.toml):**
+- **Điều chỉnh cấu hình [`contracts/foundry.toml`](../../contracts/foundry.toml):**
   - Mặc định: `runs = 20`, `depth = 500`, `fail_on_revert = false`.
   - Profile CI (`FOUNDRY_PROFILE=ci`): `runs = 256`, `depth = 500`, `fail_on_revert = true`.
-- **Hiệu đính tài liệu:** Đã sửa cụm từ "chứng minh bằng toán học" thành "fuzz không tìm thấy phản ví dụ" trong [`docs/REPORT_LUOT3B_FIX.md`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/docs/REPORT_LUOT3B_FIX.md#L394).
+- **Hiệu đính tài liệu:** Đã sửa cụm từ "chứng minh bằng toán học" thành "fuzz không tìm thấy phản ví dụ" trong [`docs/REPORT_LUOT3B_FIX.md`](../../docs/REPORT_LUOT3B_FIX.md#L394).
 - **Cơ chế Ghost Counters `afterInvariant()` trên tổng campaign:**
-  - Hook [`afterInvariant()`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/test/invariants/ChessEscrowInvariant.t.sol#L217) trong `ChessEscrowInvariant.t.sol` tích lũy chính xác dữ liệu của toàn bộ chiến dịch fuzz (20 runs hoặc 256 runs) thông qua bộ lưu trữ campaign không biến đổi giữa các lượt reset EVM snapshot.
+  - Hook [`afterInvariant()`](../../contracts/test/invariants/ChessEscrowInvariant.t.sol#L217) trong `ChessEscrowInvariant.t.sol` tích lũy chính xác dữ liệu của toàn bộ chiến dịch fuzz (20 runs hoặc 256 runs) thông qua bộ lưu trữ campaign không biến đổi giữa các lượt reset EVM snapshot.
   - Khẳng định tối thiểu $\ge 20$ lần cho toàn bộ 6 nhánh bond cốt lõi. Trong lần chạy mặc định (20 runs = 10,000 calls), mỗi nhánh đều vượt xa yêu cầu (từ 482 đến 1,593 lần).
 
 ---
@@ -111,8 +111,8 @@ Hai tệp log kiểm thử thô đã được chuyển hướng đầu ra bằng
 ### Mục 5: Cố Định Fixture `cross_spec_result.json` & Ghi Đè Có Điều Kiện
 - **Commit:** `736f8fa` (*test(fixture): lock cross_spec_result.json fixture and only overwrite when UPDATE_FIXTURE=1*)
 - **Giải pháp:**
-  - Tệp [`contracts/test/fixtures/cross_spec_result.json`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/test/fixtures/cross_spec_result.json) được cố định giá trị và commit vào git.
-  - Trong [`packages/shared/tests/cross-spec-fixture.test.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/shared/tests/cross-spec-fixture.test.ts), kiểm thử chỉ đọc và xác minh tính toàn vẹn EIP-712 của chữ ký Viem với digest fixture mà tuyệt đối **không ghi đè** lên file.
+  - Tệp [`contracts/test/fixtures/cross_spec_result.json`](../../contracts/test/fixtures/cross_spec_result.json) được cố định giá trị và commit vào git.
+  - Trong [`packages/shared/tests/cross-spec-fixture.test.ts`](../../packages/shared/tests/cross-spec-fixture.test.ts), kiểm thử chỉ đọc và xác minh tính toàn vẹn EIP-712 của chữ ký Viem với digest fixture mà tuyệt đối **không ghi đè** lên file.
   - Tệp chỉ được phép ghi đè khi và chỉ khi có biến môi trường `UPDATE_FIXTURE=1`.
 
 ---
@@ -120,7 +120,7 @@ Hai tệp log kiểm thử thô đã được chuyển hướng đầu ra bằng
 ### Mục 9: Loại Bỏ `shell: true` Khi Khởi Động Anvil Helper
 - **Commit:** `c9fa954` (*fix(test): remove shell: true from spawn anvil helper to eliminate DEP0190 warning*)
 - **Giải pháp:**
-  - Trong [`packages/relay/tests/helpers/anvil.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/relay/tests/helpers/anvil.ts#L41), đã loại bỏ tùy chọn `{ shell: true }` khi gọi hàm `spawn("anvil", ...)`.
+  - Trong [`packages/relay/tests/helpers/anvil.ts`](../../packages/relay/tests/helpers/anvil.ts#L41), đã loại bỏ tùy chọn `{ shell: true }` khi gọi hàm `spawn("anvil", ...)`.
   - Khởi chạy trực tiếp binary `anvil` mà không qua shell trung gian giúp tránh các lỗ hổng shell injection tiềm ẩn trên Windows.
   - Cảnh báo Node.js deprecation:
     `[DEP0190] DeprecationWarning: Passing args to a child process with shell option true...`

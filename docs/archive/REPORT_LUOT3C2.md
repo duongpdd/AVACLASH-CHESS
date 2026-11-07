@@ -43,7 +43,7 @@ Error: Failed to load url ../src/relay-client.js (resolved id: ../src/relay-clie
 ```
 
 #### 3. Đoạn Code Trích Nguyên Văn từ `packages/shared/src/relay-client.ts`
-- **Khởi tạo và Typed Event Map** ([`packages/shared/src/relay-client.ts#L26-L66`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/shared/src/relay-client.ts#L26-L66)):
+- **Khởi tạo và Typed Event Map** ([`packages/shared/src/relay-client.ts#L26-L66`](../../packages/shared/src/relay-client.ts#L26-L66)):
 ```typescript
 26: export interface RelayClientOptions {
 27:   url: string;
@@ -88,7 +88,7 @@ Error: Failed to load url ../src/relay-client.js (resolved id: ../src/relay-clie
 66: }
 ```
 
-- **Kiểm tra lượt đi và gửi nước cờ an toàn** ([`packages/shared/src/relay-client.ts#L482-L496`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/shared/src/relay-client.ts#L482-L496)):
+- **Kiểm tra lượt đi và gửi nước cờ an toàn** ([`packages/shared/src/relay-client.ts#L482-L496`](../../packages/shared/src/relay-client.ts#L482-L496)):
 ```typescript
 482:   public sendMove(uci: string): void {
 483:     if (!this.authenticated || this.roomId === null) {
@@ -133,7 +133,7 @@ Error: Failed to load url ../src/verify-result.js (resolved id: ../src/verify-re
 ```
 
 #### 3. Đoạn Code Trích Nguyên Văn từ `packages/shared/src/verify-result.ts`
-- **Xác thực toàn diện các trường và chữ ký** ([`packages/shared/src/verify-result.ts#L54-L116`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/shared/src/verify-result.ts#L54-L116)):
+- **Xác thực toàn diện các trường và chữ ký** ([`packages/shared/src/verify-result.ts#L54-L116`](../../packages/shared/src/verify-result.ts#L54-L116)):
 ```typescript
 54: export function verifyResultProposal(params: VerifyResultParams): VerifyResultOutcome {
 55:   const {
@@ -224,7 +224,7 @@ Error: Failed to resolve import "../hooks/useSubmitResult" from "src/__tests__/h
 ```
 
 #### 3. Đoạn Code Trích Nguyên Văn từ `web/src/hooks/useSubmitResult.ts`
-- **Ký EIP-712 và Nộp On-Chain** ([`web/src/hooks/useSubmitResult.ts#L86-L155`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web/src/hooks/useSubmitResult.ts#L86-L155)):
+- **Ký EIP-712 và Nộp On-Chain** ([`web/src/hooks/useSubmitResult.ts#L86-L155`](../../web/src/hooks/useSubmitResult.ts#L86-L155)):
 ```typescript
 86: 
 87:       if (!verifyOutcome.valid) {
@@ -304,7 +304,7 @@ Error: Failed to resolve import "../hooks/useSubmitResult" from "src/__tests__/h
 - Đầy đủ nút thao tác: Đầu hàng, Xin hòa, Chấp nhận / Từ chối hòa. Hiển thị cảnh báo focus (chỉ cảnh báo, không trừ giờ).
 - Khi kết thúc: hiển thị kết quả trực quan, liên kết với quy trình giải ngân `useSubmitResult`. Hiển thị số dư `pendingWithdrawals` và nút "Rút tiền".
 - Khi tải lại trang hoặc nhận `game_finished`: hiển thị "Ván đã kết thúc" và nút "Lấy chữ ký kết quả" (`request_result`).
-- Khi phòng chưa bắt đầu: hiển thị đếm ngược và nút gọi hợp đồng `abortRoom` (sau 3 phút nếu chưa `gameStarted`) và `refundOnTimeout` (sau 60 phút) qua component [`web/src/components/AbortRefundWidget.tsx`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web/src/components/AbortRefundWidget.tsx).
+- Khi phòng chưa bắt đầu: hiển thị đếm ngược và nút gọi hợp đồng `abortRoom` (sau 3 phút nếu chưa `gameStarted`) và `refundOnTimeout` (sau 60 phút) qua component [`web/src/components/AbortRefundWidget.tsx`](../../web/src/components/AbortRefundWidget.tsx).
 - Khi mất kết nối: hiển thị banner "Đang kết nối lại...", giữ đồng hồ chạy theo tin nhắn mới nhất, khóa không cho đi cờ khi chưa xác thực lại.
 - Tuyệt đối KHÔNG có ô nhập private key.
 
@@ -318,7 +318,7 @@ TestingLibraryElementError: Unable to find an element with the text: /Chưa ch�
 ```
 
 #### 3. Đoạn Code Trích Nguyên Văn từ `web/src/components/AbortRefundWidget.tsx`
-- **Tính toán thời gian và gọi `abortRoom` / `refundOnTimeout`** ([`web/src/components/AbortRefundWidget.tsx#L54-L80`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web/src/components/AbortRefundWidget.tsx#L54-L80)):
+- **Tính toán thời gian và gọi `abortRoom` / `refundOnTimeout`** ([`web/src/components/AbortRefundWidget.tsx#L54-L80`](../../web/src/components/AbortRefundWidget.tsx#L54-L80)):
 ```typescript
 54:   const joinedAt = Number(room.startedAt || room.joinedAt || 0);
 55:   const abortEligibleAt = joinedAt + 180; // 3 minutes
@@ -351,7 +351,7 @@ TestingLibraryElementError: Unable to find an element with the text: /Chưa ch�
 ### Mục 5: Kiểm Thử Tích Hợp Toàn Diện (End-to-End với Anvil & RelayServer)
 
 #### 1. Yêu cầu & Kịch bản Kiểm thử
-File kiểm thử tích hợp [`packages/relay/tests/e2e-turn3c2.test.ts`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/relay/tests/e2e-turn3c2.test.ts) thực thi 6 kịch bản end-to-end hoàn chỉnh:
+File kiểm thử tích hợp [`packages/relay/tests/e2e-turn3c2.test.ts`](../../packages/relay/tests/e2e-turn3c2.test.ts) thực thi 6 kịch bản end-to-end hoàn chỉnh:
 1. **Full Checkmate Game (`creatorIsWhite = true`):** Player A (Trắng), Player B (Đen). Đi Fool's Mate (`1. f2f3 e7e5 2. g2g4 d8h4#`). Đen thắng, nhận proposal, kiểm tra `verifyResultProposal` $\to$ valid, ký EIP-712, nộp `submitResult`, phòng `Settled`, `pendingWithdrawals` = `pot - 5% fee` (0.19 ETH), rút tiền thành công.
 2. **Full Checkmate Game (`creatorIsWhite = false`):** Player A (Đen, tạo phòng), Player B (Trắng). Đi `1. f2f3 e7e5 2. g2g4 d8h4#`. Đen (Player A) thắng, xác minh, ký, nộp, rút tiền thành công.
 3. **Thỏa thuận Hòa (Draw Agreement):** White gửi `sendDrawOffer()`, Black nhận và gửi `sendDrawAccept()`. Relay tạo đề xuất hòa. Cả hai verify với `drawAcceptSeen: true`, ký, nộp, tiền cược chia 50/50 (0.1 ETH mỗi bên, không mất phí protocol fee), cả hai rút tiền thành công.
@@ -382,7 +382,7 @@ AssertionError: expected 190000000000000000n to be 999999999n // Object.is equal
 ```
 
 #### 3. Đoạn Code Sửa và Thực Thi
-- **Bổ sung `getOutcome()` và `getEndReason()` vào `ChessGame`** ([`packages/shared/src/chess.ts#L74-L98`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/shared/src/chess.ts#L74-L98)):
+- **Bổ sung `getOutcome()` và `getEndReason()` vào `ChessGame`** ([`packages/shared/src/chess.ts#L74-L98`](../../packages/shared/src/chess.ts#L74-L98)):
 ```typescript
 74:   /**
 75:    * Get game outcome based on board state.
@@ -410,7 +410,7 @@ AssertionError: expected 190000000000000000n to be 999999999n // Object.is equal
 97:   }
 ```
 
-- **Xử lý `game_finished` khi kết nối lại phòng đã xong** ([`packages/shared/src/relay-client.ts#L404-L414`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/shared/src/relay-client.ts#L404-L414)):
+- **Xử lý `game_finished` khi kết nối lại phòng đã xong** ([`packages/shared/src/relay-client.ts#L404-L414`](../../packages/shared/src/relay-client.ts#L404-L414)):
 ```typescript
 404:       case "game_finished": {
 405:         if (this.roomId !== null && msg.roomId !== this.roomId) return;
@@ -425,7 +425,7 @@ AssertionError: expected 190000000000000000n to be 999999999n // Object.is equal
 414:       }
 ```
 
-- **Kịch bản Nộp và Rút tiền 2-trong-3 trong Test Tích hợp** ([`packages/relay/tests/e2e-turn3c2.test.ts#L244-L265`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/packages/relay/tests/e2e-turn3c2.test.ts#L244-L265)):
+- **Kịch bản Nộp và Rút tiền 2-trong-3 trong Test Tích hợp** ([`packages/relay/tests/e2e-turn3c2.test.ts#L244-L265`](../../packages/relay/tests/e2e-turn3c2.test.ts#L244-L265)):
 ```typescript
 244:     // Black calls submitResult on ChessEscrow with 2-of-3 signatures: playerBSig + relaySignature
 245:     const submitTx = await playerBWallet.writeContract({
@@ -465,7 +465,7 @@ AssertionError: expected 190000000000000000n to be 999999999n // Object.is equal
   - Mục 9: Relay là bên tin cậy duy nhất cho kết quả thắng/thua khi phân xử theo cơ chế đồng thuận 2-trong-3.
   - Mục 10: Người chơi chỉ kiểm tra được tính nhất quán logic phía client (`verifyResultProposal`), không thể xác minh bằng chứng mật mã học cho các sự kiện đơn phương như đối thủ xin đầu hàng (resign) hay đối thủ hết giờ (timeout) nếu đối thủ không cùng ký.
 
-#### 2. Đoạn Code Trích Nguyên Văn từ `README.md` ([`README.md#L218-L221`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/README.md#L218-L221)):
+#### 2. Đoạn Code Trích Nguyên Văn từ `README.md` ([`README.md#L218-L221`](../../README.md#L218-L221)):
 ```markdown
 218: 7. **Quỹ giải thưởng mùa giải (`seasonPrizePool`) chưa có cơ chế chi trả:** Phần tích lũy 5% phí spectator vào `seasonPrizePool` hiện được giữ an toàn trên hợp đồng và chưa có smart contract phân bổ thưởng cuối mùa giải.
 219: 8. **Chữ ký Join chưa gắn Origin (Rủi ro Phishing):** Payload ký EIP-712 `Join(uint256 roomId, address player, bytes32 nonce, uint256 expiresAt)` hiện tại chưa gắn trường origin/domain web (`webOrigin`), dẫn đến rủi ro lừa đảo chữ ký (cross-origin signature phishing) nếu người dùng tương tác với một trang web độc hại nhắm vào cùng Relay Server.
@@ -499,9 +499,9 @@ Trong đợt chạy Invariant Fuzzing toàn diện bảo toàn tính bảo toàn
 ## 4. Tệp Đầu Ra Thô Đính Kèm (Raw Outputs)
 
 Ba tệp đầu ra thô định dạng UTF-8 đã được tạo trực tiếp bằng `cmd /c`:
-1. [`contracts/forge_out.txt`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/contracts/forge_out.txt): Kết quả 164/164 test hợp đồng thông minh thành công (Foundry).
-2. [`vitest_out.txt`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/vitest_out.txt): Kết quả 230/230 test TypeScript workspace thành công (`@avaclash/shared`: 114 test, `@avaclash/relay`: 44 test, `web`: 72 test).
-3. [`web_build_out.txt`](file:///c:/Users/Admin/Desktop/PRJ1/avaclash-chess/web_build_out.txt): Kết quả build tối ưu hóa production thành công cho ứng dụng Next.js (`pnpm --filter web build`).
+1. [`contracts/forge_out.txt`](../../contracts/forge_out.txt): Kết quả 164/164 test hợp đồng thông minh thành công (Foundry).
+2. [`vitest_out.txt`](../../vitest_out.txt): Kết quả 230/230 test TypeScript workspace thành công (`@avaclash/shared`: 114 test, `@avaclash/relay`: 44 test, `web`: 72 test).
+3. [`web_build_out.txt`](../../web_build_out.txt): Kết quả build tối ưu hóa production thành công cho ứng dụng Next.js (`pnpm --filter web build`).
 
 ---
 
