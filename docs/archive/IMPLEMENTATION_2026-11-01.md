@@ -6,7 +6,7 @@ Thực hiện theo yêu cầu kiểm tra và làm các bước sau rà soát. C�
 
 | Nhóm             | Kết quả và bằng chứng                                                                                                                                                                                                               |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PvP hai ví local | Chiến dịch 20 trận Node/Anvil riêng, WebSocket thật, cả hai màu, chiếu hết/đầu hàng/hòa; kiểm tra payout và số dư thực sau gas. Reconnect nhận lại transcript. [Receipt, hash và số đo](benchmarks/local-campaign.json).            |
+| PvP hai ví local | Chiến dịch 20 trận Node/Anvil riêng, WebSocket thật, cả hai màu, chiếu hết/đầu hàng/hòa; kiểm tra payout và số dư thực sau gas. Reconnect nhận lại transcript. [Receipt, hash và số đo](../benchmarks/local-campaign.json).            |
 | Gián đoạn        | Các test relay/web kiểm reload sau kết thúc, timeout, mất mạng, restart, RPC hỏng, từ chối ký, tab thay ghế, đổi phòng/ví, hoàn tiền và terminal durability.                                                                        |
 | Ví / chain       | Đồng bộ ETH trên Anvil, AVAX trên Fuji, lỗi và số dư theo chain mục tiêu; hướng dẫn RPC dùng cấu hình thực, nút rút chặn sai mạng.                                                                                                  |
 | Join             | V2 bind chain, Escrow và origin; client từ chối cấu hình sai trước ký, server chỉ xác minh v2. Hạn ký 60 giây, ngừng retry khi từ chối/hết hạn/trùng tab. Result v2 và lõi cờ không đổi.                                            |
@@ -14,9 +14,9 @@ Thực hiện theo yêu cầu kiểm tra và làm các bước sau rà soát. C�
 | Vault / rewards  | UI gửi/rút principal, đọc điểm; chi thưởng Merkle Q30, quỹ tài trợ, reserve, notice, proof, một lần/ví, hết hạn trả pool; UI kiểm file và root/hash on-chain. Không hứa sinh lãi.                                                   |
 | Spectator        | Thêm gate hợp đồng mặc định tắt; không chặn claim/refund khoản cũ. Không mở UI cược khi rủi ro thông đồng còn tồn tại.                                                                                                              |
 | Vận hành         | /healthz, /readyz, kiểm phụ thuộc trước khi listen, snapshot khi shutdown; script backup/restore hash; Anvil state 5 giây và thư mục relay riêng cho chain mới.                                                                     |
-| Đo lường         | [Gas](benchmarks/gas-summary.md), [bảng Foundry](benchmarks/contracts-gas.txt), latency local 106 mẫu, [FPS trình duyệt](benchmarks/browser-fps.json), [môi trường](benchmarks/environment.json). Không quy số local thành số Fuji. |
+| Đo lường         | [Gas](../benchmarks/gas-summary.md), [bảng Foundry](../benchmarks/contracts-gas.txt), latency local 106 mẫu, [FPS trình duyệt](../benchmarks/browser-fps.json), [môi trường](../benchmarks/environment.json). Không quy số local thành số Fuji. |
 | Triển khai / CI  | Script preflight Fuji, dry-run/deploy guard Anvil/Fuji, env mẫu công khai, hướng dẫn keystore/WSS/roles, workflow CI. Chưa xác nhận workflow trên GitHub.                                                                           |
-| Chuẩn bị audit   | [Phạm vi và rủi ro còn lại](SECURITY_REVIEW_SCOPE.md), manifest hash source. Đây là rà soát nội bộ, chưa phải audit độc lập.                                                                                                        |
+| Chuẩn bị audit   | [Phạm vi và rủi ro còn lại](../design/SECURITY_REVIEW_SCOPE.md), manifest hash source. Đây là rà soát nội bộ, chưa phải audit độc lập.                                                                                                        |
 
 Trong chiến dịch nhiều trận, đã tái hiện Anvil ngừng phản hồi do pipe stdout/stderr của helper không được đọc và đầy buffer; đổi helper sang stdio ignore rồi 20/20 trận hoàn tất. Không tăng timeout để tuyên bố đạt; receipt hiện có giới hạn chờ rõ ràng. Test/benchmark chạy bằng ví kiểm thử riêng, không ký thay hai ví MetaMask của người dùng.
 
@@ -35,7 +35,7 @@ TypeScript shared/relay/web, ESLint web, diff whitespace và Next production bui
 
 ## Cần tiếp tục khi đủ điều kiện
 
-- **Fuji:** [preflight](benchmarks/fuji-preflight.json) xác nhận RPC chain 43113, thiếu các địa chỉ vai trò/keystore và gas testnet. Người dùng xác nhận chưa có; chưa broadcast hoặc chơi 20 trận Fuji. Làm theo [FUJI_DEPLOY.md](FUJI_DEPLOY.md).
+- **Fuji:** [preflight](../benchmarks/fuji-preflight.json) xác nhận RPC chain 43113, thiếu các địa chỉ vai trò/keystore và gas testnet. Người dùng xác nhận chưa có; chưa broadcast hoặc chơi 20 trận Fuji. Làm theo [FUJI_DEPLOY.md](../guides/FUJI_DEPLOY.md).
 - **Hai ví trình duyệt:** chủ ví vẫn cần tự ký Join/Result và xác nhận giao dịch trên hai profile. Chiến dịch Node không thay thế nghiệm thu MetaMask thật.
 - **Yield:** chưa có nhà cung cấp/đặc tả rủi ro được chọn; Vault chỉ giữ principal. Không tự gửi principal sang giao thức bên thứ ba.
 - **Bảo mật / kinh tế:** audit độc lập, chống Sybil/thông đồng, chính sách phân bổ thưởng thật và hạ tầng backup ngoài máy chưa hoàn tất. Giới hạn được ghi trong SECURITY_REVIEW_SCOPE.md.

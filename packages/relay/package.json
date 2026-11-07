@@ -23,8 +23,7 @@
     "@avaclash/shared": "workspace:*",
     "pg": "8.23.1",
     "viem": "^2.21.0",
-    "ws": "^8.18.0",
-    "zod": "^4.6.7"
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

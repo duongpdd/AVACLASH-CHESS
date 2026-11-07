@@ -11,4 +11,6 @@ contracts/cache
 contracts/broadcast
 contracts/lib
 docs
-web-preview.png
+edge_profile*
+review_pack
+*.log

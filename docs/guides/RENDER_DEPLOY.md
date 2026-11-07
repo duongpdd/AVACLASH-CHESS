@@ -10,7 +10,7 @@ Phương án người dùng chọn ngày 02/11/2026 cho bản thử nghiệm Fuj
 - GitHub: source đã tải lên repo **Private** `duongpdd/AVACLASH-CHESS`. Local đã gắn `origin`; snapshot phát hành được tạo qua API, không đẩy lịch sử local lên GitHub. Không force-push nhánh local để thay lịch sử remote; khi cập nhật phải giữ remote head làm parent.
 - Hợp đồng Fuji đã triển khai; xem [receipt và địa chỉ](FUJI_DEPLOY.md). Không deploy lại hợp đồng cho thay đổi storage này.
 
-Đã đạt 9/9 kiểm tra kết nối HTTP/health/WSS, 14/14 kiểm tra chain/contract/vai trò/gas, xác minh bundle public dùng đúng relay/contract/RPC, và kiểm tra trình duyệt thấy trang chủ cùng bàn cờ hot-seat tải đúng. Chưa chơi ván PvP hai ví hoặc gửi giao dịch settlement/withdraw thực tế trên Fuji. Xem [bằng chứng online](benchmarks/online-deployment.json).
+Đã đạt 9/9 kiểm tra kết nối HTTP/health/WSS, 14/14 kiểm tra chain/contract/vai trò/gas, xác minh bundle public dùng đúng relay/contract/RPC, và kiểm tra trình duyệt thấy trang chủ cùng bàn cờ hot-seat tải đúng. Chưa chơi ván PvP hai ví hoặc gửi giao dịch settlement/withdraw thực tế trên Fuji. Xem [bằng chứng online](../benchmarks/online-deployment.json).
 
 Service hiện được tạo và cấu hình trực tiếp qua Render MCP; `render.yaml` là cấu hình tái lập, chưa liên kết Blueprint tự đồng bộ. File đã đạt JSON Schema 2020-12 chính thức; thay đổi YAML cục bộ không tự sửa service hiện có.
 
@@ -53,7 +53,7 @@ node --env-file=.env.neon.validation.local packages/relay/node_modules/vitest/vi
 node --env-file=.env.neon.prod.local packages/relay/dist/migrate.js
 ```
 
-Các env file Neon được tạo cục bộ và git-ignore; không in hoặc commit nội dung. Nhánh kiểm thử giữ các fixture nhỏ phục vụ xác minh; không dùng để host production. Bài kiểm thử database tự skip khi thiếu `TEST_DATABASE_URL`; unit test chặn acknowledge trước commit vẫn chạy trong CI. Xem [bằng chứng storage](benchmarks/neon-storage-validation.json) để phân biệt database thật và chain mô phỏng.
+Các env file Neon được tạo cục bộ và git-ignore; không in hoặc commit nội dung. Nhánh kiểm thử giữ các fixture nhỏ phục vụ xác minh; không dùng để host production. Bài kiểm thử database tự skip khi thiếu `TEST_DATABASE_URL`; unit test chặn acknowledge trước commit vẫn chạy trong CI. Xem [bằng chứng storage](../benchmarks/neon-storage-validation.json) để phân biệt database thật và chain mô phỏng.
 
 ## Giới hạn Free
 

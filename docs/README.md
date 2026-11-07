@@ -1,25 +1,27 @@
 # Tài liệu dự án
 
-Giao diện cập nhật: [bố cục, điều hướng và kiểm chứng UI](UI_2026-11-01.md).
+Mô tả chung và cách chạy nằm ở [README dự án](../README.md).
 
-Triển khai đã chọn: [Render Free + Neon Free + Vercel](RENDER_DEPLOY.md). Phương án khác: [Railway](RAILWAY_DEPLOY.md), [Vercel + relay Docker/Caddy trên VPS](VERCEL_DEPLOY.md).
+## Hướng dẫn
 
-Bài dự thi hiện là AvaClash Cup: [hướng dẫn demo](TOURNAMENT_DEMO.md), [nghiên cứu sản phẩm](TOURNAMENT_PIVOT_RESEARCH_2026-11-03.md). Bản 1v1 cũ nằm ở [LEGACY_1V1.md](LEGACY_1V1.md).
+- [Chạy demo và triển khai AvaClash Cup](guides/TOURNAMENT_DEMO.md)
+- [Triển khai Render, Neon và Vercel](guides/RENDER_DEPLOY.md)
+- [Triển khai hợp đồng lên Fuji](guides/FUJI_DEPLOY.md)
+- [Vận hành và sao lưu relay](guides/OPERATIONS.md)
 
-Cập nhật ngày 01/11/2026. Dự án hiện hướng tới **Avalanche Fuji Testnet** và Anvil cục bộ.
+## Thiết kế
 
-Đọc theo thứ tự:
+- [Kiến trúc và ranh giới tin cậy](design/ARCHITECTURE.md)
+- [Giao thức WebSocket và định dạng chữ ký](design/PROTOCOL.md)
+- [Các quyết định kỹ thuật](design/DECISIONS.md), mục ghi "Superseded" chỉ còn giá trị lịch sử
+- [Nghiên cứu chuyển sang mô hình giải đấu](design/TOURNAMENT_PIVOT_RESEARCH_2026-11-03.md)
+- [Phạm vi rà soát bảo mật](design/SECURITY_REVIEW_SCOPE.md)
+- [Skin cúp](design/COSMETICS_AUCTION.md), chưa bật trên Fuji
 
-1. [`../README.md`](../README.md): cài đặt, chạy và cấu hình.
-2. [`DECISIONS.md`](DECISIONS.md): các quyết định được chấp nhận; mục có ghi “Superseded” chỉ là lịch sử.
-3. [`ARCHITECTURE.md`](ARCHITECTURE.md): kiến trúc hiện tại và ranh giới tin cậy.
-4. [`PROTOCOL.md`](PROTOCOL.md): giao thức WebSocket và định dạng chữ ký.
-5. [`PROGRESS.md`](PROGRESS.md): những gì đã có và phần chưa hoàn thành.
-6. [`REVIEW_2026-11-01.md`](REVIEW_2026-11-01.md): kết quả rà soát, thay đổi và kiểm chứng đợt này.
-7. [`BENCHMARK.md`](BENCHMARK.md): trạng thái đo hiệu năng, không dùng số ước lượng.
+## Số liệu
 
-Thư mục [`archive/`](archive/) chứa `REPORT_LUOT*.md`, `LUOT3B_VERIFY_*.md`, `AUDIT_NOTES.md` và `IMPROVEMENT_PLAN.md`, ghi lại từng thời điểm triển khai. Số test và tuyên bố hoàn thành trong đó không đại diện cho phiên bản hiện tại.
+[Đo lường và bằng chứng triển khai](benchmarks/README.md).
 
-Các bản đề bài, kiến trúc và mẫu giao diện trong thư mục cha là tài liệu đầu vào. Khi khác với ADR mới hơn, áp dụng ADR mới: Result v2, người tạo chọn màu, telemetry chỉ cảnh báo, thị trường Trắng/Đen/Hòa và single-signed tắt mặc định. Mã giao diện mẫu cần được điều chỉnh theo các luồng thực tế.
+## Lưu trữ
 
-Tài liệu bổ sung sau rà soát: [nghiệm thu](IMPLEMENTATION_2026-11-01.md), [Fuji](FUJI_DEPLOY.md), [vận hành](OPERATIONS.md), [thưởng mùa](SEASON_REWARDS.md). Các giới hạn trong báo cáo rà soát ban đầu về Join v1, UI Hot-seat/Vault và Q12 được thay bởi Q30–Q32; audit độc lập/Fuji thực tế vẫn chưa hoàn tất.
+[`archive/`](archive/) giữ tài liệu của bản 1v1 cũ và báo cáo theo từng đợt làm việc. Số test và tuyên bố hoàn thành trong đó chỉ đúng tại thời điểm viết, một số link trong đó trỏ tới file đã bị xóa. Bắt đầu từ [tài liệu bản 1v1](archive/LEGACY_1V1.md) nếu cần tham khảo.

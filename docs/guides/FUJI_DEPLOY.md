@@ -1,13 +1,13 @@
 # Chạy thử trên Avalanche Fuji
 
-Cập nhật 01/11/2026, 23:09 giờ Việt Nam. **Đã triển khai hợp đồng lên Fuji (43113)** bằng keystore của người dùng. Đã đối chiếu trực tiếp RPC: 4/4 receipt thành công ở các block 60358129, 60358130, 60358132 và 60358134; 14 kiểm tra chain/gas/bytecode/owner/vai trò/liên kết/chế độ mặc định đạt. Deployer còn khoảng 0.35 AVAX testnet, relay có 0.15. [Bằng chứng giao dịch và kiểm tra](benchmarks/fuji-deployment.json).
+Cập nhật 01/11/2026, 23:09 giờ Việt Nam. **Đã triển khai hợp đồng lên Fuji (43113)** bằng keystore của người dùng. Đã đối chiếu trực tiếp RPC: 4/4 receipt thành công ở các block 60358129, 60358130, 60358132 và 60358134; 14 kiểm tra chain/gas/bytecode/owner/vai trò/liên kết/chế độ mặc định đạt. Deployer còn khoảng 0.35 AVAX testnet, relay có 0.15. [Bằng chứng giao dịch và kiểm tra](../benchmarks/fuji-deployment.json).
 
 | Hợp đồng | Địa chỉ Fuji |
 | --- | --- |
 | ChessEscrow | `0x638135fA831A000DD438c6F6EFa7e75BC36aC78F` |
 | AvaClashMeta | `0x188FA04D5959164Ca8823ca32C89A73D62BEbF78` |
 
-Địa chỉ đã lưu trong `.env.fuji.local`. Cập nhật hosting ngày 02/11/2026: web đã READY tại https://avaclash-chess.vercel.app và relay đã live tại wss://avaclash-chess-relay.onrender.com; 9/9 kiểm tra HTTP/health/WSS và 14/14 kiểm tra Fuji đạt. Xem [bằng chứng online](benchmarks/online-deployment.json). Chưa nghiệm thu ván PvP hai ví, settlement và withdraw thực tế trên Fuji. Không chạy lại `-Broadcast` cho bản hợp đồng này. Báo cáo `benchmarks/fuji-preflight.json` cũ chỉ phản ánh thời điểm chưa có ví/gas.
+Địa chỉ đã lưu trong `.env.fuji.local`. Cập nhật hosting ngày 02/11/2026: web đã READY tại https://avaclash-chess.vercel.app và relay đã live tại wss://avaclash-chess-relay.onrender.com; 9/9 kiểm tra HTTP/health/WSS và 14/14 kiểm tra Fuji đạt. Xem [bằng chứng online](../benchmarks/online-deployment.json). Chưa nghiệm thu ván PvP hai ví, settlement và withdraw thực tế trên Fuji. Không chạy lại `-Broadcast` cho bản hợp đồng này. Báo cáo `benchmarks/fuji-preflight.json` cũ chỉ phản ánh thời điểm chưa có ví/gas.
 
 ## Chuẩn bị tài khoản
 

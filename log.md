@@ -1,3 +1,8 @@
+## [2026-11-07] chore | Dọn repo và xác minh hợp đồng
+
+- Xác minh mã nguồn `TournamentPrizePool` trên Routescan, bytecode khớp giao dịch deploy.
+- Bỏ cấu hình Railway và VPS, code và dependency không dùng; sắp xếp `docs/` thành guides, design, benchmarks, archive.
+
 ## [2026-11-07] deploy | Phát hành bản vá bảo mật lên production
 
 - Phát hành commit `d369fdd`: Vercel deployment `dpl_3WPC1K2QYgKRzHR8cetty9kcxuJ3` đạt READY trên avaclash-chess.vercel.app.

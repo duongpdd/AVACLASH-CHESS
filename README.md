@@ -2,14 +2,14 @@
 
 Giải cờ vua online miễn phí tham dự, quỹ thưởng do nhà tài trợ nạp trước và được giải ngân bằng hợp đồng thông minh trên Avalanche Fuji.
 
-|                           |                                                                                                                                               |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Dùng thử**              | [avaclash-chess.vercel.app](https://avaclash-chess.vercel.app)                                                                                |
-| **Mạng**                  | Avalanche Fuji C-Chain (chain ID 43113), chỉ dùng token thử nghiệm                                                                            |
-| **Hợp đồng giải**         | [`0x268F6034175750791AAaA20FD04F658BDDAcB9F9`](https://explorer-test.avax.network/c-chain/address/0x268F6034175750791AAaA20FD04F658BDDAcB9F9) |
-| **Giải mẫu đã chơi thật** | [Giải #1 ASTAR](https://avaclash-chess.vercel.app/tournaments?id=1)                                                                           |
-| **Video demo**            | Cập nhật trước khi nộp                                                                                                                        |
-| **Slide**                 | Cập nhật trước khi nộp                                                                                                                        |
+|                           |                                                                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Dùng thử**              | [avaclash-chess.vercel.app](https://avaclash-chess.vercel.app)                                                                                                      |
+| **Mạng**                  | Avalanche Fuji C-Chain (chain ID 43113), chỉ dùng token thử nghiệm                                                                                                  |
+| **Hợp đồng giải**         | [`0x268F6034175750791AAaA20FD04F658BDDAcB9F9`](https://explorer-test.avax.network/c-chain/address/0x268F6034175750791AAaA20FD04F658BDDAcB9F9), đã xác minh mã nguồn |
+| **Giải mẫu đã chơi thật** | [Giải #1 ASTAR](https://avaclash-chess.vercel.app/tournaments?id=1)                                                                                                 |
+| **Video demo**            | Cập nhật trước khi nộp                                                                                                                                              |
+| **Slide**                 | Cập nhật trước khi nộp                                                                                                                                              |
 
 Dự án tham gia [Team1 Vietnam UniHack: 30 days to build on Avalanche](https://team1vn.xyz).
 
@@ -102,7 +102,7 @@ pnpm install --frozen-lockfile
 node scripts/dev-tournament.mjs --seed
 ```
 
-Mở `http://127.0.0.1:13000/tournaments`. Lệnh này dựng Anvil, deploy hợp đồng, tạo giải 8 kỳ thủ đã có lịch và chạy relay. Xem chi tiết tài khoản thử nghiệm và cách triển khai Fuji tại [hướng dẫn demo](docs/TOURNAMENT_DEMO.md).
+Mở `http://127.0.0.1:13000/tournaments`. Lệnh này dựng Anvil, deploy hợp đồng, tạo giải 8 kỳ thủ đã có lịch và chạy relay. Xem chi tiết tài khoản thử nghiệm và cách triển khai Fuji tại [hướng dẫn demo](docs/guides/TOURNAMENT_DEMO.md).
 
 ## Kiểm thử
 
@@ -130,8 +130,8 @@ CI chạy trên mỗi lần push: [GitHub Actions](https://github.com/duongpdd/A
 
 Thể lệ cho phép dùng dự án có sẵn, nên nhóm khai rõ:
 
-- **Có từ trước (từ 10/2026):** bản cờ 1v1 có cược gồm `ChessEscrow`, `AvaClashMeta`, relay, bàn cờ và ví. Xem [tài liệu bản cũ](docs/LEGACY_1V1.md).
-- **Xây trong kỳ thi (từ 02/11/2026):** chuyển sang mô hình miễn phí tham dự và có tài trợ, gồm hợp đồng `TournamentPrizePool`, luồng trọng tài và khiếu nại, giao diện giải đấu, bảng Elo, giải thế cờ. Lý do chuyển hướng nằm trong [nghiên cứu sản phẩm](docs/TOURNAMENT_PIVOT_RESEARCH_2026-11-03.md).
+- **Có từ trước (từ 10/2026):** bản cờ 1v1 có cược gồm `ChessEscrow`, `AvaClashMeta`, relay, bàn cờ và ví. Xem [tài liệu bản cũ](docs/archive/LEGACY_1V1.md).
+- **Xây trong kỳ thi (từ 02/11/2026):** chuyển sang mô hình miễn phí tham dự và có tài trợ, gồm hợp đồng `TournamentPrizePool`, luồng trọng tài và khiếu nại, giao diện giải đấu, bảng Elo, giải thế cờ. Lý do chuyển hướng nằm trong [nghiên cứu sản phẩm](docs/design/TOURNAMENT_PIVOT_RESEARCH_2026-11-03.md).
 
 ## Giới hạn hiện tại
 
@@ -139,8 +139,8 @@ Thể lệ cho phép dùng dự án có sẵn, nên nhóm khai rõ:
 - Hash nước đi chứng minh biên bản không bị sửa, không chứng minh kỳ thủ không dùng engine. Việc này thuộc về trọng tài.
 - Relay và trọng tài là các bên được tin cậy. Hợp đồng không tự kiểm luật cờ.
 - Relay chạy trên gói miễn phí của Render nên lần kết nối đầu có thể chậm.
-- Bản thương mại với tiền thật cần thẩm định pháp lý riêng, xem [nghiên cứu sản phẩm](docs/TOURNAMENT_PIVOT_RESEARCH_2026-11-03.md).
+- Bản thương mại với tiền thật cần thẩm định pháp lý riêng, xem [nghiên cứu sản phẩm](docs/design/TOURNAMENT_PIVOT_RESEARCH_2026-11-03.md).
 
 ## Tài liệu
 
-[Danh mục tài liệu](docs/README.md) · [Kiến trúc](docs/ARCHITECTURE.md) · [Giao thức relay](docs/PROTOCOL.md) · [Hướng dẫn demo](docs/TOURNAMENT_DEMO.md) · [Triển khai Render](docs/RENDER_DEPLOY.md) · [Vận hành](docs/OPERATIONS.md)
+[Danh mục tài liệu](docs/README.md) · [Kiến trúc](docs/design/ARCHITECTURE.md) · [Giao thức relay](docs/design/PROTOCOL.md) · [Hướng dẫn demo](docs/guides/TOURNAMENT_DEMO.md) · [Triển khai Render](docs/guides/RENDER_DEPLOY.md) · [Vận hành](docs/guides/OPERATIONS.md)

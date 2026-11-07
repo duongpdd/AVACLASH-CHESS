@@ -14,7 +14,7 @@
 - **Các file thay đổi:**
   - [`contracts/src/ChessEscrow.sol`](../../contracts/src/ChessEscrow.sol)
   - [`contracts/test/ChessEscrowMetaTryCatch.t.sol`](../../contracts/test/ChessEscrowMetaTryCatch.t.sol)
-  - [`docs/DECISIONS.md`](../../docs/DECISIONS.md)
+  - [`docs/DECISIONS.md`](../design/DECISIONS.md)
 - **Tóm tắt hành vi mới:**
   Mọi lời gọi từ `ChessEscrow` sang `IAvaClashMeta` (`registerMatch`, `lockBetting`, `cancelPrediction`, `updateEloOnSettle`, `resolvePrediction`) được bọc kín bằng khối `try/catch`. Khi Meta revert, Escrow phát sự kiện `MetaCallFailed(roomId, selector)` và các giao dịch của người chơi (settle kết quả, hủy phòng sớm `abortRoom`, hoàn tiền quá hạn `refundOnTimeout`, vào phòng `joinRoom`) vẫn hoàn tất thành công độc lập mà không bị kẹt tiền. Nếu `resolvePrediction` thất bại, Escrow lưu cờ `metaResolutionFailed` và cung cấp 2 hàm cứu hộ: `retryResolvePrediction` (thử giải ngân lại khi Meta hồi phục) hoặc `fallbackCancelPrediction` (hủy pool để khán giả rút lại 100% tiền cược gốc).
 - **Khác biệt so với yêu cầu ban đầu & Lý do:**
@@ -163,7 +163,7 @@ Khi lời gọi `resolvePrediction` revert trong `submitResult`:
    - **Cơ chế 2 — Hoàn tiền 100% vốn (`fallbackCancelPrediction`):**  
      Tại [`contracts/src/ChessEscrow.sol:548-560`](../../contracts/src/ChessEscrow.sol#L548-L560), nếu Meta vĩnh viễn không thể giải ngân kết quả, bất kỳ ai cũng có thể kích hoạt hàm fallback này để chuyển trạng thái pool dự đoán sang `Cancelled` qua `meta.cancelPrediction(roomId)`. Khi đó, 100% khán giả có thể rút lại nguyên vẹn tiền cược gốc qua hàm `claimSpectatorRefund(roomId)` trong [`contracts/src/AvaClashMeta.sol:297-308`](../../contracts/src/AvaClashMeta.sol#L297-L308).
 
-Quyết định kiến trúc này đã được ghi chép và phê duyệt đầy đủ tại **ADR D14** trong [`docs/DECISIONS.md:147-156`](../../docs/DECISIONS.md#L147-L156).
+Quyết định kiến trúc này đã được ghi chép và phê duyệt đầy đủ tại **ADR D14** trong [`docs/DECISIONS.md:147-156`](../design/DECISIONS.md#L147-L156).
 
 ---
 

@@ -34,7 +34,7 @@ Trong ván, relay xác thực socket/seq và luật cờ; client chỉ vẽ nư�
 
 Local/VPS dùng file: khi kết thúc, relay lưu terminal checkpoint và kết quả bằng tệp tạm + rename, rồi mới xóa snapshot active và đọc RPC/ký. Nếu ghi kết quả thất bại, giữ checkpoint để restart không tạo lại ván; không ký khi chưa lưu thành công. Nếu toàn bộ đĩa lỗi, không thể bảo đảm phục hồi sau restart. Client nhận `game_finished` trước bước RPC.
 
-Render Free dùng PostgreSQL trên Neon thay cho filesystem tạm. Hàng đợi từng phòng tuần tự hóa actions/timer; thông báo nước đi và callback ký kết quả chỉ chạy sau commit. Snapshot active được thay bằng terminal result trong một UPDATE, có kiểm tra lease owner, giờ database và revision; kết quả terminal không bị ghi đè. Lease chỉ gia hạn khi có phòng đang chờ/chơi. Storage/lease lỗi khiến relay dừng gameplay, đóng socket và trả health 503 cho tới restart. Xem [hướng dẫn Render](RENDER_DEPLOY.md) về khôi phục, sleep và giới hạn Free.
+Render Free dùng PostgreSQL trên Neon thay cho filesystem tạm. Hàng đợi từng phòng tuần tự hóa actions/timer; thông báo nước đi và callback ký kết quả chỉ chạy sau commit. Snapshot active được thay bằng terminal result trong một UPDATE, có kiểm tra lease owner, giờ database và revision; kết quả terminal không bị ghi đè. Lease chỉ gia hạn khi có phòng đang chờ/chơi. Storage/lease lỗi khiến relay dừng gameplay, đóng socket và trả health 503 cho tới restart. Xem [hướng dẫn Render](../guides/RENDER_DEPLOY.md) về khôi phục, sleep và giới hạn Free.
 
 Client kiểm lại replay/hash/outcome trước khi ký Result. `submitResult` chấp nhận hai người ký khác nhau trong `{playerA, playerB, relaySigner}`; thắng nhận 95% tổng pot ở `pendingWithdrawals`, hòa hoàn đủ hai bên. `withdraw` dùng pull payment và nonReentrant.
 
