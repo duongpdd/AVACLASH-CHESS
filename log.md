@@ -1,3 +1,8 @@
+## [2026-11-07] deploy | Phát hành bản vá bảo mật lên production
+
+- Phát hành commit `d369fdd`: Vercel deployment `dpl_3WPC1K2QYgKRzHR8cetty9kcxuJ3` đạt READY trên avaclash-chess.vercel.app.
+- Bản trước để rollback: `dpl_HhwzX8DCkei3ti2kVz1aXaweWL5d`.
+
 ## [2026-11-07] fix | Vá bảo mật frontend, thêm trang lỗi và hoàn tất bản dịch cosmetics
 
 - Nâng Next.js và eslint-config-next lên 16.4.5, zod của web lên 4.6.7.
@@ -5,7 +10,7 @@
 - Thêm trang 404, trang lỗi và global-error theo giao diện ứng dụng.
 - Chuyển chuỗi cosmetics viết cứng vào locale VI/EN, dịch nhãn thua trong hồ sơ.
 - Kiểm tra ví trọng tài trùng ví tạo giải hoặc ví relay ngay trên form; giải mã lỗi hợp đồng thay cho "unknown reason".
-- Còn lại: audit báo 1 lỗi high ở zod 3 của relay/shared; chưa phát hành production.
+- Còn lại: audit báo 1 lỗi high ở zod 3 của relay/shared.
 
 ## [2026-11-05] style | Căn chỉnh thẻ chế độ, điều hướng mobile, panel trang chủ và thống kê hồ sơ
 
