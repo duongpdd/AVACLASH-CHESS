@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import { MIN_MOVES_THRESHOLD } from "./Constants.sol";
 
 /**
@@ -10,7 +11,7 @@ import { MIN_MOVES_THRESHOLD } from "./Constants.sol";
  *         - On-Chain ELO (Soulbound reputation, start 1200, anti-win-trading)
  *         - No-Loss Tournament Vault (100% principal protected, season prize pool)
  *         - Spectator Prediction Pool (Parimutuel betting on White/Black/Draw)
- *           Betting locked before match starts (when joinRoom is called).
+ *           Betting locks at signalGameStarted or 120 seconds after joinRoom.
  *           "Under 40 moves" option removed in Fuji Testnet (Q5 decision).
  */
 contract AvaClashMeta is ReentrancyGuard {
@@ -33,6 +34,21 @@ contract AvaClashMeta is ReentrancyGuard {
     uint256 public totalNoLossStaked;
     /// @notice Accumulated season prize pool from spectator fees (payout mechanism deferred pending ADR Q12).
     uint256 public seasonPrizePool;
+    bool public spectatorBettingEnabled;
+    uint256 public nextRewardSeason;
+    uint256 public reservedSeasonRewards;
+    uint256 public constant REWARD_NOTICE = 2 days;
+    uint256 public constant REWARD_CLAIM_WINDOW = 90 days;
+    struct RewardSeason {
+        bytes32 merkleRoot;
+        bytes32 allocationHash;
+        uint256 remaining;
+        uint256 opensAt;
+        uint256 closesAt;
+        bool closed;
+    }
+    mapping(uint256 => RewardSeason) public rewardSeasons;
+    mapping(uint256 => mapping(address => bool)) public seasonRewardClaimed;
 
     // ──────────────────────── 3. SPECTATOR PREDICTION ───────────────
 
@@ -84,6 +100,11 @@ contract AvaClashMeta is ReentrancyGuard {
     event SpectatorRewardClaimed(uint256 indexed matchId, address indexed viewer, uint256 reward);
     event SpectatorRefundClaimed(uint256 indexed matchId, address indexed viewer, uint256 amount);
     event EscrowContractSet(address indexed escrowContract);
+    event SpectatorBettingEnabled(bool enabled);
+    event SeasonRewardScheduled(uint256 indexed seasonId, bytes32 merkleRoot, bytes32 allocationHash, uint256 total, uint256 opensAt, uint256 closesAt);
+    event SeasonRewardClaimed(uint256 indexed seasonId, address indexed player, uint256 amount);
+    event SeasonRewardClosed(uint256 indexed seasonId, uint256 returnedToPool);
+    event SeasonRewardFunded(address indexed sponsor, uint256 amount);
 
     // ──────────────────────── Errors ────────────────────────
 
@@ -103,6 +124,11 @@ contract AvaClashMeta is ReentrancyGuard {
     error MatchCancelled();
     error NoRefundAvailable();
     error PlayerHasBets();
+    error EscrowAlreadyConfigured();
+    error InvalidEscrow();
+    error SpectatorDisabled();
+    error InvalidRewardAllocation();
+    error RewardNotClaimable();
 
     // ──────────────────────── Modifiers ────────────────────────
 
@@ -125,14 +151,71 @@ contract AvaClashMeta is ReentrancyGuard {
     // ──────────────────────── Admin ────────────────────────
 
     /**
-     * @notice Set the ChessEscrow contract address (one-time or upgradeable by owner).
+     * @notice Bind the ChessEscrow contract once; the owner cannot redirect existing pools.
      */
     function setEscrowContract(address _escrow) external onlyOwner {
+        if (escrowContract != address(0)) revert EscrowAlreadyConfigured();
+        if (_escrow == address(0) || _escrow.code.length == 0) revert InvalidEscrow();
         escrowContract = _escrow;
         emit EscrowContractSet(_escrow);
     }
 
     // ──────────────────────── ELO Logic ────────────────────────
+    /// @notice Testnet feature gate. Disabling new bets never blocks existing claims/refunds.
+    function setSpectatorBettingEnabled(bool enabled) external onlyOwner {
+        spectatorBettingEnabled = enabled;
+        emit SpectatorBettingEnabled(enabled);
+    }
+
+    /// @notice Sponsors can fund rewards independently of spectator betting or vault principal.
+    function fundSeasonRewards() external payable {
+        if (msg.value == 0) revert InvalidRewardAllocation();
+        seasonPrizePool += msg.value;
+        emit SeasonRewardFunded(msg.sender, msg.value);
+    }
+
+    /// @notice Immutable public allocation, reserved only from the prize pool; owner is trusted to publish a fair root.
+    function scheduleSeasonRewards(bytes32 root, bytes32 allocationHash, uint256 total) external onlyOwner returns (uint256 id) {
+        if (root == bytes32(0) || allocationHash == bytes32(0) || total == 0 || total > seasonPrizePool) revert InvalidRewardAllocation();
+        id = nextRewardSeason++;
+        uint256 opensAt = block.timestamp + REWARD_NOTICE;
+        uint256 closesAt = opensAt + REWARD_CLAIM_WINDOW;
+        seasonPrizePool -= total;
+        reservedSeasonRewards += total;
+        rewardSeasons[id] = RewardSeason(root, allocationHash, total, opensAt, closesAt, false);
+        emit SeasonRewardScheduled(id, root, allocationHash, total, opensAt, closesAt);
+    }
+
+    /// @notice StandardMerkleTree-compatible double-hashed leaf, bound to chain, deployment and season.
+    function seasonRewardLeaf(uint256 id, address player, uint256 amount) public view returns (bytes32) {
+        return keccak256(bytes.concat(keccak256(abi.encode(block.chainid, address(this), id, player, amount))));
+    }
+
+    function claimSeasonReward(uint256 id, uint256 amount, bytes32[] calldata proof) external nonReentrant {
+        RewardSeason storage season = rewardSeasons[id];
+        if (id >= nextRewardSeason || season.closed || block.timestamp < season.opensAt || block.timestamp > season.closesAt) revert RewardNotClaimable();
+        if (seasonRewardClaimed[id][msg.sender]) revert AlreadyClaimed();
+        if (amount == 0 || amount > season.remaining || !MerkleProof.verifyCalldata(proof, season.merkleRoot, seasonRewardLeaf(id, msg.sender, amount))) revert InvalidRewardAllocation();
+        seasonRewardClaimed[id][msg.sender] = true;
+        season.remaining -= amount;
+        reservedSeasonRewards -= amount;
+        (bool success, ) = msg.sender.call{value: amount}("");
+        if (!success) revert TransferFailed();
+        emit SeasonRewardClaimed(id, msg.sender, amount);
+    }
+
+    /// @notice Anyone can recycle expired rewards to the prize pool; principal is never involved.
+    function closeRewardSeason(uint256 id) external {
+        RewardSeason storage season = rewardSeasons[id];
+        if (id >= nextRewardSeason || season.closed || block.timestamp <= season.closesAt) revert RewardNotClaimable();
+        uint256 remaining = season.remaining;
+        season.remaining = 0;
+        season.closed = true;
+        reservedSeasonRewards -= remaining;
+        seasonPrizePool += remaining;
+        emit SeasonRewardClosed(id, remaining);
+    }
+
 
     function getElo(address player) public view returns (uint256) {
         return eloRating[player] == 0 ? INITIAL_ELO : eloRating[player];
@@ -222,6 +305,7 @@ contract AvaClashMeta is ReentrancyGuard {
      *         Stored gross (5% fee deducted upon resolution, not during betting).
      */
     function betOnMatch(uint256 matchId, uint8 option) external payable nonReentrant {
+        if (!spectatorBettingEnabled) revert SpectatorDisabled();
         if (option != 1 && option != 2 && option != 3) revert InvalidOption();
         if (msg.value == 0) revert ZeroBet();
 
@@ -254,7 +338,7 @@ contract AvaClashMeta is ReentrancyGuard {
     }
 
     /**
-     * @notice Lock betting when match starts (called by Escrow on joinRoom).
+     * @notice Lock betting when match starts (called by Escrow on signalGameStarted).
      */
     function lockBetting(uint256 matchId) external onlyEscrow {
         MatchPrediction storage p = _predictions[matchId];

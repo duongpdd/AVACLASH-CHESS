@@ -37,6 +37,7 @@ contract ChessEscrowMetaIntegrationTest is Test {
         // 1. Deploy both contracts
         escrow = new ChessEscrow(relaySigner, arbiter, treasury);
         meta = new AvaClashMeta();
+        meta.setSpectatorBettingEnabled(true);
 
         // 2. Link them bidirectionally
         meta.setEscrowContract(address(escrow));

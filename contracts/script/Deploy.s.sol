@@ -7,6 +7,7 @@ import { AvaClashMeta } from "../src/AvaClashMeta.sol";
 
 contract DeployScript is Script {
     function run() external {
+        require(block.chainid == 31337 || block.chainid == 43113, "Only Anvil or Fuji testnet is supported");
         address relaySigner = vm.envAddress("RELAY_SIGNER_ADDRESS");
         address arbiter = vm.envAddress("ARBITER_ADDRESS");
         address treasury = vm.envAddress("TREASURY_ADDRESS");

@@ -301,7 +301,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
 
     /**
      * @notice Abort a room before the game actually starts (before first moves).
-     *         Refunds both players with a small anti-spam fee deducted from aborter.
+     *         Refunds both players in full; the relay must signal the game start on-chain.
      * @param roomId The room to abort.
      */
     function abortRoom(uint256 roomId) external {
@@ -677,6 +677,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
      * @param newSigner The new relay signer address.
      */
     function proposeRelaySigner(address newSigner) external onlyOwner {
+        if (newSigner == address(0) || newSigner == arbiter) revert InvalidAddress();
         pendingRelaySigner = newSigner;
         relaySignerChangeAt = block.timestamp + RELAY_TIMELOCK;
         emit RelaySignerChangeProposed(newSigner, relaySignerChangeAt);
@@ -688,6 +689,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     function executeRelaySignerChange() external onlyOwner {
         if (pendingRelaySigner == address(0)) revert NoPendingChange();
         if (block.timestamp < relaySignerChangeAt) revert TimelockNotReady();
+        if (pendingRelaySigner == arbiter) revert InvalidAddress();
 
         address oldSigner = relaySigner;
         relaySigner = pendingRelaySigner;
@@ -702,6 +704,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
      * @param newArbiter The new arbiter address.
      */
     function proposeArbiter(address newArbiter) external onlyOwner {
+        if (newArbiter == address(0) || newArbiter == relaySigner) revert InvalidAddress();
         pendingArbiter = newArbiter;
         arbiterChangeAt = block.timestamp + ARBITER_TIMELOCK;
         emit ArbiterChangeProposed(newArbiter, arbiterChangeAt);
@@ -713,6 +716,7 @@ contract ChessEscrow is EIP712, ReentrancyGuard, Pausable, Ownable2Step {
     function executeArbiterChange() external onlyOwner {
         if (pendingArbiter == address(0)) revert NoPendingChange();
         if (block.timestamp < arbiterChangeAt) revert TimelockNotReady();
+        if (pendingArbiter == relaySigner) revert InvalidAddress();
 
         address oldArbiter = arbiter;
         arbiter = pendingArbiter;

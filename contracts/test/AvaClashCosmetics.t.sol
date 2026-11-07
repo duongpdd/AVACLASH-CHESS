@@ -105,7 +105,7 @@ contract AvaClashCosmeticsTest is CosmeticsFixture {
         skins.setOfficial(id, Skins.Kind.Pieces, t, "Cup");
     }
 
-    function testEquipmentClearedOnTransferAndCanUnequip() public {
+    function testOnlyOwnerCanEquipAndUnequip() public {
         uint256 token = _mintBoard(WHITE);
         vm.prank(BLACK);
         vm.expectRevert(Skins.NotTokenOwner.selector);
@@ -115,16 +115,30 @@ contract AvaClashCosmeticsTest is CosmeticsFixture {
         (bool equipped, Skins.Theme memory board,,) = skins.equippedOf(WHITE);
         assertTrue(equipped);
         assertEq(board.dark, _board().dark);
-        skins.transferFrom(WHITE, BLACK, token);
+        skins.unequip(Skins.Kind.Board);
         vm.stopPrank();
         (equipped,,,) = skins.equippedOf(WHITE);
         assertFalse(equipped);
-        vm.startPrank(BLACK);
+    }
+
+    function testTrophyCannotBeTransferredOrApproved() public {
+        uint256 token = _mintBoard(WHITE);
+        vm.startPrank(WHITE);
         skins.equip(token);
-        skins.unequip(Skins.Kind.Board);
+        vm.expectRevert(Skins.TrophyNonTransferable.selector);
+        skins.approve(BLACK, token);
+        vm.expectRevert(Skins.TrophyNonTransferable.selector);
+        skins.setApprovalForAll(BLACK, true);
+        vm.expectRevert(Skins.TrophyNonTransferable.selector);
+        skins.transferFrom(WHITE, BLACK, token);
+        vm.expectRevert(Skins.TrophyNonTransferable.selector);
+        skins.safeTransferFrom(WHITE, BLACK, token);
+        vm.expectRevert(Skins.TrophyNonTransferable.selector);
+        skins.safeTransferFrom(WHITE, BLACK, token, "");
         vm.stopPrank();
-        (equipped,,,) = skins.equippedOf(BLACK);
-        assertFalse(equipped);
+        assertEq(skins.ownerOf(token), WHITE);
+        (bool equipped,,,) = skins.equippedOf(WHITE);
+        assertTrue(equipped);
     }
 
     function testTokenUriContainsMetadata() public {

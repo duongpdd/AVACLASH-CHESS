@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { ERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Base64 } from "@openzeppelin/contracts/utils/Base64.sol";
@@ -56,6 +57,7 @@ contract AvaClashCosmetics is ERC721Enumerable, Ownable {
     error InvalidInput();
     error NotEligible();
     error NotTokenOwner();
+    error TrophyNonTransferable();
 
     event OfficialSet(uint256 indexed tournamentId, Kind kind, string name);
     event TrophyClaimed(uint256 indexed tournamentId, address indexed winner, uint256 indexed tokenId, uint32 serial);
@@ -150,13 +152,18 @@ contract AvaClashCosmetics is ERC721Enumerable, Ownable {
         return (boardId != 0, items[boardId].theme, piecesId != 0, items[piecesId].theme);
     }
 
-    function _update(address to, uint256 tokenId, address auth) internal override returns (address from) {
-        from = super._update(to, tokenId, auth);
-        if (from != address(0) && from != to) {
-            Kind kind = items[tokenId].kind;
-            uint256 equipped = kind == Kind.Board ? equippedBoard[from] : equippedPieces[from];
-            if (equipped == tokenId) _equip(from, kind, 0);
-        }
+    function approve(address, uint256) public pure override(ERC721, IERC721) {
+        revert TrophyNonTransferable();
+    }
+
+    function setApprovalForAll(address, bool) public pure override(ERC721, IERC721) {
+        revert TrophyNonTransferable();
+    }
+
+    function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
+        // Every trophy stays with the winner who claimed it.
+        if (_ownerOf(tokenId) != address(0)) revert TrophyNonTransferable();
+        return super._update(to, tokenId, auth);
     }
 
     function _equip(address player, Kind kind, uint256 tokenId) private {

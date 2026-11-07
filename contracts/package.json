@@ -1,5 +1,10 @@
 {
   "name": "@avaclash/contracts",
   "version": "0.1.0",
-  "private": true
+  "private": true,
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test --no-match-path \"test/audit/**\"",
+    "test:gas": "forge test --no-match-path \"test/audit/**\" --gas-report"
+  }
 }

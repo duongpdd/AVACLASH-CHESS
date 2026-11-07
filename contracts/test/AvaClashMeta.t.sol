@@ -14,6 +14,7 @@ contract AvaClashMetaTest is Test {
 
     function setUp() public {
         meta = new AvaClashMeta();
+        meta.setSpectatorBettingEnabled(true);
         meta.setEscrowContract(address(this));
         vm.deal(playerA, 10 ether);
         vm.deal(playerB, 10 ether);

@@ -311,6 +311,7 @@ contract ChessEscrowMetaTryCatchTest is Test {
     function test_FallbackCancelPrediction_ConservesAllFundsAndSpectatorsRefunded() public {
         // Deploy real AvaClashMeta
         AvaClashMeta realMeta = new AvaClashMeta();
+        realMeta.setSpectatorBettingEnabled(true);
         realMeta.setEscrowContract(address(escrow));
         escrow.setMetaContract(address(realMeta));
         vm.warp(block.timestamp + 2 days);
@@ -524,6 +525,7 @@ contract ChessEscrowMetaTryCatchTest is Test {
 
     function test_ClaimSpectatorRefund_After7DaysOfJoinedAt() public {
         AvaClashMeta realMeta = new AvaClashMeta();
+        realMeta.setSpectatorBettingEnabled(true);
         realMeta.setEscrowContract(address(escrow));
         escrow.setMetaContract(address(realMeta));
         vm.warp(block.timestamp + 2 days);
