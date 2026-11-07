@@ -1,13 +1,11 @@
-# Skin cúp và chợ AvaClash
+# Skin cúp AvaClash
 
-Tài sản thử nghiệm trên Avalanche Fuji và Anvil Local, không có giá trị quy đổi. Hai hợp đồng giới hạn triển khai ở chain ID 43113 và 31337. Tính năng chưa được audit.
+Tài sản thử nghiệm trên Avalanche Fuji và Anvil Local, không có giá trị quy đổi. Hợp đồng cúp giới hạn triển khai ở chain ID 43113 và 31337. Tính năng chưa được audit.
 
-## Cúp, trang bị và đấu giá
+## Nhận cúp và trang bị
 
-- Chủ sở hữu `AvaClashCosmetics` đánh dấu tối đa một cúp cho mỗi giải tồn tại, trong giai đoạn đăng ký hoặc thi đấu và trước khi mở thời hạn duyệt cuối. Sau khi giải chốt, mọi kỳ thủ đồng hạng nhất theo `standings` được nhận một NFT, kể cả khi giải chia tròn tiền thưởng về 0. Tên UTF-8, màu, loại, số bản và ảnh SVG tối giản nằm trong dữ liệu on-chain. Chủ sở hữu hợp đồng cúp chỉ có quyền đánh dấu giải, không có quyền chuyển NFT của người chơi.
-- Ví được trang bị một bàn và một bộ quân. Chuyển nhượng hoặc ký gửi xóa trang bị của chủ cũ. Bộ sưu tập phân trang các NFT và cúp theo lô 12 mục.
-- Chợ ký gửi NFT sau khi người bán phê duyệt riêng cho token đó. Lượt đầu phải đạt giá khởi điểm. Các lượt sau tăng ít nhất 5% làm tròn lên theo wei hoặc 0,0001 đơn vị native, lấy mức lớn hơn. Phiên Fuji có thời lượng 1 giờ đến 7 ngày, cửa sổ gia hạn 10 phút và trần gia hạn 24 giờ. Demo Anvil dùng tối thiểu 60 giây, cửa sổ 15 giây và trần 60 giây.
-- Giá bị vượt và tiền dành cho người bán đều vào số dư chờ rút của từng ví. Bất kỳ ai cũng có thể kết toán khi hết giờ. Người bán được hủy nếu chưa có giá. Chợ không có quản trị viên, phí hay royalty. Tab **Của tôi** lọc các phiên đã rao và các phiên mà ví đang giữ giá cao nhất.
+- Chủ sở hữu `AvaClashCosmetics` đánh dấu tối đa một cúp cho mỗi giải tồn tại, trong giai đoạn đăng ký hoặc thi đấu và trước khi mở thời hạn duyệt cuối. Sau khi giải chốt, mọi kỳ thủ đồng hạng nhất theo `standings` được nhận một NFT, kể cả khi giải chia tròn tiền thưởng về 0. Tên UTF-8, màu, loại, số bản và ảnh SVG tối giản nằm trong dữ liệu on-chain. Chủ sở hữu hợp đồng cúp đánh dấu giải. Mỗi NFT gắn với ví vô địch đã nhận. Hợp đồng từ chối chuyển nhượng và phê duyệt cho ví khác.
+- Ví được trang bị một bàn và một bộ quân. Bộ sưu tập phân trang các NFT và cúp theo lô 12 mục.
 
 ## Hiển thị trong ván
 
@@ -36,47 +34,19 @@ anvil --host 127.0.0.1 --port 8545 --chain-id 31337 --quiet
 node scripts/dev-cosmetics.mjs 8545
 ```
 
-Dùng các biến `NEXT_PUBLIC_*` script in ra để chạy web. Ví dụ có sẵn trong `web/.env.example`. Cần đủ địa chỉ giải, bộ sưu tập và chợ trên cùng mạng thử nghiệm. Mở `/collection` và `/market` sau khi chạy `pnpm --filter web dev`. Một trong hai ví vô địch có thể nhận cúp, trang bị rồi phê duyệt và rao. Ví khác có thể đặt giá và kết toán. Để tiến thời gian trong demo, dùng `cast rpc evm_increaseTime 180` rồi `cast rpc evm_mine` với RPC Anvil cục bộ. Sau kết toán, người bán và người bị vượt giá có thể tự rút số dư.
+Dùng các biến `NEXT_PUBLIC_*` script in ra để chạy web. Ví dụ có sẵn trong `web/.env.example`. Cần địa chỉ giải và địa chỉ hợp đồng cúp trên cùng mạng thử nghiệm. Mở `/collection` sau khi chạy `pnpm --filter web dev`. Một trong hai ví vô địch có thể nhận cúp, trang bị và bỏ trang bị.
 
-Cũng có thể thao tác bằng các tài khoản mở khóa Anvil nếu chưa có tiện ích ví. Điền các địa chỉ in ra trước khi chạy.
+Cũng có thể dùng tài khoản mở khóa Anvil. Điền địa chỉ hợp đồng và ví vô địch từ đầu ra của script.
 
 ```powershell
 $rpc = "http://127.0.0.1:8545"
 cast send --rpc-url $rpc --unlocked --from $winner $skins "claimTrophy(uint256)" 0
 cast send --rpc-url $rpc --unlocked --from $winner $skins "equip(uint256)" 1
-cast send --rpc-url $rpc --unlocked --from $winner $skins "approve(address,uint256)" $market 1
-cast send --rpc-url $rpc --unlocked --from $winner $market "create(uint256,uint256,uint64)" 1 10000000000000000 60
-cast send --rpc-url $rpc --unlocked --from $bidder --value 10000000000000000 $market "bid(uint256)" 0
-cast rpc --rpc-url $rpc evm_increaseTime 180
-cast rpc --rpc-url $rpc evm_mine
-cast send --rpc-url $rpc --unlocked --from $bidder $market "settle(uint256)" 0
-cast send --rpc-url $rpc --unlocked --from $winner $market "withdraw()"
+cast send --rpc-url $rpc --unlocked --from $winner $skins "unequip(uint8)" 0
 ```
 
-`contracts/script/DeployCosmetics.s.sol` là script triển khai cho người vận hành, nhận `TOURNAMENT_ADDRESS` và `COSMETICS_OWNER_ADDRESS`. Hai hợp đồng chưa được triển khai lên Fuji trong công việc này.
+Script `contracts/script/DeployCosmetics.s.sol` nhận `TOURNAMENT_ADDRESS` và `COSMETICS_OWNER_ADDRESS` và tạo hợp đồng cúp.
 
-## Rà soát và giới hạn
+## Phạm vi giao dịch
 
-- **Reentrancy.** Hàm ghi của chợ dùng guard. Rút xóa số dư trước khi chuyển native token. Mint và giao NFT qua đường không gọi callback của người nhận.
-- **Quyền truy cập.** Giải chính thức chỉ được đánh dấu một lần. Nhận cúp yêu cầu đồng hạng nhất và chưa nhận. Rao yêu cầu chủ NFT và phê duyệt. Người bán không thể đặt giá bằng chính địa chỉ đã rao. Chợ không có đường rút thay người nhận.
-- **Khả năng chặn dịch vụ.** Người nhận có thể tự chặn khoản rút của họ nếu contract từ chối native token, nhưng không làm hỏng kết toán hay giao dịch của ví khác. Không gửi NFT trực tiếp tới chợ bằng `transferFrom`, vì chỉ `create` mới ghi phiên và cho phép nhận lại. Hợp đồng không duyệt danh sách phiên khi xử lý giao dịch.
-- **Kế toán.** Invariant kiểm tra số dư chợ bằng tổng giá cao nhất của phiên đang mở cộng tổng số dư chờ rút trong luồng hợp lệ. EVM cho phép đẩy native token vào địa chỉ theo cách bỏ qua các hàm của chợ. Khoản dư bị ép gửi không thuộc về ví nào và không có đường rút.
-- **Điểm tin cậy.** Chủ sở hữu cúp chọn giải chính thức và màu giải. Nhiều ví cùng chủ, giao dịch tự thân, độ hiếm thấp khi ít người chơi và sai cấu hình RPC vẫn có thể xảy ra. Frontend chỉ nhận địa chỉ hợp đồng từ cấu hình triển khai. Studio, mainnet, ảnh tải lên và IPFS nằm ngoài phiên bản này.
-
-## Kết quả kiểm tra
-
-OpenZeppelin 5.7.0 theo `package.json` của submodule tại `cab19933c33c2ad1d4c7a84864a3601dddfd16f3`. Solc 0.8.24, pnpm 9.15.0, Next.js 16.2.9 và React 19.2.4 theo lockfile của checkout.
-
-| Pha | Tệp chính | Kết quả |
-| --- | --- | --- |
-| 0. Baseline | Submodules và lockfile hiện có | Forge build ban đầu qua. Chạy lại bộ hợp đồng gốc qua 180/180. Lượt web ban đầu bị chặn bởi DNS và cache thiếu gói, sau đó đã khôi phục đủ gói từ lockfile. |
-| 1. Cúp | `AvaClashCosmetics.sol`, `AvaClashCosmetics.t.sol`, `CosmeticsFixture.sol` | 8 bài mới qua. Có ca đồng hạng, phần thưởng bằng 0 và kiểm tra JSON/SVG. |
-| 2. Chợ | `CosmeticAuction.sol`, `CosmeticAuction.t.sol`, `CosmeticAuctionInvariant.t.sol` | 9 bài đơn vị và 1 invariant mới qua. |
-| 3. Nối hợp đồng | ABI và export trong shared, `env.ts`, `web/.env.example`, `use-cosmetic-{reads,tx}.ts`, `DeployCosmetics.s.sol`, `dev-cosmetics.mjs` | Shared build và 133 bài qua. `test:tools` qua 2, `test:deploy` qua 7. |
-| 4. Theme | `theme.ts`, `chess-scene.ts`, `phaser-game.tsx` và hai tệp test theme | 11 bài mới qua, gồm đối chiếu tham số vẽ mặc định và đổi theme tại chỗ. |
-| 5. Giao diện | Routes `collection`, `market`, `components/cosmetics/`, `app-header.tsx`, `tournament-play-view.tsx`, `use-spectator-moves.ts`, `cosmetics-ui.test.tsx` | 6 bài mới qua. Chrome kiểm tra hai trang ở 375×812 và 1280×800. Không tràn ngang. Các vùng bấm mới đo được tối thiểu 44 px. |
-| 6. Tổng kiểm tra | Tài liệu này và ảnh đối chiếu màu | 198 bài Foundry, 201 bài web và 89 bài relay qua. Relay có 3 bài bỏ qua theo cấu hình sẵn. Typecheck, lint, web build và check:build qua. |
-
-Demo Anvil đã chạy qua nhận, trang bị, phê duyệt, rao, hai lượt đặt giá, kết toán và rút cho cả ví bị vượt giá lẫn người bán. Đã kiểm tra chủ NFT cuối cùng và số dư chợ về 0. Chrome dùng ví EIP-1193 giả lập. Chưa kiểm chứng ký bằng ví thật hoặc chạy trên Fuji. Chưa chạy job build image relay do môi trường thiếu Docker.
-
-Các commit tính năng giữ riêng phần có thể tách khỏi các thay đổi có sẵn. Phần ghép cờ, Phaser, điều hướng và màn hình ván nằm trong các tệp đã sửa hoặc chưa được Git theo dõi từ trước, nên vẫn ở working tree cùng nền giải đấu hiện có.
+Khoản 5 Điều 57 Nghị định 147/2024/NĐ-CP quy định về việc cấm mua bán vật phẩm ảo giữa người chơi. AvaClash đã gỡ chợ skin và dùng cúp gắn với ví nhận. Khi nâng cấp một môi trường đang dùng hợp đồng cúp cũ, cấu hình `NEXT_PUBLIC_COSMETICS_ADDRESS` trỏ vào hợp đồng cúp mới để áp dụng khóa chuyển nhượng. Việc cập nhật mã nguồn chỉ áp dụng cho bytecode biên dịch mới. [Nghị định 147/2024/NĐ-CP](https://datafiles.chinhphu.vn/cpp/files/vbpq/2024/11/147-nd.signed.pdf)

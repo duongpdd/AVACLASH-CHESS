@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-11-01T08:52:28.928Z",
+  "network": "Avalanche Fuji",
+  "checks": [
+    {
+      "check": "RPC chain 43113",
+      "pass": true
+    },
+    {
+      "check": "DEPLOYER_ADDRESS",
+      "pass": false
+    },
+    {
+      "check": "RELAY_SIGNER_ADDRESS",
+      "pass": false
+    },
+    {
+      "check": "ARBITER_ADDRESS",
+      "pass": false
+    },
+    {
+      "check": "TREASURY_ADDRESS",
+      "pass": false
+    }
+  ],
+  "ready": false
+}

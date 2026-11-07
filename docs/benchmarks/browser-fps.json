@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-11-01T09:09:11.924Z",
+  "metric": "Phaser loop.actualFps sampled every 100ms",
+  "durationMs": 5005.5,
+  "samples": 50,
+  "meanFps": 136.70789620399475,
+  "p5SampleFps": 129.460205078125,
+  "hiddenDuringMeasurement": false,
+  "viewport": {
+    "width": 664,
+    "height": 716,
+    "devicePixelRatio": 1.25
+  },
+  "reducedMotion": false,
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+  "scenario": "Hot-seat board idle before starting clock; foreground tab on a single Windows host; engine loop estimate, not guaranteed display refresh."
+}

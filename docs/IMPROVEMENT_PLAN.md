@@ -1,5 +1,7 @@
 # Kế hoạch Cải tiến Kinh tế & An ninh On-chain — AvaClash Chess
 
+> Đây là kế hoạch lịch sử. Các trạng thái chưa đối chiếu mã nguồn ở phía dưới không phải tiến độ hiện tại; đọc `PROGRESS.md`, `ARCHITECTURE.md` và `REVIEW_2026-11-01.md` để xem kết quả rà soát mới nhất.
+
 > **Phiên bản:** 2.1 | **Cập nhật:** 26/10/2026 | **Căn cứ:** `PROGRESS.md` v26/10, `ARCHITECTURE.md` v1.3.0, `DECISIONS.md`
 > **Trạng thái:** Toàn bộ hạng mục P0 của Lượt 2c đã triển khai và kiểm thử (235/235 tests xanh). Còn **G2 (`abortRoom` thiếu `signalGameStarted`)** và **G3/B3 (cửa sổ cược khán giả)** cần xử lý trước khi deploy Fuji.
 > **CẢNH BÁO DEPLOY:** Hệ thống **KHÔNG ĐƯỢC DEPLOY** lên Fuji/Mainnet cho đến khi thiết kế và cơ chế GameStart (G2) hoàn tất.
@@ -22,35 +24,35 @@
 
 ## 2. Bảng trạng thái tổng hợp
 
-| Mã | Hạng mục | Ưu tiên | Trạng thái | Ghi chú |
-| :-- | :-- | :-: | :-: | :-- |
-| A1 | Mở rộng struct `Result` | P0 | ✅ | ADR D7. Domain EIP-712 nâng lên `version="2"` đồng bộ (G12). Test chéo Viem ↔ Foundry sinh ngẫu nhiên |
-| A2 | Chữ ký 2-trong-3 (A, B, Relay) | P0 | ✅ | Khóa Relay & Arbiter tách rời, cô lập claim đơn lẻ và nonce theo người nộp `usedNonces[roomId][msg.sender][nonce]` |
-| A3 | Challenge có bond + arbiter | P0 | ✅ | Q11: Submitter nộp bond bằng bond challenge; resolveChallenge xử lý slashing/refund đầy đủ; nhánh mặc định 24h hoàn 100% bond người nộp, chia 50/50 bond challenger (Q8 - residual risk) |
-| A4 | `abortRoom` + timeout đầu ván | P0 | 🟡 | Đã chặn khi `singleSignedAt != 0`. Tuy nhiên vẫn thiếu `signalGameStarted` (G2) - **Chặn Deploy** |
-| A5 | Chọn màu công bằng | P1 | ✅ | Q13: Người tạo chọn `creatorIsWhite`, lưu on-chain, Relay đọc chain gán màu, UI hiển thị trước khi stake (Q3/D5 superseded) |
-| B1 | Tách Spectator Pool | P0 | ✅ | 1 market (Trắng/Đen/Hòa). Cược gross, phí 5% vào `seasonPrizePool` khi resolve. Hoàn 100% gross khi hủy/pool thắng = 0 |
-| B2 | Chống tự cược | P1 | 🟡 | `registerMatch` và `lockBetting` chạy tại `joinRoom` (Fail-Fast: revert nếu Meta lỗi). Khán giả chưa cược được trước |
-| B3 | Khóa cược sớm | P0 | 🟡 | Đã khóa ở `joinRoom` (Fail-Fast D14), nhưng làm yếu giá trị thị trường (G3) |
-| B4 | Cửa "Under 40 moves" | P1 | ✅ | Bỏ hẳn ở Fuji (Q5) |
-| B5 | Hoàn tiền cược khi hòa/hủy | P0 | ✅ | `cancelPrediction`, `claimSpectatorRefund` (kể cả nhánh thắng có pool = 0 và độc lập sau 7 ngày) |
-| C1 | Chống Sybil ELO | P1 | 🟡 | Đã bắt buộc `MIN_STAKE = 0.01 ether` (Q14) và `pairId` theo cặp ví. Chưa có provisional, trần ngày (G7) |
-| C2 | Giới hạn chênh ELO khi bắt cặp | P2 | ⬜ | |
-| D1 | Gasless | P2 | ⬜ | |
-| D2 | Bậc cược cố định, phòng riêng | P1 | ⬜ | Chưa thấy trong tài liệu |
-| D3 | USDC | P2 | ⬜ | |
-| D4 | Phí giao thức | P1 | ✅ | 5% tích lũy on-chain tại `protocolFees`, rút về treasury qua `withdrawProtocolFees` (Q6) |
-| D5 | Vault có yield | P2 | ⬜ | |
-| E1-E3 | Hash-chain, ZK, ELO SBT | P2 | ⬜ | |
-| F1 | Đồng bộ tài liệu, nối Escrow ↔ Meta | P0 | ✅ | Đã nối trong `Deploy.s.sol` (hỗ trợ Keystore). Try/catch cô lập Escrow -> Meta hậu kỳ, fail-fast tại joinRoom |
-| F2 | Rà soát pháp lý | P1 | ⬜ | |
-| G1 | Challenge nhánh mặc định | P0 | ✅ | Q11 + Q8 (residual risk): Submitter bond bảo vệ claim; số liệu payoff đã đo lường và ghi vào DECISIONS.md |
-| G4 | Telemetry chỉ cảnh báo | P0 | ✅ | Bỏ trừ giờ & forfeit, chỉ broadcast cảnh báo (Q10/D10) |
-| G5 | Tách Arbiter & Pausable | P0 | ✅ | Constructor & Deployer tách riêng 3 địa chỉ, Timelock 2 ngày riêng biệt, Pausable không kẹt tiền (D11) |
-| G8 | Cô lập Meta & Winner consistency | P0 | ✅ | Fail-Fast tại `joinRoom`; G8a Try/catch hậu kỳ + spectator recovery; G8b outcome/winner match theo màu (Q13) |
-| G10 | Test cho Relay | P1 | ✅ | 11 tests Vitest: EIP-712 join auth, on-chain check fail-closed, single socket/seat, rate limit, maxPayload |
-| G12 | Đồng bộ tài liệu & EIP-712 v2 | P0 | ✅ | Domain version "2", ADR Q1-Q14, D1-D14 |
-| G14 | Xóa khóa hardcode | P0 | ✅ | Bắt buộc đọc từ biến môi trường, sinh ngẫu nhiên khi test |
+| Mã    | Hạng mục                            | Ưu tiên | Trạng thái | Ghi chú                                                                                                                                                                                  |
+| :---- | :---------------------------------- | :-----: | :--------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1    | Mở rộng struct `Result`             |   P0    |     ✅     | ADR D7. Domain EIP-712 nâng lên `version="2"` đồng bộ (G12). Test chéo Viem ↔ Foundry sinh ngẫu nhiên                                                                                    |
+| A2    | Chữ ký 2-trong-3 (A, B, Relay)      |   P0    |     ✅     | Khóa Relay & Arbiter tách rời, cô lập claim đơn lẻ và nonce theo người nộp `usedNonces[roomId][msg.sender][nonce]`                                                                       |
+| A3    | Challenge có bond + arbiter         |   P0    |     ✅     | Q11: Submitter nộp bond bằng bond challenge; resolveChallenge xử lý slashing/refund đầy đủ; nhánh mặc định 24h hoàn 100% bond người nộp, chia 50/50 bond challenger (Q8 - residual risk) |
+| A4    | `abortRoom` + timeout đầu ván       |   P0    |     🟡     | Đã chặn khi `singleSignedAt != 0`. Tuy nhiên vẫn thiếu `signalGameStarted` (G2) - **Chặn Deploy**                                                                                        |
+| A5    | Chọn màu công bằng                  |   P1    |     ✅     | Q13: Người tạo chọn `creatorIsWhite`, lưu on-chain, Relay đọc chain gán màu, UI hiển thị trước khi stake (Q3/D5 superseded)                                                              |
+| B1    | Tách Spectator Pool                 |   P0    |     ✅     | 1 market (Trắng/Đen/Hòa). Cược gross, phí 5% vào `seasonPrizePool` khi resolve. Hoàn 100% gross khi hủy/pool thắng = 0                                                                   |
+| B2    | Chống tự cược                       |   P1    |     🟡     | `registerMatch` và `lockBetting` chạy tại `joinRoom` (Fail-Fast: revert nếu Meta lỗi). Khán giả chưa cược được trước                                                                     |
+| B3    | Khóa cược sớm                       |   P0    |     🟡     | Đã khóa ở `joinRoom` (Fail-Fast D14), nhưng làm yếu giá trị thị trường (G3)                                                                                                              |
+| B4    | Cửa "Under 40 moves"                |   P1    |     ✅     | Bỏ hẳn ở Fuji (Q5)                                                                                                                                                                       |
+| B5    | Hoàn tiền cược khi hòa/hủy          |   P0    |     ✅     | `cancelPrediction`, `claimSpectatorRefund` (kể cả nhánh thắng có pool = 0 và độc lập sau 7 ngày)                                                                                         |
+| C1    | Chống Sybil ELO                     |   P1    |     🟡     | Đã bắt buộc `MIN_STAKE = 0.01 ether` (Q14) và `pairId` theo cặp ví. Chưa có provisional, trần ngày (G7)                                                                                  |
+| C2    | Giới hạn chênh ELO khi bắt cặp      |   P2    |     ⬜     |                                                                                                                                                                                          |
+| D1    | Gasless                             |   P2    |     ⬜     |                                                                                                                                                                                          |
+| D2    | Bậc cược cố định, phòng riêng       |   P1    |     ⬜     | Chưa thấy trong tài liệu                                                                                                                                                                 |
+| D3    | USDC                                |   P2    |     ⬜     |                                                                                                                                                                                          |
+| D4    | Phí giao thức                       |   P1    |     ✅     | 5% tích lũy on-chain tại `protocolFees`, rút về treasury qua `withdrawProtocolFees` (Q6)                                                                                                 |
+| D5    | Vault có yield                      |   P2    |     ⬜     |                                                                                                                                                                                          |
+| E1-E3 | Hash-chain, ZK, ELO SBT             |   P2    |     ⬜     |                                                                                                                                                                                          |
+| F1    | Đồng bộ tài liệu, nối Escrow ↔ Meta |   P0    |     ✅     | Đã nối trong `Deploy.s.sol` (hỗ trợ Keystore). Try/catch cô lập Escrow -> Meta hậu kỳ, fail-fast tại joinRoom                                                                            |
+| F2    | Rà soát pháp lý                     |   P1    |     ⬜     |                                                                                                                                                                                          |
+| G1    | Challenge nhánh mặc định            |   P0    |     ✅     | Q11 + Q8 (residual risk): Submitter bond bảo vệ claim; số liệu payoff đã đo lường và ghi vào DECISIONS.md                                                                                |
+| G4    | Telemetry chỉ cảnh báo              |   P0    |     ✅     | Bỏ trừ giờ & forfeit, chỉ broadcast cảnh báo (Q10/D10)                                                                                                                                   |
+| G5    | Tách Arbiter & Pausable             |   P0    |     ✅     | Constructor & Deployer tách riêng 3 địa chỉ, Timelock 2 ngày riêng biệt, Pausable không kẹt tiền (D11)                                                                                   |
+| G8    | Cô lập Meta & Winner consistency    |   P0    |     ✅     | Fail-Fast tại `joinRoom`; G8a Try/catch hậu kỳ + spectator recovery; G8b outcome/winner match theo màu (Q13)                                                                             |
+| G10   | Test cho Relay                      |   P1    |     ✅     | 11 tests Vitest: EIP-712 join auth, on-chain check fail-closed, single socket/seat, rate limit, maxPayload                                                                               |
+| G12   | Đồng bộ tài liệu & EIP-712 v2       |   P0    |     ✅     | Domain version "2", ADR Q1-Q14, D1-D14                                                                                                                                                   |
+| G14   | Xóa khóa hardcode                   |   P0    |     ✅     | Bắt buộc đọc từ biến môi trường, sinh ngẫu nhiên khi test                                                                                                                                |
 
 ---
 
@@ -76,6 +78,7 @@
 **Vấn đề:** Khi Relay offline, bên thua chỉ cần từ chối ký, `challenge`, rồi chờ arbiter không phản hồi 24h. Nhánh `resolveDefaultChallenge` hoàn 100% cược **và hoàn bond**, nên bên thua biến "thua" thành "hòa vốn" mà không mất gì (ngoài gas). Bảng an ninh cũng tự mâu thuẫn: một dòng ghi "bond bị tịch thu", dòng khác ghi "hoàn bond".
 
 **Công việc:**
+
 - [x] Chốt quyết định Q8 (mục 6): phạt 50% bond của bên khiếu nại chuyển cho bên nộp đơn, 50% còn lại hoàn cho bên khiếu nại.
 - [x] Sửa Escrow và bảng an ninh trong `ARCHITECTURE.md` cho nhất quán.
 - [x] Test: bên thua challenge + arbiter im lặng → bên thua chịu phạt ròng 10% tiền cược (50% bond) và bên nộp đơn nhận bồi thường. Test bảo toàn 100% tổng quỹ on-chain.
@@ -85,6 +88,7 @@
 **Vấn đề:** Contract không thấy nước đi. Nếu điều kiện `abortRoom` chỉ là thời gian kể từ `joinRoom`, người sắp thua ván 5+0 có thể hủy giữa ván và lấy lại tiền.
 
 **Công việc:**
+
 - [ ] Relay ký một tín hiệu EIP-712 "ván đã bắt đầu" (gồm `roomId`, thời điểm bắt đầu), người chơi nộp `confirmStart` (hoặc Relay nộp hộ) khi nước đi đầu tiên được thực hiện.
 - [ ] Sau `confirmStart`, `abortRoom` bị cấm; trước đó vẫn cho phép sau 3 phút.
 - [ ] Nếu Relay offline và không ai xác nhận được: giữ `refundOnTimeout` 60 phút làm lưới an toàn, ghi rõ đánh đổi trong ADR.
@@ -93,10 +97,12 @@
 ### G3. Khóa cược sớm làm thị trường mất ý nghĩa + lỗ hổng tự cược — P0, M
 
 **Vấn đề:**
+
 - Khóa tại `joinRoom` (Q4) khiến khán giả phải cược khi chưa biết đối thủ, và màu quân do Relay quyết định sau đó (Q3), nên "Trắng thắng" gần như cược theo màu ngẫu nhiên.
 - `registerMatch` và `lockBetting` chạy cùng lúc nên người chơi cược trước khi vào phòng không bị chặn.
 
 **Công việc:**
+
 - [ ] Gọi `registerMatch` **ngay tại `joinRoom`**; khóa cược sau một **cửa sổ ngắn** (đề xuất 60-120 giây hoặc khi `confirmStart`), lúc khán giả đã thấy đối thủ, màu và ELO nhưng chưa có thế cờ để chạy engine.
 - [ ] Khi `claim`, vô hiệu (hoàn tiền) mọi cược của địa chỉ trùng với hai người chơi.
 - [ ] Cân nhắc trần tổng cược khán giả theo tiền cược của hai người chơi.
@@ -107,6 +113,7 @@
 **Vấn đề:** Relay trừ giờ khi người chơi vi phạm telemetry (theo `PROGRESS.md`/sơ đồ Relay), trong khi `ARCHITECTURE.md` mục 7 mô tả telemetry chỉ là cảnh báo. Telemetry do client tự báo (kẻ gian không gửi, người ngay có thể bị phạt oan do popup), và hết giờ quyết định thắng thua có tiền thật. Cơ chế này cũng đi ngược nguyên lý "Pure FIDE Core".
 
 **Công việc:**
+
 - [x] Ở bản Fuji: chỉ **hiển thị cảnh báo**, tắt việc trừ giờ và tắt xử thua kỹ thuật (quyết định D10/Q10).
 - [x] Giữ broadcast gói tin cảnh báo và đếm vi phạm cho đối thủ xem.
 - [x] Đồng bộ mục 7 `ARCHITECTURE.md` và kiểm thử Relay.
@@ -116,6 +123,7 @@
 **Vấn đề:** Lộ khóa Relay cho phép tạo chữ ký "thắng" giả cho các phòng đang chạy. Relay còn vừa ký kết quả vừa là arbiter.
 
 **Công việc:**
+
 - [x] Tách khóa `relaySigner` và `arbiter` trong `ChessEscrow.sol`; mỗi bên có timelock 2 ngày riêng biệt.
 - [x] Xóa hoàn toàn khóa hardcode trong mã nguồn Relay; đọc từ biến môi trường, báo lỗi nếu thiếu (G14).
 - [x] Thêm `Pausable` (khi tạm dừng vẫn cho phép hoàn tiền/rút tiền/abort/claim, chỉ chặn `createRoom`/`joinRoom`).
@@ -127,6 +135,7 @@
 **Vấn đề:** Hai người chơi hẹn hòa ngay (`reason=Agreement`, 0 phí), ví phụ cược cửa Hòa. Bỏ "Under 40" không chặn được kiểu này (resign sớm cũng tương tự). Mục "Hai kỳ thủ bắt tay" trong bảng an ninh đang nói quá.
 
 **Công việc:**
+
 - [ ] Vì `moveCount` đã nằm trong chữ ký, Meta hủy dự đoán và hoàn tiền nếu `moveCount` dưới ngưỡng (đề xuất 20 half-moves).
 - [ ] Giới hạn tổng cược khán giả theo tiền cược hai người chơi.
 - [ ] Sửa lại câu chữ trong bảng an ninh cho đúng mức độ bảo vệ.
@@ -136,6 +145,7 @@
 **Vấn đề:** `pairId` chỉ chặn cùng một cặp ví. `Season Points +15` cố định chưa có giảm dần, trong khi quỹ mùa giải là tiền thật. `Δ = 24 >> n` là mức cố định, chưa phụ thuộc chênh lệch ELO. Tài liệu viết "triệt tiêu động lực" là quá lời.
 
 **Công việc:**
+
 - [ ] Áp dụng decay `pairId` cho cả Season Points.
 - [ ] Trần Season Points/ELO tối đa mỗi ngày cho mỗi ví.
 - [ ] Mức cược tối thiểu để được tính ELO/điểm mùa (ván cược quá nhỏ không được tính).
@@ -146,6 +156,7 @@
 ### G8. Escrow gọi Meta không được làm kẹt tiền — P0, S — ✅ Đã xử lý (c404574, 2c163c0)
 
 **Công việc:**
+
 - [x] Các lời gọi Escrow → Meta (`updateEloOnSettle`, `resolvePrediction`, `cancelPrediction`, `registerMatch`, `lockBetting`) bọc `try/catch`, phát event `MetaCallFailed(roomId, selector)` để Meta revert **không** chặn thanh toán/hoàn tiền (G8a).
 - [x] Thêm cơ chế bảo vệ tiền khán giả: `retryResolvePrediction(roomId)` và `fallbackCancelPrediction(roomId)`.
 - [x] Test với một Meta mock luôn revert: settle, abort, refund của người chơi vẫn thành công (5 tests passing).
@@ -162,6 +173,7 @@
 ### G10. Bổ sung test cho Relay — P1, M
 
 Relay giữ khóa ký, đồng hồ và seed màu:
+
 - [ ] Relay khởi động lại giữa ván.
 - [ ] Ký sai `chainId`/`verifyingContract` bị Escrow từ chối.
 - [ ] Ký kết quả hòa (không có "người thắng" cho cơ chế Winner + Relay).
@@ -204,24 +216,24 @@ Relay giữ khóa ký, đồng hồ và seed màu:
 
 ## 6. Quyết định & ánh xạ với `DECISIONS.md`
 
-| Quyết định | Nội dung | Trạng thái | ADR |
-| :-- | :-- | :-: | :-- |
-| Q1 | Hòa hoàn 100% cả hai | ✅ Đã chốt | Q1 |
-| Q2 | Arbiter/Relay có timelock, mặc định hoàn tiền sau 24h | ✅ Đã chốt | Q2 |
-| Q3 | Màu do seed Relay ký | ❌ Superseded | Superseded bởi Q13 |
-| Q4 | Khóa cược tại `joinRoom` | 🟡 Đề xuất sửa: khóa sau cửa sổ ngắn | Q4 → D13 |
-| Q5 | Bỏ "Under 40 moves" ở Fuji | ✅ Đã chốt | Q5 |
-| Q6 | Phí 5% vào Treasury | ✅ Đã chốt | Q6 |
-| Q7 | Bond 20%, tối thiểu 0.01 AVAX | ✅ Đã chốt | Q7 |
-| Q8 | Xử lý bond ở nhánh mặc định 24h: phạt 50% chuyển bên nộp đơn | ✅ Accepted with residual risk | Q8 |
-| Q9 | Tín hiệu `confirmStart` do Relay ký | ⬜ **Cần chốt (G2 - Chặn Deploy)** | Q9 (hiện trạng: D9) |
-| Q10 | Telemetry chỉ cảnh báo, không trừ giờ ở Fuji | ✅ Accepted | Q10 (chi tiết: D10) |
-| Q11 | Submitter Bond bằng Challenge Bond, hoàn/phạt theo kết quả arbiter | ✅ Accepted & đã triển khai | Q11 |
-| Q12 | Cơ chế chi trả `seasonPrizePool` | ⬜ Open (chưa làm ở lượt này) | Q12 |
-| Q13 | Màu do người tạo chọn qua `createRoom(bool)`, lưu on-chain | ✅ Accepted & đã triển khai | Q13 (thay Q3/D5) |
-| Q14 | `MIN_STAKE = 0.01 ether` trong `createRoom` | ✅ Accepted & đã triển khai | Q14 |
-| — | Khóa Relay/Arbiter tách rời, `Pausable` | ✅ Đã chốt | D11 |
-| — | Escrow độc lập với Meta (Fail-fast joinRoom, try/catch hậu kỳ, Spectator recovery) | 🟡 Đề xuất, đã triển khai | D14 |
+| Quyết định | Nội dung                                                                           |              Trạng thái              | ADR                 |
+| :--------- | :--------------------------------------------------------------------------------- | :----------------------------------: | :------------------ |
+| Q1         | Hòa hoàn 100% cả hai                                                               |              ✅ Đã chốt              | Q1                  |
+| Q2         | Arbiter/Relay có timelock, mặc định hoàn tiền sau 24h                              |              ✅ Đã chốt              | Q2                  |
+| Q3         | Màu do seed Relay ký                                                               |            ❌ Superseded             | Superseded bởi Q13  |
+| Q4         | Khóa cược tại `joinRoom`                                                           | 🟡 Đề xuất sửa: khóa sau cửa sổ ngắn | Q4 → D13            |
+| Q5         | Bỏ "Under 40 moves" ở Fuji                                                         |              ✅ Đã chốt              | Q5                  |
+| Q6         | Phí 5% vào Treasury                                                                |              ✅ Đã chốt              | Q6                  |
+| Q7         | Bond 20%, tối thiểu 0.01 AVAX                                                      |              ✅ Đã chốt              | Q7                  |
+| Q8         | Xử lý bond ở nhánh mặc định 24h: phạt 50% chuyển bên nộp đơn                       |    ✅ Accepted with residual risk    | Q8                  |
+| Q9         | Tín hiệu `confirmStart` do Relay ký                                                |  ⬜ **Cần chốt (G2 - Chặn Deploy)**  | Q9 (hiện trạng: D9) |
+| Q10        | Telemetry chỉ cảnh báo, không trừ giờ ở Fuji                                       |             ✅ Accepted              | Q10 (chi tiết: D10) |
+| Q11        | Submitter Bond bằng Challenge Bond, hoàn/phạt theo kết quả arbiter                 |     ✅ Accepted & đã triển khai      | Q11                 |
+| Q12        | Cơ chế chi trả `seasonPrizePool`                                                   |    ⬜ Open (chưa làm ở lượt này)     | Q12                 |
+| Q13        | Màu do người tạo chọn qua `createRoom(bool)`, lưu on-chain                         |     ✅ Accepted & đã triển khai      | Q13 (thay Q3/D5)    |
+| Q14        | `MIN_STAKE = 0.01 ether` trong `createRoom`                                        |     ✅ Accepted & đã triển khai      | Q14                 |
+| —          | Khóa Relay/Arbiter tách rời, `Pausable`                                            |              ✅ Đã chốt              | D11                 |
+| —          | Escrow độc lập với Meta (Fail-fast joinRoom, try/catch hậu kỳ, Spectator recovery) |      🟡 Đề xuất, đã triển khai       | D14                 |
 
 > [!WARNING]
 > **Rủi ro còn lại của Q8 (Payoff comparison):** Sau khi có Submitter Bond (Q11), bên thua challenge và arbiter im lặng vẫn thu hồi được 90% cược (chỉ mất 10% phạt bond ròng). Đây là rủi ro tồn đọng được chấp nhận cho Fuji, sẽ giải quyết triệt để ở Mainnet bằng chuỗi nước đi có chữ ký (E1).
@@ -231,19 +243,23 @@ Relay giữ khóa ký, đồng hồ và seed màu:
 ## 7. Lộ trình cập nhật
 
 ### Giai đoạn A — Trước khi deploy Fuji (P0)
+
 1. Chốt Q8, Q9, Q10 và sửa Q4 → viết/cập nhật ADR.
 2. G1, G2, G3, G4, G5, G8 (sửa contract/relay, thêm test).
 3. G12 (đồng bộ tài liệu), G9 (checklist deploy).
 
 ### Giai đoạn B — Deploy & kiểm thử thực tế
+
 1. G11: nối ví, chạy end-to-end trên Fuji.
 2. G10: bổ sung test cho Relay, invariant test.
 
 ### Giai đoạn C — Trước audit
+
 1. G6, G7, D2, F2.
 2. Đóng băng thiết kế, gửi audit (Phase 6).
 
 ### Giai đoạn D — Sau audit
+
 - C2, D1, D3, D5, E1-E3.
 
 ---
