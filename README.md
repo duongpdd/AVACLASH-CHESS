@@ -2,14 +2,14 @@
 
 Giải cờ vua online miễn phí tham dự, quỹ thưởng do nhà tài trợ nạp trước và được giải ngân bằng hợp đồng thông minh trên Avalanche Fuji.
 
-|                           |                                                                                                                                                                     |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Dùng thử**              | [avaclash-chess.vercel.app](https://avaclash-chess.vercel.app)                                                                                                      |
-| **Mạng**                  | Avalanche Fuji C-Chain (chain ID 43113), chỉ dùng token thử nghiệm                                                                                                  |
-| **Hợp đồng giải**         | [`0x268F6034175750791AAaA20FD04F658BDDAcB9F9`](https://explorer-test.avax.network/c-chain/address/0x268F6034175750791AAaA20FD04F658BDDAcB9F9), đã xác minh mã nguồn |
-| **Giải mẫu đã chơi thật** | [Giải #1 ASTAR](https://avaclash-chess.vercel.app/tournaments?id=1)                                                                                                 |
-| **Video demo**            | Cập nhật trước khi nộp                                                                                                                                              |
-| **Slide**                 | Cập nhật trước khi nộp                                                                                                                                              |
+|                           |                                                                                                                                                                                                                                                                                    |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Dùng thử**              | [avaclash-chess.vercel.app](https://avaclash-chess.vercel.app)                                                                                                                                                                                                                     |
+| **Mạng**                  | Avalanche Fuji C-Chain (chain ID 43113), chỉ dùng token thử nghiệm                                                                                                                                                                                                                 |
+| **Hợp đồng giải**         | [`0x268F6034175750791AAaA20FD04F658BDDAcB9F9`](https://explorer-test.avax.network/c-chain/address/0x268F6034175750791AAaA20FD04F658BDDAcB9F9?tab=code), mã nguồn đã xác minh, xem thêm trên [Sourcify](https://repo.sourcify.dev/43113/0x268F6034175750791AAaA20FD04F658BDDAcB9F9) |
+| **Giải mẫu đã chơi thật** | [Giải #1 ASTAR](https://avaclash-chess.vercel.app/tournaments?id=1)                                                                                                                                                                                                                |
+| **Video demo**            | Cập nhật trước khi nộp                                                                                                                                                                                                                                                             |
+| **Slide**                 | Cập nhật trước khi nộp                                                                                                                                                                                                                                                             |
 
 Dự án tham gia [Team1 Vietnam UniHack: 30 days to build on Avalanche](https://team1vn.xyz).
 
