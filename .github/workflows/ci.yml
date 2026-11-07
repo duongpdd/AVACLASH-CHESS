@@ -1,0 +1,39 @@
+name: Verify
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @avaclash/contracts test
+      - run: pnpm --filter @avaclash/shared build
+      - run: pnpm --filter @avaclash/shared test
+      - run: pnpm --filter @avaclash/relay test
+      - run: pnpm --filter web test
+      - run: pnpm test:tools
+      - run: pnpm test:deploy
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm --filter web check:build
+  relay-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f deploy/relay/Dockerfile -t avaclash-relay:ci .

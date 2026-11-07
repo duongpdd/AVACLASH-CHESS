@@ -59,13 +59,6 @@ async function main() {
 
   const pool = await deploy("TournamentPrizePool", [relay]);
   const skins = await deploy("AvaClashCosmetics", [pool.address, owner]);
-  const market = await deploy("CosmeticAuction", [
-    skins.address,
-    60n,
-    604800n,
-    15n,
-    60n,
-  ]);
   const { timestamp } = await rpc.getBlock();
   await write(pool, owner, "createTournament", [
     "Cúp AvaClash",
@@ -116,7 +109,6 @@ async function main() {
       `NEXT_PUBLIC_RPC_URL=${url}`,
       `NEXT_PUBLIC_TOURNAMENT_ADDRESS=${pool.address}`,
       `NEXT_PUBLIC_COSMETICS_ADDRESS=${skins.address}`,
-      `NEXT_PUBLIC_AUCTION_ADDRESS=${market.address}`,
       `Ví đồng hạng nhất có thể nhận skin #0: ${white}, ${black}`,
     ].join("\n"),
   );

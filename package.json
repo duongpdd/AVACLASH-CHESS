@@ -2,13 +2,22 @@
   "name": "avaclash-chess",
   "version": "0.1.0",
   "private": true,
-  "description": "AvaClash Chess — 1v1 chess with AVAX testnet wagering on Avalanche Fuji",
+  "description": "AvaClash Chess — free-entry chess tournaments with sponsored prizes on Avalanche Fuji",
   "scripts": {
     "dev": "pnpm --filter web dev",
     "dev:local": "node scripts/dev-local.mjs",
+    "dev:tournament": "node scripts/dev-tournament.mjs",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test:tools": "node --test scripts/tooling.test.mjs",
+    "check:fuji": "node scripts/fuji-preflight.mjs",
+    "prepare:deploy": "node scripts/prepare-deploy.mjs",
+    "check:online": "node scripts/check-online.mjs",
+    "test:deploy": "node --test scripts/deploy-config.test.mjs",
+    "test:campaign": "pnpm --filter @avaclash/relay exec vitest run tests/local-campaign.test.ts",
+    "test:tournament": "pnpm --filter @avaclash/relay test tests/tournament-e2e.test.ts",
     "format": "prettier --write ."
   },
   "devDependencies": {

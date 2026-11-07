@@ -1,161 +1,261 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
+import { parseEnv } from "node:util";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const rootDir = path.resolve(__dirname, "..");
+const rootDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
+const require = createRequire(path.join(rootDir, "web/package.json"));
+const { generatePrivateKey, privateKeyToAccount } = require("viem/accounts");
+const relayEnvPath = path.join(rootDir, "packages/relay/.env.local");
+const oldConfig = fs.existsSync(relayEnvPath)
+  ? parseEnv(fs.readFileSync(relayEnvPath, "utf8"))
+  : {};
+const statePath = path.join(rootDir, ".local/anvil-state.json");
+const resuming = fs.existsSync(statePath);
+const relayKey =
+  resuming && oldConfig.RELAY_PRIVATE_KEY
+    ? oldConfig.RELAY_PRIVATE_KEY
+    : generatePrivateKey();
+const relaySigner = privateKeyToAccount(relayKey).address;
+const binary = (name) => (process.platform === "win32" ? `${name}.exe` : name);
+const children = new Set();
+let stopping = false;
 
-console.log("========================================================================");
-console.log("           AVACLASH CHESS — LOCAL DEVNET ORCHESTRATOR                   ");
-console.log("========================================================================");
-console.log("1. Starting local Anvil node (chainId: 31337, port: 8545)...");
+function cleanup(code = 0) {
+  if (stopping) return;
+  stopping = true;
+  for (const child of children) child.kill();
+  process.exitCode = code;
+}
+process.on("SIGINT", () => cleanup());
+process.on("SIGTERM", () => cleanup());
 
-const anvil = spawn("anvil", ["--port", "8545", "--chain-id", "31337"], {
-  stdio: ["ignore", "pipe", "pipe"],
-  shell: true,
-});
-
-let anvilStarted = false;
-
-anvil.stdout.on("data", (data) => {
-  const msg = data.toString();
-  if (!anvilStarted && msg.includes("Listening on")) {
-    anvilStarted = true;
-    onAnvilReady();
+function start(command, args, options = {}) {
+  const child = spawn(command, args, {
+    cwd: rootDir,
+    windowsHide: true,
+    ...options,
+  });
+  children.add(child);
+  child.on("close", () => children.delete(child));
+  child.on("error", (error) => {
+    console.error(error.message);
+    cleanup(1);
+  });
+  return child;
+}
+function run(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = start(command, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      ...options,
+    });
+    let output = "";
+    child.stdout.on("data", (data) => {
+      output += data;
+      process.stdout.write(data);
+    });
+    child.stderr.on("data", (data) => process.stderr.write(data));
+    child.on("error", reject);
+    child.on("close", (code) =>
+      code === 0
+        ? resolve(output)
+        : reject(new Error(`${command} exited with ${code}`)),
+    );
+  });
+}
+function writeConfig(file, values) {
+  let content = fs.existsSync(file)
+    ? fs.readFileSync(file, "utf8")
+    : "# Local Anvil configuration\n";
+  for (const [key, value] of Object.entries(values)) {
+    const entry = `${key}=${value}`;
+    const pattern = new RegExp(`^${key}=.*$`, "m");
+    content = pattern.test(content)
+      ? content.replace(pattern, () => entry)
+      : `${content.trimEnd()}\n${entry}\n`;
   }
-});
-
-anvil.stderr.on("data", (data) => {
-  const err = data.toString();
-  if (err.includes("Address already in use")) {
-    console.error("[Error] Port 8545 is already in use by another process.");
-    process.exit(1);
-  }
-});
-
-function cleanup() {
-  console.log("\nStopping local Anvil node...");
-  anvil.kill();
-  process.exit(0);
+  fs.writeFileSync(file, content, { mode: 0o600 });
 }
 
-process.on("SIGINT", cleanup);
-process.on("SIGTERM", cleanup);
+async function main() {
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  console.log(
+    "Starting Anvil on http://127.0.0.1:8545 (local test accounts only).",
+  );
+  const anvil = start(
+    binary("anvil"),
+    [
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "8545",
+      "--chain-id",
+      "31337",
+      "--quiet",
+      "--state",
+      statePath,
+      "--state-interval",
+      "5",
+    ],
+    { stdio: "ignore" },
+  );
+  let anvilError;
+  anvil.on("error", (error) => {
+    anvilError = error;
+  });
+  let exited = false;
+  anvil.on("exit", () => {
+    exited = true;
+  });
+  await new Promise((resolve, reject) => {
+    let attempts = 0;
+    const check = async () => {
+      if (anvilError || exited)
+        return reject(
+          anvilError ??
+            new Error("Anvil exited. Check whether port 8545 is in use."),
+        );
+      try {
+        const response = await fetch("http://127.0.0.1:8545", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "eth_chainId",
+            params: [],
+          }),
+        });
+        if ((await response.json()).result === "0x7a69") return resolve();
+      } catch {
+        /* Wait for the local RPC listener. */
+      }
+      if (++attempts >= 100)
+        return reject(new Error("Anvil startup timed out."));
+      setTimeout(check, 200);
+    };
+    setTimeout(check, 200);
+  });
 
-async function onAnvilReady() {
-  console.log("   ✓ Anvil node is active on http://127.0.0.1:8545\n");
-  console.log("2. Deploying contracts with Deploy.s.sol...");
-
-  const contractsDir = path.join(rootDir, "contracts");
-
-  // Anvil well-known addresses (public dev addresses):
-  const deployer = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"; // Account 0
-  const relaySigner = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"; // Account 1
-  const arbiter = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"; // Account 2
-  const treasury = "0x90F79bf6EB2c4f870365E785982E1f101E93b906"; // Account 3
-
-  const deployEnv = {
-    ...process.env,
-    RELAY_SIGNER_ADDRESS: relaySigner,
-    ARBITER_ADDRESS: arbiter,
-    TREASURY_ADDRESS: treasury,
-  };
-
-  const deployCmd = spawn(
-    "forge",
+  // Fund an ephemeral relay wallet locally; no development key is embedded in source.
+  if (resuming) {
+    const { createPublicClient, http } = require("viem");
+    const client = createPublicClient({
+      transport: http("http://127.0.0.1:8545"),
+    });
+    const artifact = JSON.parse(
+      fs.readFileSync(
+        path.join(rootDir, "contracts/out/ChessEscrow.sol/ChessEscrow.json"),
+        "utf8",
+      ),
+    );
+    const signer = await client.readContract({
+      address: oldConfig.ESCROW_ADDRESS,
+      abi: artifact.abi,
+      functionName: "relaySigner",
+    });
+    if (signer.toLowerCase() !== relaySigner.toLowerCase())
+      throw Error(
+        "Saved Anvil state does not match relay configuration. Restore the matching config; no redeployment performed.",
+      );
+    console.log(
+      "Resumed saved Anvil state and relay configuration; existing rooms and balances retained. Start relay and web in separate terminals.",
+    );
+    return;
+  }
+  const response = await fetch("http://127.0.0.1:8545", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "anvil_setBalance",
+      params: [relaySigner, "0x8ac7230489e80000"],
+    }),
+  });
+  if ((await response.json()).error)
+    throw new Error("Could not fund the local relay account.");
+  const output = await run(
+    binary("forge"),
     [
       "script",
-      "script/Deploy.s.sol",
+      "script/Deploy.s.sol:DeployScript",
       "--rpc-url",
       "http://127.0.0.1:8545",
       "--broadcast",
       "--unlocked",
       "--sender",
-      deployer,
+      "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     ],
     {
-      cwd: contractsDir,
-      env: deployEnv,
-      shell: true,
-    }
+      cwd: path.join(rootDir, "contracts"),
+      env: {
+        ...process.env,
+        RELAY_SIGNER_ADDRESS: relaySigner,
+        ARBITER_ADDRESS: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        TREASURY_ADDRESS: "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+      },
+    },
   );
-
-  let deployOutput = "";
-
-  deployCmd.stdout.on("data", (data) => {
-    deployOutput += data.toString();
-    process.stdout.write(data);
+  const escrow = output.match(
+    /ChessEscrow deployed at:\s*(0x[a-fA-F0-9]{40})/,
+  )?.[1];
+  const meta = output.match(
+    /AvaClashMeta deployed at:\s*(0x[a-fA-F0-9]{40})/,
+  )?.[1];
+  if (!escrow || !meta)
+    throw new Error("Could not parse deployed contract addresses.");
+  await run(process.execPath, [
+    path.join(rootDir, "packages/shared/scripts/generate-abi.mjs"),
+  ]);
+  await run(
+    process.execPath,
+    [path.join(rootDir, "packages/shared/node_modules/typescript/bin/tsc")],
+    { cwd: path.join(rootDir, "packages/shared") },
+  );
+  const webEnvPath = path.join(rootDir, "web/.env.local");
+  const webConfig = fs.existsSync(webEnvPath)
+    ? parseEnv(fs.readFileSync(webEnvPath, "utf8"))
+    : {};
+  writeConfig(webEnvPath, {
+    AUTH_SESSION_SECRET:
+      webConfig.AUTH_SESSION_SECRET || generatePrivateKey().slice(2),
+    NEXT_PUBLIC_ESCROW_ADDRESS: escrow,
+    NEXT_PUBLIC_META_ADDRESS: meta,
+    NEXT_PUBLIC_CHAIN_ID: 31337,
+    NEXT_PUBLIC_RPC_URL: "http://127.0.0.1:8545",
+    NEXT_PUBLIC_RELAY_URL: "ws://127.0.0.1:8080",
   });
-
-  deployCmd.stderr.on("data", (data) => {
-    process.stderr.write(data);
+  writeConfig(path.join(rootDir, "packages/relay/.env.local"), {
+    ESCROW_ADDRESS: escrow,
+    CHAIN_ID: 31337,
+    RPC_URL: "http://127.0.0.1:8545",
+    PORT: 8080,
+    RELAY_PRIVATE_KEY: relayKey,
+    RELAY_SIGNER_ADDRESS: relaySigner,
+    ALLOWED_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000",
+    ALLOW_NO_ORIGIN: false,
+    RESULTS_DIR: path.join(rootDir, ".local/relay", randomUUID(), "results"),
   });
-
-  deployCmd.on("close", (code) => {
-    if (code !== 0) {
-      console.error(`\n[Deploy Error] Forge script exited with code ${code}`);
-      cleanup();
-      return;
-    }
-
-    // Extract deployed addresses
-    const metaMatch = deployOutput.match(/AvaClashMeta deployed at:\s*(0x[a-fA-F0-9]{40})/);
-    const escrowMatch = deployOutput.match(/ChessEscrow deployed at:\s*(0x[a-fA-F0-9]{40})/);
-
-    if (!metaMatch || !escrowMatch) {
-      console.error("\n[Error] Could not parse deployed contract addresses from forge output.");
-      cleanup();
-      return;
-    }
-
-    const metaAddress = metaMatch[1];
-    const escrowAddress = escrowMatch[1];
-
-    console.log("\n   ✓ Deployment Successful!");
-    console.log(`     AvaClashMeta: ${metaAddress}`);
-    console.log(`     ChessEscrow:  ${escrowAddress}\n`);
-
-    console.log("3. Writing configuration to .env.local files...");
-
-    // Write web/.env.local
-    const webEnvContent = `# Local Anvil Development Configuration
-NEXT_PUBLIC_ESCROW_ADDRESS=${escrowAddress}
-NEXT_PUBLIC_META_ADDRESS=${metaAddress}
-NEXT_PUBLIC_CHAIN_ID=31337
-NEXT_PUBLIC_RELAY_URL=ws://127.0.0.1:8080
-`;
-    fs.writeFileSync(path.join(rootDir, "web", ".env.local"), webEnvContent, "utf8");
-    console.log("   ✓ Written to web/.env.local");
-
-    // Write packages/relay/.env.local
-    const relayEnvContent = `# Local Anvil Development Configuration
-ESCROW_ADDRESS=${escrowAddress}
-CHAIN_ID=31337
-RPC_URL=http://127.0.0.1:8545
-RELAY_PORT=8080
-RELAY_SIGNER_ADDRESS=${relaySigner}
-RELAY_PRIVATE_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
-ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-ALLOW_NO_ORIGIN=true
-`;
-    fs.writeFileSync(path.join(rootDir, "packages", "relay", ".env.local"), relayEnvContent, "utf8");
-    console.log("   ✓ Written to packages/relay/.env.local\n");
-
-    console.log("========================================================================");
-    console.log("  ⚠️  CẢNH BÁO AN NINH TO LỚN / CRITICAL SECURITY WARNING  ⚠️            ");
-    console.log("========================================================================");
-    console.log("  CÁC TÀI KHOẢN VÀ KHÓA DƯỚI ĐÂY LÀ TÀI KHOẢN MẪU CÔNG KHAI CỦA ANVIL!   ");
-    console.log("  TUYỆT ĐỐI KHÔNG BAO GIỜ SỬ DỤNG TRÊN MAINNET HOẶC NẠP TIỀN THẬT VÀO!  ");
-    console.log("  CHỈ DÙNG DUY NHẤT CHO MẠNG LOCAL (CHAIN ID: 31337) TRONG QUÁ TRÌNH DEV. ");
-    console.log("========================================================================");
-    console.log("\nHướng dẫn nhập tài khoản Anvil vào ví (MetaMask / Rabby / Core):");
-    console.log("- Network RPC: http://127.0.0.1:8545 | Chain ID: 31337 | Currency: ETH/AVAX");
-    console.log("- Người chơi 1 (White): Nhập khóa bí mật của Anvil Account 4 (Địa chỉ: 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65)");
-    console.log("- Người chơi 2 (Black): Nhập khóa bí mật của Anvil Account 5 (Địa chỉ: 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc)");
-    console.log("\nAnvil đang chạy ở chế độ nền. Nhấn Ctrl+C để dừng.");
-  });
+  console.log(
+    "Local contracts and .env.local files are ready. Anvil remains running until Ctrl+C.",
+  );
+  console.log(
+    "In two other terminals run: pnpm --filter @avaclash/relay start and pnpm --filter web dev.",
+  );
+  console.log(
+    "Use Anvil test accounts 4 and 5 in separate browser profiles. Never fund these public accounts with real assets.",
+  );
 }
-
+main().catch((error) => {
+  console.error(error.message);
+  cleanup(1);
+});

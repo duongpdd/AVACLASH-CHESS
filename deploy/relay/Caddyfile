@@ -1,0 +1,5 @@
+{$RELAY_DOMAIN} {
+    reverse_proxy relay:8080 {
+        header_up X-Forwarded-For {remote_host}
+    }
+}
