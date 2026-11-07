@@ -7,29 +7,48 @@ import {
   getRoomJoinableError,
   isRoomJoinable,
   ZERO_ADDRESS,
+  parseRoomId,
 } from "../utils/room";
 
 describe("room.ts pure logic utilities", () => {
+  it.each([null, "", " ", "-1", "1.5", "1abc", "NaN", "9007199254740992"])(
+    "rejects invalid room ID %s",
+    (value) => {
+      expect(parseRoomId(value)).toBeUndefined();
+    },
+  );
+  it("accepts room zero and safe integer room IDs", () => {
+    expect(parseRoomId("0")).toBe(0);
+    expect(parseRoomId("42")).toBe(42);
+  });
   describe("validateStake", () => {
     const minStake = parseEther("0.01");
     const maxStake = parseEther("1.0");
     const uiMax = "0.1";
 
     it("rejects zero or negative stake", () => {
-      expect(validateStake("0", minStake, maxStake, uiMax)).toContain("lớn hơn 0");
+      expect(validateStake("0", minStake, maxStake, uiMax)).toContain(
+        "lớn hơn 0",
+      );
       expect(validateStake("-0.05", minStake, maxStake, uiMax)).toBeTruthy();
     });
 
     it("rejects stake lower than contract MIN_STAKE", () => {
-      expect(validateStake("0.005", minStake, maxStake, uiMax)).toContain("tối thiểu là 0.01 AVAX");
+      expect(validateStake("0.005", minStake, maxStake, uiMax)).toContain(
+        "tối thiểu là 0.01 AVAX",
+      );
     });
 
     it("rejects stake exceeding contract MAX_STAKE", () => {
-      expect(validateStake("1.5", minStake, maxStake, "2.0")).toContain("vượt quá tối đa 1 AVAX");
+      expect(validateStake("1.5", minStake, maxStake, "2.0")).toContain(
+        "vượt quá tối đa 1 AVAX",
+      );
     });
 
     it("rejects stake exceeding UI_MAX_STAKE", () => {
-      expect(validateStake("0.2", minStake, maxStake, uiMax)).toContain("Giao diện giới hạn cược tối đa 0.1 AVAX");
+      expect(validateStake("0.2", minStake, maxStake, uiMax)).toContain(
+        "Giao diện giới hạn cược tối đa 0.1 AVAX",
+      );
     });
 
     it("accepts valid stake within [min, uiMax]", () => {
@@ -39,7 +58,9 @@ describe("room.ts pure logic utilities", () => {
     });
 
     it("rejects invalid numeric strings", () => {
-      expect(validateStake("abc", minStake, maxStake, uiMax)).toBe("Số tiền cược không hợp lệ");
+      expect(validateStake("abc", minStake, maxStake, uiMax)).toBe(
+        "Số tiền cược không hợp lệ",
+      );
     });
   });
 
@@ -105,38 +126,61 @@ describe("room.ts pure logic utilities", () => {
     const userAddr = "0x2222222222222222222222222222222222222222";
 
     it("returns joinable=true and error=null for valid room and opponent", () => {
-      expect(isRoomJoinable(validRoom, nextRoomId, userAddr, BigInt(2))).toBe(true);
-      expect(getRoomJoinableError(validRoom, nextRoomId, userAddr, BigInt(2))).toBeNull();
+      expect(isRoomJoinable(validRoom, nextRoomId, userAddr, BigInt(2))).toBe(
+        true,
+      );
+      expect(
+        getRoomJoinableError(validRoom, nextRoomId, userAddr, BigInt(2)),
+      ).toBeNull();
     });
 
     it("rejects non-existent room when roomId >= nextRoomId", () => {
-      expect(isRoomJoinable(validRoom, nextRoomId, userAddr, BigInt(5))).toBe(false);
-      expect(getRoomJoinableError(validRoom, nextRoomId, userAddr, BigInt(5))).toBe("Phòng không tồn tại.");
+      expect(isRoomJoinable(validRoom, nextRoomId, userAddr, BigInt(5))).toBe(
+        false,
+      );
+      expect(
+        getRoomJoinableError(validRoom, nextRoomId, userAddr, BigInt(5)),
+      ).toBe("Phòng không tồn tại.");
     });
 
     it("rejects room with zero address as playerA", () => {
       const uncreated = { ...validRoom, playerA: ZERO_ADDRESS };
-      expect(isRoomJoinable(uncreated, nextRoomId, userAddr, BigInt(1))).toBe(false);
-      expect(getRoomJoinableError(uncreated, nextRoomId, userAddr, BigInt(1))).toBe("Phòng không tồn tại.");
+      expect(isRoomJoinable(uncreated, nextRoomId, userAddr, BigInt(1))).toBe(
+        false,
+      );
+      expect(
+        getRoomJoinableError(uncreated, nextRoomId, userAddr, BigInt(1)),
+      ).toBe("Phòng không tồn tại.");
     });
 
     it("rejects room that is not in Open status (e.g. status=1 Active)", () => {
       const activeRoom = { ...validRoom, status: 1 };
-      expect(isRoomJoinable(activeRoom, nextRoomId, userAddr, BigInt(2))).toBe(false);
-      expect(getRoomJoinableError(activeRoom, nextRoomId, userAddr, BigInt(2))).toContain("không ở trạng thái mở");
+      expect(isRoomJoinable(activeRoom, nextRoomId, userAddr, BigInt(2))).toBe(
+        false,
+      );
+      expect(
+        getRoomJoinableError(activeRoom, nextRoomId, userAddr, BigInt(2)),
+      ).toContain("không ở trạng thái mở");
     });
 
     it("rejects self-join by room creator", () => {
       const creatorAddr = "0x1111111111111111111111111111111111111111";
-      expect(isRoomJoinable(validRoom, nextRoomId, creatorAddr, BigInt(2))).toBe(false);
-      expect(getRoomJoinableError(validRoom, nextRoomId, creatorAddr, BigInt(2))).toContain("Không thể tự vào phòng do chính bạn tạo");
+      expect(
+        isRoomJoinable(validRoom, nextRoomId, creatorAddr, BigInt(2)),
+      ).toBe(false);
+      expect(
+        getRoomJoinableError(validRoom, nextRoomId, creatorAddr, BigInt(2)),
+      ).toContain("Không thể tự vào phòng do chính bạn tạo");
     });
 
     it("rejects room with zero stake to prevent zero value transactions", () => {
       const zeroStakeRoom = { ...validRoom, stake: BigInt(0) };
-      expect(isRoomJoinable(zeroStakeRoom, nextRoomId, userAddr, BigInt(2))).toBe(false);
-      expect(getRoomJoinableError(zeroStakeRoom, nextRoomId, userAddr, BigInt(2))).toContain("Mức cược");
+      expect(
+        isRoomJoinable(zeroStakeRoom, nextRoomId, userAddr, BigInt(2)),
+      ).toBe(false);
+      expect(
+        getRoomJoinableError(zeroStakeRoom, nextRoomId, userAddr, BigInt(2)),
+      ).toContain("Mức cược");
     });
   });
 });
-

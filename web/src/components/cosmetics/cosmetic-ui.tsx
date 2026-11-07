@@ -1,61 +1,26 @@
 "use client";
 
-import Link from "next/link";
 import type { ReactNode } from "react";
-import { maxUint256, parseEther } from "viem";
-import AppHeader from "@/components/app-header";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, Skeleton } from "@/components/ui-state";
-import { NETWORK_NAME, cosmeticsEnabled } from "@/config/env";
+import { NETWORK_NAME } from "@/config/env";
 import type { CosmeticTx } from "@/hooks/use-cosmetic-tx";
 import { colorHex, resolveTheme, type SkinTheme } from "@/game/theme";
 
 export function CosmeticNotice() {
+  const t = useTranslations("cosmetics");
   return (
     <span className="helper-text">
-      Tài sản thử nghiệm trên {NETWORK_NAME}, không có giá trị quy đổi.
+      {t("notice", { network: NETWORK_NAME })}
     </span>
   );
 }
 
-export function CosmeticPage({
-  page,
-  children,
-}: {
-  page: "collection" | "market";
-  children: ReactNode;
-}) {
-  const collection = page === "collection";
-  return (
-    <div className="app-shell">
-      <AppHeader active={page} />
-      <main className="site-container grid min-w-0 gap-4 py-6">
-        <PageHeader
-          title={collection ? "Bộ sưu tập" : "Chợ"}
-          description={<CosmeticNotice />}
-          actions={
-            cosmeticsEnabled && (
-              <Link
-                className="button-secondary"
-                href={collection ? "/market" : "/collection"}
-              >
-                {collection ? "Đến chợ" : "Xem bộ sưu tập"}
-              </Link>
-            )
-          }
-        />
-        {cosmeticsEnabled ? (
-          children
-        ) : (
-          <EmptyState title="Chưa bật trên mạng này" />
-        )}
-      </main>
-    </div>
-  );
+export function useKindName() {
+  const t = useTranslations("cosmetics");
+  return (kind: number) => t(kind === 0 ? "kindBoard" : "kindPieces");
 }
-
-export const kindName = (kind: number) => (kind === 0 ? "Bàn cờ" : "Bộ quân");
 
 export function SkinPreview({
   kind,
@@ -129,12 +94,15 @@ export function QueryState({
   empty?: string;
   children: ReactNode;
 }) {
+  const t = useTranslations("cosmetics");
   if (query.isPending) return <Skeleton label={label} />;
   if (query.isError) {
     return (
       <EmptyState
-        title="Không đọc được dữ liệu trên chuỗi"
-        action={<Button onClick={() => void query.refetch()}>Thử lại</Button>}
+        title={t("readFailed")}
+        action={
+          <Button onClick={() => void query.refetch()}>{t("retry")}</Button>
+        }
       />
     );
   }
@@ -159,24 +127,19 @@ export function Pager({
   newer?: () => void;
   older?: () => void;
 }) {
+  const t = useTranslations("cosmetics");
   return (
     (newer || older) && (
       <div className="flex flex-wrap gap-2">
         <Button disabled={!newer} onClick={newer}>
-          Trang trước
+          {t("previous")}
         </Button>
         <Button disabled={!older} onClick={older}>
-          Trang sau
+          {t("next")}
         </Button>
       </div>
     )
   );
-}
-
-export function nativeAmount(text: string) {
-  if (!/^\d{1,78}(?:\.\d{1,18})?$/.test(text)) return undefined;
-  const value = parseEther(text);
-  return value > 0n && value <= maxUint256 ? value : undefined;
 }
 
 export const cards = "grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-3";

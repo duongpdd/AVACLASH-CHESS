@@ -27,7 +27,7 @@ vi.mock("phaser", () => {
     };
     public scale = { width: 464, height: 464 };
     public input = { on: vi.fn() };
-    constructor(public config: any) {}
+    constructor(public config: unknown) {}
   }
   return {
     default: { Scene: MockScene },
@@ -35,7 +35,7 @@ vi.mock("phaser", () => {
   };
 });
 
-import { ChessScene } from "../game/ChessScene";
+import { ChessScene } from "../game/chess-scene";
 
 describe("ChessScene syncMoves GameState Lifecycle (Turn 3c-4 Item 4)", () => {
   beforeEach(() => {

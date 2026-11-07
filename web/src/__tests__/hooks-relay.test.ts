@@ -1,11 +1,17 @@
 // @vitest-environment happy-dom
-import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { OutcomeCode, ReasonCode, computeMovesHash, RelayClient } from "@avaclash/shared";
+import {
+  OutcomeCode,
+  ReasonCode,
+  computeMovesHash,
+  RelayClient,
+  type RelayClientEventMap,
+} from "@avaclash/shared";
 
 const mocks = vi.hoisted(() => {
-  let address: `0x${string}` | undefined = "0x1111111111111111111111111111111111111111";
-  let receipt: any = { status: "success" };
+  let address: `0x${string}` | undefined =
+    "0x1111111111111111111111111111111111111111";
+  let receipt: { status: string } | undefined = { status: "success" };
   let isConfirming = false;
   const signTypedDataAsync = vi.fn();
   const writeContractAsync = vi.fn();
@@ -16,7 +22,7 @@ const mocks = vi.hoisted(() => {
       address = a;
     },
     getReceipt: () => receipt,
-    setReceipt: (r: any) => {
+    setReceipt: (r: { status: string } | undefined) => {
       receipt = r;
     },
     getIsConfirming: () => isConfirming,
@@ -29,7 +35,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("wagmi", async (importOriginal) => {
-  const actual = await importOriginal<any>();
+  const actual = await importOriginal<typeof import("wagmi")>();
   return {
     ...actual,
     useAccount: () => ({ address: mocks.getAddress() }),
@@ -52,9 +58,9 @@ vi.mock("wagmi", async (importOriginal) => {
   };
 });
 
-import { renderHook, act } from "@testing-library/react";
-import { useSubmitResult } from "../hooks/useSubmitResult";
-import { useRelaySession } from "../hooks/useRelaySession";
+import { renderHook, act } from "@/test/render";
+import { useSubmitResult } from "../hooks/use-submit-result";
+import { useRelaySession } from "../hooks/use-relay-session";
 
 describe("Relay Web Hooks (Turn 3c-2 Item 3 & Turn 3c-2-fix Item 2)", () => {
   beforeEach(() => {
@@ -113,7 +119,9 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3 & Turn 3c-2-fix Item 2)", () => {
 
     it("handles transaction receipt reverted with Vietnamese message and explorer suggestion", async () => {
       mocks.signTypedDataAsync.mockResolvedValue("0xmysig" as `0x${string}`);
-      mocks.writeContractAsync.mockResolvedValue("0xrevertedtx" as `0x${string}`);
+      mocks.writeContractAsync.mockResolvedValue(
+        "0xrevertedtx" as `0x${string}`,
+      );
       mocks.setReceipt({ status: "reverted" });
 
       const { result } = renderHook(() => useSubmitResult(roomId));
@@ -255,8 +263,12 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3 & Turn 3c-2-fix Item 2)", () => {
     });
 
     it("does not re-instantiate RelayClient or reconnect when signTypedDataAsync identity changes across re-renders (Turn 3c-4 Item 5)", () => {
-      const connectSpy = vi.spyOn(RelayClient.prototype, "connect").mockImplementation(() => {});
-      const disconnectSpy = vi.spyOn(RelayClient.prototype, "disconnect").mockImplementation(() => {});
+      const connectSpy = vi
+        .spyOn(RelayClient.prototype, "connect")
+        .mockImplementation(() => {});
+      const disconnectSpy = vi
+        .spyOn(RelayClient.prototype, "disconnect")
+        .mockImplementation(() => {});
 
       mocks.signTypedDataAsync = vi.fn();
       const { rerender } = renderHook(() => useRelaySession(50));
@@ -277,8 +289,12 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3 & Turn 3c-2-fix Item 2)", () => {
     });
 
     it("(a) does NOT open socket when mounted with undefined address; opens exactly 1 socket when address appears (Turn 3c-5 Item 1)", () => {
-      const connectSpy = vi.spyOn(RelayClient.prototype, "connect").mockImplementation(() => {});
-      const disconnectSpy = vi.spyOn(RelayClient.prototype, "disconnect").mockImplementation(() => {});
+      const connectSpy = vi
+        .spyOn(RelayClient.prototype, "connect")
+        .mockImplementation(() => {});
+      vi.spyOn(RelayClient.prototype, "disconnect").mockImplementation(
+        () => {},
+      );
 
       mocks.setAddress(undefined);
       const { rerender } = renderHook(() => useRelaySession(50));
@@ -294,8 +310,12 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3 & Turn 3c-2-fix Item 2)", () => {
     });
 
     it("(b) re-render with new signTypedDataAsync does not open additional sockets (Turn 3c-5 Item 1)", () => {
-      const connectSpy = vi.spyOn(RelayClient.prototype, "connect").mockImplementation(() => {});
-      const disconnectSpy = vi.spyOn(RelayClient.prototype, "disconnect").mockImplementation(() => {});
+      const connectSpy = vi
+        .spyOn(RelayClient.prototype, "connect")
+        .mockImplementation(() => {});
+      const disconnectSpy = vi
+        .spyOn(RelayClient.prototype, "disconnect")
+        .mockImplementation(() => {});
 
       mocks.setAddress("0x1111111111111111111111111111111111111111");
       mocks.signTypedDataAsync = vi.fn();
@@ -312,8 +332,12 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3 & Turn 3c-2-fix Item 2)", () => {
     });
 
     it("(c) changing address closes old socket and opens new socket (Turn 3c-5 Item 1)", () => {
-      const connectSpy = vi.spyOn(RelayClient.prototype, "connect").mockImplementation(() => {});
-      const disconnectSpy = vi.spyOn(RelayClient.prototype, "disconnect").mockImplementation(() => {});
+      const connectSpy = vi
+        .spyOn(RelayClient.prototype, "connect")
+        .mockImplementation(() => {});
+      const disconnectSpy = vi
+        .spyOn(RelayClient.prototype, "disconnect")
+        .mockImplementation(() => {});
 
       mocks.setAddress("0x1111111111111111111111111111111111111111");
       const { rerender } = renderHook(() => useRelaySession(50));
@@ -330,11 +354,14 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3 & Turn 3c-2-fix Item 2)", () => {
     });
 
     it("returns error with incrementing id on repeated errors and provides clearError (Turn 3c-5 Item 2)", () => {
-      let errorHandler: ((err: any) => void) | undefined;
-      vi.spyOn(RelayClient.prototype, "on").mockImplementation((event: string, handler: any) => {
-        if (event === "error") errorHandler = handler;
-        return () => {};
-      });
+      let errorHandler: ((err: { message: string }) => void) | undefined;
+      vi.spyOn(RelayClient.prototype, "on").mockImplementation(
+        (event, handler) => {
+          if (event === "error")
+            errorHandler = handler as (err: { message: string }) => void;
+          return () => {};
+        },
+      );
 
       mocks.setAddress("0x1111111111111111111111111111111111111111");
       const { result } = renderHook(() => useRelaySession(50));
@@ -366,6 +393,51 @@ describe("Relay Web Hooks (Turn 3c-2 Item 3 & Turn 3c-2-fix Item 2)", () => {
       });
 
       expect(result.current.error).toBeNull();
+    });
+
+    it("clears terminal state and moves when the room changes", () => {
+      let roomStateHandler: RelayClientEventMap["roomState"] | undefined;
+      let finishedHandler: RelayClientEventMap["gameFinished"] | undefined;
+      vi.spyOn(RelayClient.prototype, "connect").mockImplementation(() => {});
+      vi.spyOn(RelayClient.prototype, "on").mockImplementation(
+        (event, listener) => {
+          if (event === "roomState")
+            roomStateHandler = listener as RelayClientEventMap["roomState"];
+          if (event === "gameFinished")
+            finishedHandler = listener as RelayClientEventMap["gameFinished"];
+          return () => {};
+        },
+      );
+      const { result, rerender } = renderHook(({ id }) => useRelaySession(id), {
+        initialProps: { id: 5000 },
+      });
+      act(() => {
+        roomStateHandler?.({
+          type: "room_state",
+          roomId: 5000,
+          white: "0x1111111111111111111111111111111111111111",
+          black: "0x2222222222222222222222222222222222222222",
+          moves: ["e2e4"],
+          whiteMs: 200000,
+          blackMs: 300000,
+          status: "active",
+        });
+        finishedHandler?.({
+          type: "game_finished",
+          roomId: 5000,
+          moves: ["e2e4"],
+          reason: "resign",
+        });
+      });
+      expect(result.current.gameFinished).toBe(true);
+      expect(result.current.moves).toEqual(["e2e4"]);
+      rerender({ id: 5001 });
+      expect(result.current.gameFinished).toBe(false);
+      expect(result.current.moves).toEqual([]);
+      expect(result.current.roomState).toBeUndefined();
+      expect(result.current.seenEvents).toEqual({});
+      expect(result.current.resultProposal).toBeNull();
+      expect(result.current.relaySignature).toBeNull();
     });
   });
 });

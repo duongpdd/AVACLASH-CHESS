@@ -1,4 +1,4 @@
-import { createConfig, http } from "wagmi";
+import { createConfig, createStorage, http } from "wagmi";
 import { avalancheFuji, anvil } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 import { CHAIN_ID, RPC_URL } from "./env";
@@ -12,11 +12,12 @@ export const config = createConfig({
     [avalancheFuji.id]: http(
       CHAIN_ID === 43113
         ? RPC_URL
-        : "https://api.avax-test.network/ext/bc/C/rpc"
+        : "https://api.avax-test.network/ext/bc/C/rpc",
     ),
-    [anvil.id]: http(
-      CHAIN_ID === 31337 ? RPC_URL : "http://127.0.0.1:8545"
-    ),
+    [anvil.id]: http(CHAIN_ID === 31337 ? RPC_URL : "http://127.0.0.1:8545"),
   },
+  storage: createStorage({
+    storage: typeof window === "undefined" ? undefined : window.localStorage,
+  }),
   ssr: true,
 });

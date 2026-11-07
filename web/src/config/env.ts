@@ -1,8 +1,16 @@
+import { defaultUiText } from "@/i18n/ui-copy";
 import { isAddress } from "viem";
 
-export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+export const ZERO_ADDRESS =
+  "0x0000000000000000000000000000000000000000" as const;
 
 export const CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || "43113");
+export const CURRENCY_SYMBOL = CHAIN_ID === 31337 ? "ETH" : "AVAX";
+export const NETWORK_NAME =
+  CHAIN_ID === 31337 ? "Anvil Local" : "Avalanche Fuji";
+export const FUJI_EXPLORER_URL = "https://explorer-test.avax.network/c-chain";
+export const FUJI_FAUCET_URL =
+  "https://build.avax.network/console/primary-network/faucet";
 
 export const RPC_URL =
   process.env.NEXT_PUBLIC_RPC_URL ||
@@ -16,22 +24,43 @@ export const ESCROW_ADDRESS = (process.env.NEXT_PUBLIC_ESCROW_ADDRESS ||
 export const META_ADDRESS = (process.env.NEXT_PUBLIC_META_ADDRESS ||
   ZERO_ADDRESS) as `0x${string}`;
 
+export const TOURNAMENT_ADDRESS = (process.env.NEXT_PUBLIC_TOURNAMENT_ADDRESS ||
+  ZERO_ADDRESS) as `0x${string}`;
+export const tournamentEnabled =
+  validateAddressConfig(TOURNAMENT_ADDRESS).valid;
+
+export const COSMETICS_ADDRESS = (process.env.NEXT_PUBLIC_COSMETICS_ADDRESS ||
+  ZERO_ADDRESS) as `0x${string}`;
+
+export const cosmeticsEnabled =
+  tournamentEnabled &&
+  (CHAIN_ID === 31337 || CHAIN_ID === 43113) &&
+  validateAddressConfig(COSMETICS_ADDRESS).valid;
+
 export const RELAY_URL =
   process.env.NEXT_PUBLIC_RELAY_URL || "ws://localhost:8080";
 
-export const UI_MAX_STAKE =
-  process.env.NEXT_PUBLIC_UI_MAX_STAKE || "0.1";
+export const UI_MAX_STAKE = process.env.NEXT_PUBLIC_UI_MAX_STAKE || "0.1";
 
 /**
  * Validates whether an address string is a syntactically valid EVM address
  * and is not the 0x0 zero address.
  */
-export function validateAddressConfig(addr: string | undefined): { valid: boolean; error?: string } {
+export function validateAddressConfig(addr: string | undefined): {
+  valid: boolean;
+  error?: string;
+} {
   if (!addr || !isAddress(addr)) {
-    return { valid: false, error: "Địa chỉ không đúng định dạng EVM (0x...)." };
+    return {
+      valid: false,
+      error: defaultUiText("messageInvalidEvmAddressFormat0x"),
+    };
   }
   if (addr.toLowerCase() === ZERO_ADDRESS.toLowerCase()) {
-    return { valid: false, error: "Địa chỉ chưa được cấu hình (đang là địa chỉ 0x0)." };
+    return {
+      valid: false,
+      error: defaultUiText("messageTheAddressIsNotConfigured0x0"),
+    };
   }
   return { valid: true };
 }
@@ -39,9 +68,12 @@ export function validateAddressConfig(addr: string | undefined): { valid: boolea
 export const escrowAddressValidation = validateAddressConfig(ESCROW_ADDRESS);
 export const metaAddressValidation = validateAddressConfig(META_ADDRESS);
 
-export const isAddressConfigOk = escrowAddressValidation.valid && metaAddressValidation.valid;
+export const isAddressConfigOk =
+  escrowAddressValidation.valid && metaAddressValidation.valid;
 
 export function getAddressConfigError(): string | null {
+  if (![31337, 43113].includes(CHAIN_ID))
+    return defaultUiText("messageOnlyTheAnvil31337AndFuji");
   if (!escrowAddressValidation.valid) {
     return `NEXT_PUBLIC_ESCROW_ADDRESS (${ESCROW_ADDRESS}): ${escrowAddressValidation.error}`;
   }
@@ -55,6 +87,10 @@ export function getAddressConfigError(): string | null {
 if (typeof window !== "undefined") {
   const configErr = getAddressConfigError();
   if (configErr) {
-    console.warn(`[Config Check] Cảnh báo khởi động: ${configErr}`);
+    console.warn(
+      defaultUiText("messageConfigCheckStartupWarning", {
+        p0: String(configErr),
+      }),
+    );
   }
 }

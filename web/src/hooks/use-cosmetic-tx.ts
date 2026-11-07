@@ -3,28 +3,21 @@
 import { useRef, useState } from "react";
 import { useAccount, usePublicClient, useSendTransaction } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { encodeFunctionData, type EncodeFunctionDataParameters } from "viem";
-import { COSMETICS_ABI, COSMETIC_AUCTION_ABI } from "@avaclash/shared";
-import {
-  AUCTION_ADDRESS,
-  CHAIN_ID,
-  COSMETICS_ADDRESS,
-  cosmeticsEnabled,
-} from "@/config/env";
+import { COSMETICS_ABI } from "@avaclash/shared";
+import { CHAIN_ID, COSMETICS_ADDRESS, cosmeticsEnabled } from "@/config/env";
 
 type CosmeticCall = Omit<
-  EncodeFunctionDataParameters<typeof COSMETICS_ABI>,
+  EncodeFunctionDataParameters<
+    typeof COSMETICS_ABI,
+    "claimTrophy" | "equip" | "unequip"
+  >,
   "abi"
 >;
-type AuctionCall = Omit<
-  EncodeFunctionDataParameters<typeof COSMETIC_AUCTION_ABI>,
-  "abi"
->;
-type Call =
-  | ({ contract: "cosmetics" } & CosmeticCall)
-  | ({ contract: "auction"; value?: bigint } & AuctionCall);
 
 export function useCosmeticTx() {
+  const t = useTranslations("cosmetics");
   const { address, chainId } = useAccount();
   const client = usePublicClient({ chainId: CHAIN_ID });
   const { sendTransactionAsync } = useSendTransaction();
@@ -34,58 +27,50 @@ export function useCosmeticTx() {
   const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
 
-  async function send(call: Call) {
+  async function send(call: CosmeticCall) {
     if (pending.current) return false;
     if (!cosmeticsEnabled || !address || !client || chainId !== CHAIN_ID) {
       setFailed(true);
-      setMessage("Hãy kết nối ví và chọn đúng mạng thử nghiệm.");
+      setMessage(t("txWrongNetwork"));
       return false;
     }
 
     pending.current = true;
     setBusy(true);
     setFailed(false);
-    setMessage("Đang kiểm tra giao dịch.");
+    setMessage(t("txChecking"));
     try {
-      const to =
-        call.contract === "cosmetics" ? COSMETICS_ADDRESS : AUCTION_ADDRESS;
-      const code = await client.getCode({ address: to });
+      const code = await client.getCode({ address: COSMETICS_ADDRESS });
       if (!code || code === "0x") {
-        setMessage("Không tìm thấy hợp đồng trên mạng này.");
+        setMessage(t("txNoContract"));
         setFailed(true);
         return false;
       }
-      const data =
-        call.contract === "cosmetics"
-          ? encodeFunctionData({ ...call, abi: COSMETICS_ABI })
-          : encodeFunctionData({ ...call, abi: COSMETIC_AUCTION_ABI });
-      const value = call.contract === "auction" ? call.value : undefined;
+      const data = encodeFunctionData({ ...call, abi: COSMETICS_ABI });
       const gas = await client.estimateGas({
         account: address,
-        to,
+        to: COSMETICS_ADDRESS,
         data,
-        value,
       });
-      setMessage("Hãy xác nhận trong ví.");
+      setMessage(t("txConfirmWallet"));
       const hash = await sendTransactionAsync({
         account: address,
         chainId: CHAIN_ID,
-        to,
+        to: COSMETICS_ADDRESS,
         data,
-        value,
         gas: gas + gas / 5n + 5000n,
       });
-      setMessage("Đang chờ xác nhận trên chuỗi.");
+      setMessage(t("txWaiting"));
       const receipt = await client.waitForTransactionReceipt({
         hash,
         timeout: 90_000,
       });
       if (receipt.status !== "success") {
-        setMessage("Giao dịch đã bị hoàn tác.");
+        setMessage(t("txReverted"));
         setFailed(true);
         return false;
       }
-      setMessage("Đã xác nhận trên chuỗi.");
+      setMessage(t("txConfirmed"));
       await cache.invalidateQueries({ queryKey: ["cosmetics", CHAIN_ID] });
       return true;
     } catch (error) {
@@ -98,11 +83,7 @@ export function useCosmeticTx() {
         viemError?.walk?.((cause) => cause.name === "UserRejectedRequestError")
           ?.name === "UserRejectedRequestError";
       setFailed(true);
-      setMessage(
-        rejected
-          ? "Bạn đã từ chối giao dịch trong ví."
-          : "Chưa xác nhận được giao dịch. Hãy kiểm tra ví và làm mới dữ liệu trước khi thử lại.",
-      );
+      setMessage(rejected ? t("txRejected") : t("txFailed"));
       return false;
     } finally {
       pending.current = false;

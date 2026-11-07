@@ -1,27 +1,24 @@
 // @vitest-environment happy-dom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
-import { formatEther, parseEther, zeroAddress } from "viem";
+import { decodeFunctionData } from "viem";
+import { COSMETICS_ABI } from "@avaclash/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@/test/render";
 import CollectionView from "@/components/cosmetics/collection-view";
 import { MatchSkins } from "@/components/cosmetics/match-skins";
-import MarketView from "@/components/cosmetics/market-view";
 import messages from "../messages/vi.json";
 
 const mocks = vi.hoisted(() => {
   const account = "0x1000000000000000000000000000000000000000";
   const seller = "0x2000000000000000000000000000000000000000";
-  const auction = "0x3000000000000000000000000000000000000000";
   const skins = "0x4000000000000000000000000000000000000000";
   return {
     account,
     seller,
-    auction,
     skins,
     enabled: true,
     address: account as string | undefined,
-    timestamp: 10n,
     number: 1n,
     read: vi.fn(),
     getCode: vi.fn(),
@@ -30,7 +27,6 @@ const mocks = vi.hoisted(() => {
     estimateGas: vi.fn(),
     waitReceipt: vi.fn(),
     send: vi.fn(),
-    refetch: vi.fn(),
   };
 });
 
@@ -41,9 +37,7 @@ vi.mock("@/config/env", () => ({
   tournamentEnabled: true,
   CHAIN_ID: 31337,
   NETWORK_NAME: "Anvil Local",
-  CURRENCY_SYMBOL: "ETH",
   COSMETICS_ADDRESS: mocks.skins,
-  AUCTION_ADDRESS: mocks.auction,
   TOURNAMENT_ADDRESS: mocks.seller,
 }));
 vi.mock("wagmi", () => {
@@ -61,10 +55,6 @@ vi.mock("wagmi", () => {
       address: mocks.address,
       chainId: 31337,
       isConnected: !!mocks.address,
-    }),
-    useBlock: () => ({
-      data: { timestamp: mocks.timestamp, number: mocks.number },
-      refetch: mocks.refetch,
     }),
     usePublicClient: () => client,
     useSendTransaction: () => ({ sendTransactionAsync: mocks.send }),
@@ -97,7 +87,6 @@ const item = {
   tournamentId: 0n,
   firstOwner: mocks.account,
 };
-const reserve = parseEther("0.01");
 
 function wrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -121,7 +110,6 @@ function mount(node: React.ReactNode) {
 beforeEach(() => {
   mocks.enabled = true;
   mocks.address = mocks.account;
-  mocks.timestamp = 10n;
   mocks.number = 1n;
   mocks.getCode.mockResolvedValue("0x1234");
   mocks.estimateGas.mockResolvedValue(21000n);
@@ -143,29 +131,6 @@ beforeEach(() => {
         return true;
       case "getOfficial":
         return { ...item, name: "Cúp Ngọc" };
-      case "getApproved":
-        return zeroAddress;
-      case "minDuration":
-        return 60n;
-      case "maxDuration":
-        return 604800n;
-      case "nextAuctionId":
-        return 1n;
-      case "pending":
-        return reserve;
-      case "getAuction":
-        return {
-          status: 0,
-          seller: mocks.seller,
-          reserve,
-          endTime: 70n,
-          originalEndTime: 70n,
-          highestBidder: zeroAddress,
-          highestBid: 0n,
-          tokenId: 1n,
-        };
-      case "minimumBid":
-        return reserve;
       default:
         throw Error(functionName);
     }
@@ -176,12 +141,12 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("Bộ sưu tập và Chợ", () => {
+describe("Bộ sưu tập", () => {
   it("hides links and avoids RPC reads when cosmetics are disabled", () => {
     mocks.enabled = false;
     mount(<CollectionView />);
     expect(screen.getByText("Chưa bật trên mạng này")).toBeDefined();
-    expect(screen.queryByRole("link", { name: "Chợ" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Bộ sưu tập" })).toBeNull();
     expect(mocks.read).not.toHaveBeenCalled();
   });
 
@@ -209,82 +174,21 @@ describe("Bộ sưu tập và Chợ", () => {
     expect(mocks.waitReceipt).toHaveBeenCalled();
   });
 
-  it("waits for approval before listing and requires a valid reserve and duration", async () => {
-    const read = mocks.read.getMockImplementation()!;
-    let approved = false;
-    mocks.read.mockImplementation(async (args) =>
-      args.functionName === "getApproved" && approved
-        ? mocks.auction
-        : read(args),
-    );
-    mocks.send.mockImplementation(async () => {
-      approved = true;
-      return "0x1234";
-    });
+  it("keeps the equipment action and omits the marketplace entry points", async () => {
     mount(<CollectionView />);
-    fireEvent.click(await screen.findByRole("button", { name: "Rao đấu giá" }));
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Phê duyệt NFT" }),
-    );
-    const create = await screen.findByRole<HTMLButtonElement>("button", {
-      name: "Tạo phiên",
+    const equip = await screen.findByRole("button", { name: "Trang bị" });
+    expect(screen.getByRole("link", { name: "Bộ sưu tập" })).toBeDefined();
+    expect(screen.queryByRole("link", { name: "Chợ" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Rao đấu giá" })).toBeNull();
+    fireEvent.click(equip);
+    await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(1));
+    const [{ to, data, value }] = mocks.send.mock.calls[0]!;
+    expect(to).toBe(mocks.skins);
+    expect(value).toBeUndefined();
+    expect(decodeFunctionData({ abi: COSMETICS_ABI, data })).toEqual({
+      functionName: "equip",
+      args: [1n],
     });
-    expect(create.disabled).toBe(true);
-    fireEvent.change(screen.getByLabelText("Giá khởi điểm (ETH thử nghiệm)"), {
-      target: { value: "0.01" },
-    });
-    fireEvent.change(screen.getByLabelText("Thời lượng (giây)"), {
-      target: { value: "60" },
-    });
-    await waitFor(() => expect(create.disabled).toBe(false));
-    fireEvent.click(create);
-    await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(2));
-    expect(mocks.send).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({ to: mocks.skins }),
-    );
-    expect(mocks.send).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ to: mocks.auction }),
-    );
-  });
-
-  it("uses the latest block to show bid and settlement actions, and offers pull withdrawal", async () => {
-    const rerender = mount(<MarketView />);
-    expect(await screen.findByText("0 giờ 1 phút 0 giây")).toBeDefined();
-    const button = screen.getByRole<HTMLButtonElement>("button", {
-      name: "Đặt giá",
-    });
-    fireEvent.change(screen.getByLabelText("Giá đặt (ETH thử nghiệm)"), {
-      target: { value: "0.001" },
-    });
-    expect(button.disabled).toBe(true);
-    fireEvent.change(screen.getByLabelText("Giá đặt (ETH thử nghiệm)"), {
-      target: { value: formatEther(reserve) },
-    });
-    fireEvent.click(button);
-    await waitFor(() =>
-      expect(mocks.send).toHaveBeenCalledWith(
-        expect.objectContaining({ to: mocks.auction, value: reserve }),
-      ),
-    );
-    await screen.findByText("Đã xác nhận trên chuỗi.");
-    mocks.timestamp = 70n;
-    mocks.number = 2n;
-    rerender();
-    fireEvent.click(screen.getByRole("tab", { name: "Đã kết thúc" }));
-    expect(
-      await screen.findByRole("button", { name: "Kết toán" }),
-    ).toBeDefined();
-    const withdraw = screen.getByRole<HTMLButtonElement>("button", {
-      name: /Rút tiền được hoàn/,
-    });
-    await waitFor(() => expect(withdraw.disabled).toBe(false));
-    fireEvent.click(withdraw);
-    await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(2));
-    expect(mocks.send).toHaveBeenLastCalledWith(
-      expect.objectContaining({ to: mocks.auction, value: undefined }),
-    );
   });
 });
 

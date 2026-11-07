@@ -1,13 +1,24 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
-import { OutcomeCode, ReasonCode, computeMovesHash, type SeenTerminalEvents } from "@avaclash/shared";
+import { renderHook, act } from "@/test/render";
+import {
+  OutcomeCode,
+  ReasonCode,
+  computeMovesHash,
+  type SeenTerminalEvents,
+  type FinishedInfo,
+  type RoomStateMessage,
+} from "@avaclash/shared";
 
 // Prepare mocks for wagmi
 const mocks = vi.hoisted(() => {
-  let address = "0x1111111111111111111111111111111111111111" as `0x${string}`;
-  const signTypedDataAsync = vi.fn().mockResolvedValue("0xmysig" as `0x${string}`);
-  const writeContractAsync = vi.fn().mockResolvedValue("0xtxhash" as `0x${string}`);
+  const address = "0x1111111111111111111111111111111111111111" as `0x${string}`;
+  const signTypedDataAsync = vi
+    .fn()
+    .mockResolvedValue("0xmysig" as `0x${string}`);
+  const writeContractAsync = vi
+    .fn()
+    .mockResolvedValue("0xtxhash" as `0x${string}`);
 
   return {
     getAddress: () => address,
@@ -17,7 +28,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("wagmi", async (importOriginal) => {
-  const actual = await importOriginal<any>();
+  const actual = await importOriginal<typeof import("wagmi")>();
   return {
     ...actual,
     useAccount: () => ({ address: mocks.getAddress() }),
@@ -37,21 +48,30 @@ vi.mock("wagmi", async (importOriginal) => {
 });
 
 // Mock RelayClient from @avaclash/shared
-let mockRelayClientInstance: any = null;
+interface HydrationMock {
+  seenEvents: SeenTerminalEvents;
+  finishedInfo: FinishedInfo | null;
+  roomState: RoomStateMessage | null;
+  emit(event: string, ...args: unknown[]): void;
+}
+let mockRelayClientInstance: HydrationMock;
+function registerClient(client: HydrationMock) {
+  mockRelayClientInstance = client;
+}
 
 vi.mock("@avaclash/shared", async (importOriginal) => {
-  const actual = await importOriginal<any>();
+  const actual = await importOriginal<typeof import("@avaclash/shared")>();
   class MockRelayClient {
-    public listeners: Record<string, Function[]> = {};
+    public listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
     public seenEvents: SeenTerminalEvents = {};
-    public finishedInfo: any = null;
-    public roomState: any = null;
+    public finishedInfo: FinishedInfo | null = null;
+    public roomState: RoomStateMessage | null = null;
 
-    constructor(public options: any) {
-      mockRelayClientInstance = this;
+    constructor() {
+      registerClient(this);
     }
 
-    on(event: string, cb: Function) {
+    on(event: string, cb: (...args: unknown[]) => void) {
       if (!this.listeners[event]) this.listeners[event] = [];
       this.listeners[event].push(cb);
       return () => {
@@ -59,11 +79,11 @@ vi.mock("@avaclash/shared", async (importOriginal) => {
       };
     }
 
-    emit(event: string, ...args: any[]) {
+    emit(event: string, ...args: unknown[]) {
       this.listeners[event]?.forEach((cb) => cb(...args));
     }
 
-    connect(roomId: number) {
+    connect() {
       // simulate connection and emitting finished roomState if set
       if (this.roomState) {
         this.emit("roomState", this.roomState);
@@ -91,8 +111,8 @@ vi.mock("@avaclash/shared", async (importOriginal) => {
   };
 });
 
-import { useRelaySession } from "../hooks/useRelaySession";
-import { useSubmitResult } from "../hooks/useSubmitResult";
+import { useRelaySession } from "../hooks/use-relay-session";
+import { useSubmitResult } from "../hooks/use-submit-result";
 
 describe("Relay Session Hydration on Reload (Turn 3c-3 Item 2)", () => {
   const roomId = 77;
@@ -105,7 +125,6 @@ describe("Relay Session Hydration on Reload (Turn 3c-3 Item 2)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRelayClientInstance = null;
   });
 
   it("hydrates seenEvents on reload after resignation and allows successful submit", async () => {

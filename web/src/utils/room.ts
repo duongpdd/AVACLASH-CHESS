@@ -1,6 +1,19 @@
+import { defaultUiText } from "@/i18n/ui-copy";
+import { CURRENCY_SYMBOL } from "@/config/env";
 import { parseEther, formatEther } from "viem";
 
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+export function getGameRoomUrl(roomId: bigint | number): string {
+  return `/game?room=${roomId.toString()}`;
+}
+
+/** The wire protocol uses JSON numbers, so reject IDs that lose integer precision. */
+export function parseRoomId(value: string | null): number | undefined {
+  if (value === null || !/^\d+$/.test(value)) return undefined;
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id >= 0 ? id : undefined;
+}
 
 export interface RoomLike {
   id?: bigint | number;
@@ -20,28 +33,37 @@ export function validateStake(
   stakeStr: string,
   minStake?: bigint,
   maxStake?: bigint,
-  uiMax?: string
+  uiMax?: string,
 ): string | null {
   try {
     const stakeVal = parseEther(stakeStr);
     if (stakeVal <= BigInt(0)) {
-      return "Số tiền cược phải lớn hơn 0.";
+      return defaultUiText("messageTheStakeMustBeGreaterThan");
     }
     if (minStake !== undefined && stakeVal < minStake) {
-      return `Mức cược tối thiểu là ${formatEther(minStake)} AVAX`;
+      return defaultUiText("messageMinimumStake2", {
+        p0: String(formatEther(minStake)),
+        p1: String(CURRENCY_SYMBOL),
+      });
     }
     if (maxStake !== undefined && stakeVal > maxStake) {
-      return `Mức cược vượt quá tối đa ${formatEther(maxStake)} AVAX của hợp đồng`;
+      return defaultUiText("messageTheStakeExceedsTheContractLimit2", {
+        p0: String(formatEther(maxStake)),
+        p1: String(CURRENCY_SYMBOL),
+      });
     }
     if (uiMax) {
       const uiMaxVal = parseEther(uiMax);
       if (stakeVal > uiMaxVal) {
-        return `Giao diện giới hạn cược tối đa ${uiMax} AVAX (chế độ an toàn)`;
+        return defaultUiText("messageTheInterfaceLimitsStakesToFor", {
+          p0: String(uiMax),
+          p1: String(CURRENCY_SYMBOL),
+        });
       }
     }
     return null;
   } catch {
-    return "Số tiền cược không hợp lệ";
+    return defaultUiText("messageInvalidStakeAmount");
   }
 }
 
@@ -51,7 +73,7 @@ export function validateStake(
  * If creator is Black (creatorIsWhite = false), joiner plays White.
  */
 export function getJoinerColor(
-  room: { creatorIsWhite?: boolean } | null | undefined
+  room: { creatorIsWhite?: boolean } | null | undefined,
 ): "White" | "Black" | null {
   if (!room || room.creatorIsWhite === undefined) return null;
   return !room.creatorIsWhite ? "White" : "Black";
@@ -63,7 +85,7 @@ export function getJoinerColor(
 export function doesRoomExist(
   room: RoomLike | null | undefined,
   nextRoomId?: bigint,
-  roomId?: bigint | number
+  roomId?: bigint | number,
 ): boolean {
   if (!room) return false;
   const targetId =
@@ -75,10 +97,17 @@ export function doesRoomExist(
           ? BigInt(room.id)
           : undefined;
 
-  if (targetId !== undefined && nextRoomId !== undefined && targetId >= nextRoomId) {
+  if (
+    targetId !== undefined &&
+    nextRoomId !== undefined &&
+    targetId >= nextRoomId
+  ) {
     return false;
   }
-  if (!room.playerA || room.playerA.toLowerCase() === ZERO_ADDRESS.toLowerCase()) {
+  if (
+    !room.playerA ||
+    room.playerA.toLowerCase() === ZERO_ADDRESS.toLowerCase()
+  ) {
     return false;
   }
   return true;
@@ -91,23 +120,23 @@ export function getRoomJoinableError(
   room: RoomLike | null | undefined,
   nextRoomId?: bigint,
   address?: string,
-  roomId?: bigint | number
+  roomId?: bigint | number,
 ): string | null {
   if (!doesRoomExist(room, nextRoomId, roomId)) {
-    return "Phòng không tồn tại.";
+    return defaultUiText("messageRoomDoesNotExist2");
   }
   if (room!.status !== 0) {
-    return "Phòng không ở trạng thái mở hoặc đã có đối thủ.";
+    return defaultUiText("messageTheRoomIsClosedOrAnother2");
   }
   if (room!.stake === undefined || room!.stake <= BigInt(0)) {
-    return "Mức cược phòng không hợp lệ.";
+    return defaultUiText("messageInvalidRoomStake");
   }
   if (
     address &&
     room!.playerA &&
     room!.playerA.toLowerCase() === address.toLowerCase()
   ) {
-    return "Không thể tự vào phòng do chính bạn tạo.";
+    return defaultUiText("messageYouCannotJoinYourOwnRoom");
   }
   return null;
 }
@@ -120,8 +149,7 @@ export function isRoomJoinable(
   room: RoomLike | null | undefined,
   nextRoomId?: bigint,
   address?: string,
-  roomId?: bigint | number
+  roomId?: bigint | number,
 ): boolean {
   return getRoomJoinableError(room, nextRoomId, address, roomId) === null;
 }
-

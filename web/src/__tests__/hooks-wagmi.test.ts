@@ -1,37 +1,50 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
-import { type Address, parseEther, encodeEventTopics, encodeAbiParameters, parseAbiParameters } from "viem";
+import { renderHook, act } from "@/test/render";
+import {
+  type Address,
+  parseEther,
+  encodeEventTopics,
+  encodeAbiParameters,
+  parseAbiParameters,
+} from "viem";
 import { CHESS_ESCROW_ABI } from "@avaclash/shared";
-import { useCreateRoom } from "../hooks/useCreateRoom";
-import { useJoinRoom } from "../hooks/useJoinRoom";
-import { useWithdraw } from "../hooks/useWithdraw";
-import { ZERO_ADDRESS } from "../utils/room";
+import { useCreateRoom } from "../hooks/use-create-room";
+import { useJoinRoom } from "../hooks/use-join-room";
+import { useWithdraw } from "../hooks/use-withdraw";
 
 // --- Mock state variables for wagmi ---
-let mockAddress: string | undefined = "0x1111111111111111111111111111111111111111";
+let mockAddress: string | undefined =
+  "0x1111111111111111111111111111111111111111";
 let mockMinStake = parseEther("0.01");
 let mockMaxStake = parseEther("1.0");
 let mockNextRoomId = BigInt(10);
-let mockRoomData: any = null;
+let mockRoomData: {
+  playerA: string;
+  playerB?: string;
+  stake: bigint;
+  status: number;
+  creatorIsWhite: boolean;
+} | null = null;
 let mockPendingBalance = BigInt(0);
 
-let mockWriteContractAsync = vi.fn();
-let mockResetWrite = vi.fn();
+const mockWriteContractAsync = vi.fn();
+const mockResetWrite = vi.fn();
 let mockTxHash: `0x${string}` | undefined = undefined;
 
-let mockReceipt: any = null;
+let mockReceipt: { status: string; logs?: unknown[] } | null = null;
 let mockIsConfirming = false;
 let mockIsSuccess = false;
 
 vi.mock("wagmi", () => ({
   useAccount: () => ({ address: mockAddress }),
-  useReadContract: ({ functionName }: any) => {
+  useReadContract: ({ functionName }: { functionName: string }) => {
     if (functionName === "MIN_STAKE") return { data: mockMinStake };
     if (functionName === "MAX_STAKE") return { data: mockMaxStake };
     if (functionName === "nextRoomId") return { data: mockNextRoomId };
     if (functionName === "getRoom") return { data: mockRoomData };
-    if (functionName === "pendingWithdrawals") return { data: mockPendingBalance };
+    if (functionName === "pendingWithdrawals")
+      return { data: mockPendingBalance };
     return { data: undefined };
   },
   useWriteContract: () => ({
@@ -86,7 +99,7 @@ describe("Web3 Hooks Unit Tests with Wagmi Mocking", () => {
       });
       const data1 = encodeAbiParameters(
         parseAbiParameters("uint256 stake, bool creatorIsWhite"),
-        [parseEther("0.05"), true]
+        [parseEther("0.05"), true],
       );
 
       mockReceipt = {
@@ -137,7 +150,7 @@ describe("Web3 Hooks Unit Tests with Wagmi Mocking", () => {
       });
       const data2 = encodeAbiParameters(
         parseAbiParameters("uint256 stake, bool creatorIsWhite"),
-        [parseEther("0.08"), false]
+        [parseEther("0.08"), false],
       );
 
       mockReceipt = {
@@ -182,7 +195,7 @@ describe("Web3 Hooks Unit Tests with Wagmi Mocking", () => {
 
     it("sets step to error and decodes message when user rejects in wallet", async () => {
       const rejectError = new Error("User rejected the request.");
-      (rejectError as any).name = "UserRejectedRequestError";
+      rejectError.name = "UserRejectedRequestError";
       mockWriteContractAsync.mockRejectedValue(rejectError);
 
       const { result } = renderHook(() => useCreateRoom());
@@ -194,7 +207,9 @@ describe("Web3 Hooks Unit Tests with Wagmi Mocking", () => {
       });
 
       expect(result.current.step).toBe("error");
-      expect(result.current.errorMessage).toBe("Giao dịch đã bị từ chối từ ví.");
+      expect(result.current.errorMessage).toBe(
+        "Giao dịch đã bị từ chối từ ví.",
+      );
     });
   });
 
@@ -292,4 +307,3 @@ describe("Web3 Hooks Unit Tests with Wagmi Mocking", () => {
     });
   });
 });
-

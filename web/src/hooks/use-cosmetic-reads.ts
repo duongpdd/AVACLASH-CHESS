@@ -3,30 +3,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { usePublicClient } from "wagmi";
 import { type Address, type PublicClient } from "viem";
+import { COSMETICS_ABI, TOURNAMENT_ABI } from "@avaclash/shared";
 import {
-  COSMETICS_ABI,
-  COSMETIC_AUCTION_ABI,
-  TOURNAMENT_ABI,
-} from "@avaclash/shared";
-import {
-  AUCTION_ADDRESS,
   CHAIN_ID,
   COSMETICS_ADDRESS,
   TOURNAMENT_ADDRESS,
   cosmeticsEnabled,
 } from "@/config/env";
 
-export const collectionContract = {
+const collectionContract = {
   get address() {
     return COSMETICS_ADDRESS;
   },
   abi: COSMETICS_ABI,
-} as const;
-export const auctionContract = {
-  get address() {
-    return AUCTION_ADDRESS;
-  },
-  abi: COSMETIC_AUCTION_ABI,
 } as const;
 const poolContract = {
   get address() {
@@ -36,20 +25,14 @@ const poolContract = {
 } as const;
 export const PAGE_SIZE = 12n;
 
-export function useCosmeticQuery<T>(
+function useCosmeticQuery<T>(
   key: readonly unknown[],
   read: (client: PublicClient) => Promise<T>,
   enabled = true,
 ) {
   const client = usePublicClient({ chainId: CHAIN_ID });
   return useQuery({
-    queryKey: [
-      "cosmetics",
-      CHAIN_ID,
-      COSMETICS_ADDRESS,
-      AUCTION_ADDRESS,
-      ...key,
-    ],
+    queryKey: ["cosmetics", CHAIN_ID, COSMETICS_ADDRESS, ...key],
     enabled: !!client && enabled && cosmeticsEnabled,
     queryFn: () => read(client!),
   });
@@ -77,8 +60,6 @@ async function getItem(
   });
   return { tokenId, ...item };
 }
-
-export type CosmeticItem = Awaited<ReturnType<typeof getItem>>;
 
 export function useCollection(owner: Address | undefined, offset: bigint) {
   return useCosmeticQuery(
@@ -147,65 +128,6 @@ export function useTrophies(owner: Address | undefined, offset: bigint) {
       return { items: candidates.filter((item) => item !== null), total };
     },
     !!owner,
-  );
-}
-
-export function useAuctions(cursor: bigint | null) {
-  return useCosmeticQuery(["auctions", cursor?.toString()], async (client) => {
-    const block = await client.getBlockNumber({ cacheTime: 0 });
-    const total = await client.readContract({
-      ...auctionContract,
-      functionName: "nextAuctionId",
-      blockNumber: block,
-    });
-    const end = cursor === null || cursor > total ? total : cursor;
-    const items = await Promise.all(
-      descendingIds(end).map(async (id) => {
-        const [auction, minimum] = await Promise.all([
-          client.readContract({
-            ...auctionContract,
-            functionName: "getAuction",
-            args: [id],
-            blockNumber: block,
-          }),
-          client.readContract({
-            ...auctionContract,
-            functionName: "minimumBid",
-            args: [id],
-            blockNumber: block,
-          }),
-        ]);
-        const item = await getItem(client, auction.tokenId, block);
-        return { id, ...auction, item, minimum };
-      }),
-    );
-    return { items, end };
-  });
-}
-
-export type AuctionListing = NonNullable<
-  ReturnType<typeof useAuctions>["data"]
->["items"][number];
-
-export function useAuctionFunds(owner?: Address) {
-  return useCosmeticQuery(
-    ["pending", owner],
-    (client) =>
-      client.readContract({
-        ...auctionContract,
-        functionName: "pending",
-        args: [owner!],
-      }),
-    !!owner,
-  );
-}
-
-export function useAuctionDurations() {
-  return useCosmeticQuery(["durations"], (client) =>
-    Promise.all([
-      client.readContract({ ...auctionContract, functionName: "minDuration" }),
-      client.readContract({ ...auctionContract, functionName: "maxDuration" }),
-    ]),
   );
 }
 

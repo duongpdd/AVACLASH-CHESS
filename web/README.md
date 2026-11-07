@@ -1,36 +1,15 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AvaClash Web
 
-## Getting Started
+Next.js 16 + React 19 + Tailwind + Phaser 3, kết nối ví injected qua Wagmi/Viem. Luồng hiện mở là PvP trên Fuji hoặc Anvil.
 
-First, run the development server:
+Từ thư mục monorepo, thực hiện hướng dẫn ở [README dự án](../README.md). Build `@avaclash/shared` và cấu hình `web/.env.local` theo [.env.example](.env.example) trước khi chạy `pnpm --filter web dev`.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- `/`: kết nối ví, tạo/vào phòng, tra cứu phòng và withdraw.
+- `/game?room=0`: phòng thi đấu; room ID bắt đầu từ 0.
+- Font dùng hệ thống; build không cần tải Google Fonts.
+- Phaser tải động ở client với `ssr:false`, luật và transcript tách khỏi render.
+- Có Hot-seat, gửi/rút Vault và nhận thưởng mùa; giao dịch spectator mặc định đóng. Telemetry chỉ cảnh báo, không phạt đồng hồ.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Kiểm tra: `pnpm --filter web test`, `pnpm --filter web typecheck`, `pnpm --filter web lint`, `pnpm --filter web check:build`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Có thêm `/hotseat` không cần ví, tab Vault gửi/rút tiền gốc và nhận thưởng theo danh sách công khai. Nhãn tiền lấy từ chain mục tiêu (Anvil ETH/Fuji AVAX). Xem [hướng dẫn thưởng](../docs/SEASON_REWARDS.md) và [nghiệm thu](../docs/IMPLEMENTATION_2026-11-01.md). Không có tính năng yield hoặc cược spectator mở mặc định.

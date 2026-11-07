@@ -1,8 +1,6 @@
 // @vitest-environment happy-dom
-import React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
-import { BoardSyncController } from "../game/BoardSyncController";
+import { BoardSyncController } from "../game/board-sync-controller";
 
 describe("Board Relay Synchronization Component / Controller (Turn 3c-3 Item 1)", () => {
   it("only executes move on board after receiving move echo from relay (no optimistic move)", () => {
@@ -103,4 +101,3 @@ describe("Board Relay Synchronization Component / Controller (Turn 3c-3 Item 1)"
     expect(controller.getAppliedMoves()).toEqual(["d2d4", "d7d5"]);
   });
 });
-

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { decodeContractError, ERROR_MESSAGES } from "../utils/errors";
-import { ROOM_STATUS_TEXT } from "../hooks/useRoom";
+import { ROOM_STATUS_TEXT } from "../hooks/use-room";
 import { parseEther, formatEther } from "viem";
 
 describe("Web3 Contract Error Decoder & Hook Logic", () => {
@@ -25,24 +25,27 @@ describe("Web3 Contract Error Decoder & Hook Logic", () => {
         message: "User rejected the request.",
       };
       expect(decodeContractError(userRejectError).message).toBe(
-        "Giao dịch đã bị từ chối từ ví."
+        "Giao dịch đã bị từ chối từ ví.",
       );
     });
 
     it("correctly decodes insufficient funds error", () => {
       const fundsError = {
         name: "EstimateGasExecutionError",
-        message: "sender doesn't have enough funds to send tx or exceeds balance",
+        message:
+          "sender doesn't have enough funds to send tx or exceeds balance",
       };
       expect(decodeContractError(fundsError).message).toBe(
-        "Số dư AVAX không đủ để thanh toán tiền cược và phí gas."
+        "Số dư AVAX không đủ để thanh toán tiền cược và phí gas.",
       );
     });
 
     it("falls back gracefully for unknown errors", () => {
-      expect(decodeContractError(null).message).toBe("Đã xảy ra lỗi không xác định.");
+      expect(decodeContractError(null).message).toBe(
+        "Đã xảy ra lỗi không xác định.",
+      );
       expect(decodeContractError("Random network error").message).toBe(
-        "Random network error"
+        "Random network error",
       );
     });
   });
@@ -111,13 +114,13 @@ describe("Web3 Contract Error Decoder & Hook Logic", () => {
         expect(ROOM_STATUS_TEXT[s].label).toBeTruthy();
         expect(ROOM_STATUS_TEXT[s].desc).toBeTruthy();
       }
-      expect(ROOM_STATUS_TEXT[0].label).toContain("Open");
-      expect(ROOM_STATUS_TEXT[1].label).toContain("Active");
-      expect(ROOM_STATUS_TEXT[2].label).toContain("Settled");
-      expect(ROOM_STATUS_TEXT[3].label).toContain("Cancelled");
-      expect(ROOM_STATUS_TEXT[4].label).toContain("Refunded");
-      expect(ROOM_STATUS_TEXT[5].label).toContain("Challenged");
-      expect(ROOM_STATUS_TEXT[6].label).toContain("Aborted");
+      expect(ROOM_STATUS_TEXT[0].label).toBe("Chờ đối thủ");
+      expect(ROOM_STATUS_TEXT[1].label).toBe("Đã đủ hai người");
+      expect(ROOM_STATUS_TEXT[2].label).toBe("Đã thanh toán");
+      expect(ROOM_STATUS_TEXT[3].label).toBe("Đã hủy");
+      expect(ROOM_STATUS_TEXT[4].label).toBe("Đã hoàn tiền");
+      expect(ROOM_STATUS_TEXT[5].label).toBe("Đang khiếu nại");
+      expect(ROOM_STATUS_TEXT[6].label).toBe("Đã hủy sớm");
     });
   });
 });

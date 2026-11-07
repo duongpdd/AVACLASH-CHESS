@@ -1,0 +1,83 @@
+:root {
+  color-scheme: light;
+  --background: #f6f4ef;
+  --foreground: #171e29;
+  --primary: #805011;
+  --primary-foreground: #fffaf2;
+  --card: #fffdf8;
+  --muted: #eee9df;
+  --muted-foreground: #566274;
+  --border: #d5cdbf;
+  --sidebar: #fdfaf4;
+  --sidebar-accent: #f3e4c9;
+  --overlay: #121928aa;
+  --status-success: #146543;
+  --status-warning: #805011;
+  --status-danger: #a51d40;
+  --status-deactivated: #545e70;
+  --status-info: #135d8d;
+  --status-progress: #2849a1;
+  --status-contract: #6b3d99;
+  --board-light: #ead9b5;
+  --board-dark: #b58863;
+  --board-selected: #edc75b;
+  --board-target: #f4dea2;
+  --board-piece-light: #fff4dc;
+  --board-piece-dark: #111827;
+  --board-canvas: #1a1a2e;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #0b1019;
+  --foreground: #e8edf5;
+  --primary: #e7b56c;
+  --primary-foreground: #19150f;
+  --card: #121b29;
+  --muted: #1d293b;
+  --muted-foreground: #a5b2c5;
+  --border: #334158;
+  --sidebar: #121b29;
+  --sidebar-accent: #333044;
+  --status-success: #a7f3d0;
+  --status-warning: #fde1a2;
+  --status-danger: #fda4af;
+  --status-deactivated: #a5b2c5;
+  --status-info: #b0e4ff;
+  --status-progress: #bacbff;
+  --status-contract: #dac4ff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-overlay: var(--overlay);
+  --color-status-success: var(--status-success);
+  --color-status-warning: var(--status-warning);
+  --color-status-danger: var(--status-danger);
+  --color-status-deactivated: var(--status-deactivated);
+  --color-status-info: var(--status-info);
+  --color-status-progress: var(--status-progress);
+  --color-status-contract: var(--status-contract);
+  --color-board-light: var(--board-light);
+  --color-board-dark: var(--board-dark);
+  --color-board-selected: var(--board-selected);
+  --color-board-target: var(--board-target);
+  --color-board-piece-light: var(--board-piece-light);
+  --color-board-piece-dark: var(--board-piece-dark);
+  --color-board-canvas: var(--board-canvas);
+}
+
+@theme {
+  --radius-button: 8px;
+  --radius-card: 8px;
+  --radius-dropdown: 6px;
+}

@@ -1,16 +1,27 @@
 // @vitest-environment happy-dom
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, act } from "@testing-library/react";
+import { render, act } from "@/test/render";
 
-// Track mock scene instances and calls
-const mockSceneInstances: any[] = [];
+import type { ChessSceneConfig } from "../game/chess-scene";
+interface SceneStub {
+  config: Partial<ChessSceneConfig>;
+  appliedMoves: string[];
+  canMoveState: boolean;
+  colorState: string;
+  init(config?: Partial<ChessSceneConfig>): void;
+  create(): void;
+  syncMoves(moves: string[]): void;
+  setCanMove(value: boolean): void;
+  setPlayerColor(value: string): void;
+}
+const mockSceneInstances: SceneStub[] = [];
 
 vi.mock("phaser", () => {
   class MockGame {
-    public config: any;
-    public sceneInstance: any;
-    constructor(config: any) {
+    public config: { scene?: (new () => SceneStub)[] };
+    public sceneInstance?: SceneStub;
+    constructor(config: { scene?: (new () => SceneStub)[] }) {
       this.config = config;
       if (Array.isArray(config.scene) && config.scene[0]) {
         const SceneClass = config.scene[0];
@@ -32,9 +43,9 @@ vi.mock("phaser", () => {
   };
 });
 
-vi.mock("@/game/ChessScene", () => {
+vi.mock("@/game/chess-scene", () => {
   class MockChessScene {
-    public config: any = {};
+    public config: Partial<ChessSceneConfig> = {};
     public appliedMoves: string[] = [];
     public canMoveState = false;
     public colorState = "spectator";
@@ -43,7 +54,7 @@ vi.mock("@/game/ChessScene", () => {
       mockSceneInstances.push(this);
     }
 
-    init(config: any) {
+    init(config: Partial<ChessSceneConfig> = {}) {
       this.config = config;
       this.appliedMoves = config?.moves ? [...config.moves] : [];
       this.canMoveState = config?.canMove ?? false;
@@ -68,7 +79,7 @@ vi.mock("@/game/ChessScene", () => {
   return { ChessScene: MockChessScene };
 });
 
-import PhaserGame from "../components/PhaserGame";
+import PhaserGame from "../components/phaser-game";
 
 describe("PhaserGame Scene Initialization Race Condition (Turn 3c-4 Item 3)", () => {
   beforeEach(() => {
@@ -78,11 +89,7 @@ describe("PhaserGame Scene Initialization Race Condition (Turn 3c-4 Item 3)", ()
   it("applies the latest moves, canMove, and playerColor when props change before scene create() runs", async () => {
     // 1. Initial render with default waiting state
     const { rerender } = render(
-      <PhaserGame
-        moves={[]}
-        canMove={false}
-        playerColor="spectator"
-      />
+      <PhaserGame moves={[]} canMove={false} playerColor="spectator" />,
     );
 
     // Wait for dynamic import inside PhaserGame useEffect to create the ConfiguredChessScene class and instantiate it
@@ -98,13 +105,7 @@ describe("PhaserGame Scene Initialization Race Condition (Turn 3c-4 Item 3)", ()
     expect(scene.canMoveState).toBe(false);
 
     // 3. Props change BEFORE create() is called (e.g. WebSocket roomState arrives)
-    rerender(
-      <PhaserGame
-        moves={["e2e4"]}
-        canMove={true}
-        playerColor="w"
-      />
-    );
+    rerender(<PhaserGame moves={["e2e4"]} canMove={true} playerColor="w" />);
 
     // 4. Now scene create() finishes
     act(() => {

@@ -4,6 +4,7 @@ import { isCosmeticsEnabled } from "@/config/cosmetics";
 
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { usePublicClient } from "wagmi";
 import { type Address, type PublicClient } from "viem";
 import { TOURNAMENT_ABI } from "@avaclash/shared";
@@ -65,7 +66,7 @@ async function startBlock(
       break;
     low = toBlock + 1n;
   }
-  throw Error("Không tìm thấy khối bắt đầu giải.");
+  throw Error("Tournament start block not found.");
 }
 
 function subscribePreference(onChange: () => void) {
@@ -80,6 +81,7 @@ function EnabledMatchSkins({
   start,
   children,
 }: MatchProps) {
+  const t = useTranslations("cosmetics");
   const client = usePublicClient({ chainId: CHAIN_ID });
   const stored = useSyncExternalStore(
     subscribePreference,
@@ -144,20 +146,24 @@ function EnabledMatchSkins({
     <>
       {children(theme)}
       <div className="grid min-w-0 gap-2">
-        {!start && (
-          <p className="helper-text">Hiển thị theo trang bị hiện tại</p>
-        )}
+        {!start && <p className="helper-text">{t("currentEquipment")}</p>}
         {equipped.isPending ? (
-          <Skeleton label="Đang đọc trang bị" />
+          <Skeleton label={t("loadingEquipment")} />
         ) : equipped.isError ? (
           <p role="status" className="helper-text">
-            Chưa đọc được trang bị. Đang dùng màu mặc định.
+            {t("equipmentFailed")}
           </p>
         ) : (
           <div className="flex min-w-0 flex-wrap gap-2 [overflow-wrap:anywhere]">
-            <StatusPill>Trắng · {whiteName || "Mặc định"}</StatusPill>
-            <StatusPill>Đen · {blackName || "Mặc định"}</StatusPill>
-            <StatusPill>Bàn · {board?.name ?? "Mặc định"}</StatusPill>
+            <StatusPill>
+              {t("whiteSkin", { name: whiteName || t("defaultSkin") })}
+            </StatusPill>
+            <StatusPill>
+              {t("blackSkin", { name: blackName || t("defaultSkin") })}
+            </StatusPill>
+            <StatusPill>
+              {t("boardSkin", { name: board?.name ?? t("defaultSkin") })}
+            </StatusPill>
           </div>
         )}
         {viewer !== "spectator" && (
@@ -169,7 +175,7 @@ function EnabledMatchSkins({
               writeHideOpponentSkin(!hidden);
             }}
           >
-            Tắt skin của đối thủ
+            {t("hideOpponent")}
           </Button>
         )}
       </div>

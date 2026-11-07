@@ -1,26 +1,32 @@
-import type { Metadata } from "next";
+import localFont from "next/font/local";
 import "./globals.css";
-import { Web3Provider } from "@/providers/Web3Provider";
+import { Web3Provider } from "@/providers/web3-provider";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale } from "next-intl/server";
+import { rootMetadata } from "@/lib/metadata";
 
-const inter = {
-  variable: "font-sans",
-};
+const beVietnam = localFont({
+  src: [
+    { path: "../../public/fonts/BeVietnamPro-Regular.ttf", weight: "400" },
+    { path: "../../public/fonts/BeVietnamPro-SemiBold.ttf", weight: "600" },
+  ],
+  variable: "--font-be-vietnam",
+  display: "swap",
+});
 
-export const metadata: Metadata = {
-  title: "AvaClash Chess — 1v1 Chess with AVAX Wagering",
-  description:
-    "Play chess 1v1, wager AVAX on Avalanche Fuji testnet. Off-chain gameplay, on-chain settlement with EIP-712 signatures.",
-};
+export const generateMetadata = rootMetadata;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.variable} font-sans antialiased`}>
-        <Web3Provider>{children}</Web3Provider>
+    <html lang={await getLocale()} className="dark">
+      <body className={`${beVietnam.variable} font-sans antialiased`}>
+        <NextIntlClientProvider>
+          <Web3Provider>{children}</Web3Provider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

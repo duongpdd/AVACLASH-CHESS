@@ -69,8 +69,9 @@ describe.runIf(isAnvilAvailable())(
         args: [true],
         value: parseEther("0.05"),
       });
-      const createReceipt =
-        await anvil.publicClient.waitForTransactionReceipt({ hash: createTx });
+      const createReceipt = await anvil.publicClient.waitForTransactionReceipt({
+        hash: createTx,
+      });
       expect(createReceipt.status).toBe("success");
 
       // 3. Verify nextRoomId incremented to 1
@@ -82,16 +83,16 @@ describe.runIf(isAnvilAvailable())(
       expect(nextRoomId).toBe(1n);
 
       // 4. Read room #0: Open (status = 0), creator = creatorAccount.address, stake = 0.05 AVAX
-      const room0 = (await anvil.publicClient.readContract({
+      const room0 = await anvil.publicClient.readContract({
         address: escrowAddress,
         abi: CHESS_ESCROW_ABI,
         functionName: "getRoom",
         args: [0n],
-      })) as any;
+      });
 
       expect(room0.status).toBe(0); // Open
       expect(room0.playerA.toLowerCase()).toBe(
-        creatorAccount.address.toLowerCase()
+        creatorAccount.address.toLowerCase(),
       );
       expect(room0.stake).toBe(parseEther("0.05"));
       expect(room0.creatorIsWhite).toBe(true);
@@ -104,7 +105,7 @@ describe.runIf(isAnvilAvailable())(
           functionName: "joinRoom",
           args: [0n],
           value: parseEther("0.05"),
-        })
+        }),
       ).rejects.toThrow();
 
       // 6. Joiner joins room with exact stake 0.05 AVAX
@@ -115,21 +116,22 @@ describe.runIf(isAnvilAvailable())(
         args: [0n],
         value: parseEther("0.05"),
       });
-      const joinReceipt =
-        await anvil.publicClient.waitForTransactionReceipt({ hash: joinTx });
+      const joinReceipt = await anvil.publicClient.waitForTransactionReceipt({
+        hash: joinTx,
+      });
       expect(joinReceipt.status).toBe("success");
 
       // 7. Verify room #0 is now Active (status = 1) with playerB = joinerAccount.address
-      const room0Active = (await anvil.publicClient.readContract({
+      const room0Active = await anvil.publicClient.readContract({
         address: escrowAddress,
         abi: CHESS_ESCROW_ABI,
         functionName: "getRoom",
         args: [0n],
-      })) as any;
+      });
 
       expect(room0Active.status).toBe(1); // Active
       expect(room0Active.playerB.toLowerCase()).toBe(
-        joinerAccount.address.toLowerCase()
+        joinerAccount.address.toLowerCase(),
       );
 
       // 8. Pending withdrawals check: initially 0
@@ -147,8 +149,8 @@ describe.runIf(isAnvilAvailable())(
           address: escrowAddress,
           abi: CHESS_ESCROW_ABI,
           functionName: "withdraw",
-        })
+        }),
       ).rejects.toThrow();
     });
-  }
+  },
 );
