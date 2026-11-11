@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { showApiError } from "@/utils/show-api-error";
+import { ChartNoAxesColumnIncreasing } from "lucide-react";
 
 export default function TournamentElo({
   compact = false,
@@ -36,14 +37,49 @@ export default function TournamentElo({
 
   const ratings = board.data?.ratings ?? [];
   const player = ratings.find((row) => row.address === address?.toLowerCase());
+  const empty = !board.isPending && !board.isError && !ratings.length;
+  if (compact && empty) return null;
+  const emptyContent = (
+    <>
+      <Table className="ranking-empty-table">
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t("rank")}</TableHead>
+            <TableHead>{t("wallet")}</TableHead>
+            <TableHead>{t("elo")}</TableHead>
+            <TableHead>{t("record")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody aria-hidden="true">
+          {[0, 1, 2].map((row) => (
+            <TableRow key={row}>
+              {[0, 1, 2, 3].map((column) => (
+                <TableCell key={column}>
+                  <span className="ranking-placeholder" />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      <Link href="/tournaments" className="button-primary w-fit">
+        {t("viewTournaments")}
+      </Link>
+    </>
+  );
   return (
     <section
-      className={compact ? "home-ranking grid content-start gap-3" : "contents"}
+      className={
+        compact
+          ? "home-rating-section home-ranking grid content-start gap-3"
+          : "contents"
+      }
       aria-labelledby="elo-cup-title"
     >
       {compact && (
         <div className="home-panel-heading">
-          <h2 id="elo-cup-title" className="text-description font-semibold">
+          <h2 id="elo-cup-title">
+            <ChartNoAxesColumnIncreasing size={19} aria-hidden />
             {t("board")}
           </h2>
           <Link className="text-link" href="/ranking">
@@ -51,15 +87,25 @@ export default function TournamentElo({
           </Link>
         </div>
       )}
-      <CardCustom as="div" className="grid content-start gap-4" id="elo-cup">
+      <CardCustom
+        as="div"
+        className="grid content-start gap-4 ranking-card"
+        id="elo-cup"
+      >
         {!compact && (
           <div>
             <h2 id="elo-cup-title" className="text-description font-semibold">
               {t("board")}
             </h2>
             <p className="text-description mt-2">
-              {board.data && t("start", { elo: board.data.startingElo })}
-              {t("details")}
+              {empty ? (
+                t("emptyIntro")
+              ) : (
+                <>
+                  {board.data && t("start", { elo: board.data.startingElo })}
+                  {t("details")}
+                </>
+              )}
             </p>
           </div>
         )}
@@ -78,23 +124,15 @@ export default function TournamentElo({
             )
           }
           loading={board.isPending}
-          noData={
-            !ratings.length && (
-              <>
-                {t("empty")}{" "}
-                <Link className="text-link" href="/tournaments">
-                  {t("viewTournaments")}
-                </Link>
-              </>
-            )
-          }
+          noData={!ratings.length && emptyContent}
+          noDataLayout="custom"
         >
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>{t("rank")}</TableHead>
                 <TableHead>{t("player")}</TableHead>
-                <TableHead>Elo</TableHead>
+                <TableHead>{t("elo")}</TableHead>
                 <TableHead>{t("games")}</TableHead>
               </TableRow>
             </TableHeader>

@@ -14,7 +14,7 @@ export function PageHeader({
   id?: string;
 }) {
   return (
-    <header className="page-intro">
+    <header id="main-content" className="page-intro" tabIndex={-1}>
       <div className="min-w-0 flex-1">
         {eyebrow && <p className="eyebrow">{eyebrow}</p>}
         <h1 id={id} className="text-2xl font-bold">

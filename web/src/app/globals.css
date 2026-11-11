@@ -2,6 +2,8 @@
 @import "../styles/theme.css";
 @import "../styles/typography.css";
 @import "../styles/layout.css";
+@import "../styles/home.css";
+@import "../styles/onboarding.css";
 
 body {
   background: var(--background);
@@ -33,16 +35,13 @@ button:disabled {
   display: flex;
   flex-direction: column;
   background:
-    radial-gradient(
-      ellipse at 85% 0%,
-      color-mix(in srgb, var(--muted) 40%, transparent),
-      transparent 50%
-    ),
+    radial-gradient(ellipse at 85% 0%, var(--ambient-violet), transparent 55%),
+    radial-gradient(ellipse at 10% 28%, var(--ambient-rose), transparent 50%),
     var(--background);
   color: var(--foreground);
 }
 .site-container {
-  width: min(768px, calc(100% - 32px));
+  width: min(1120px, calc(100% - 48px));
   margin-inline: auto;
 }
 .nav-link {
@@ -69,7 +68,7 @@ button:disabled {
 
 .play-page {
   flex: 1;
-  padding-block: 24px;
+  padding-block: 40px;
 }
 .page-intro {
   display: flex;
@@ -88,7 +87,7 @@ button:disabled {
   margin-bottom: 9px;
 }
 .page-intro h1 {
-  font-size: var(--text-2xl);
+  font-size: 24px;
   font-weight: 700;
   line-height: 1.4;
 }
@@ -178,7 +177,8 @@ button:disabled {
   transition:
     background 0.15s,
     border-color 0.15s,
-    color 0.15s;
+    color 0.15s,
+    box-shadow 0.15s;
   text-align: center;
 }
 .button-primary {
@@ -190,6 +190,7 @@ button:disabled {
 .button-primary:not(:disabled):hover {
   background: color-mix(in srgb, var(--primary) 88%, var(--primary-foreground));
   border-color: var(--primary);
+  box-shadow: var(--interaction-glow);
 }
 .button-secondary {
   border: 1px solid var(--border);
@@ -212,7 +213,7 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: 44px;
   color: var(--primary);
   font-size: 14px;
   font-weight: 500;
@@ -576,7 +577,8 @@ button:disabled {
   gap: 28px;
 }
 .guide-steps li {
-  display: flex;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
   gap: 18px;
 }
 .guide-steps li > span {
@@ -585,12 +587,13 @@ button:disabled {
   padding-top: 3px;
 }
 .guide-steps h2 {
-  font-size: 17px;
+  color: var(--foreground);
+  font-size: 14px;
   font-weight: 600;
   margin-bottom: 8px;
 }
 .guide-steps p {
-  color: var(--foreground);
+  color: var(--muted-foreground);
   font-size: 14px;
   line-height: 1.8;
 }
@@ -749,7 +752,7 @@ button:disabled {
 
 @media (min-width: 1024px) {
   .play-notes {
-    grid-template-columns: 1fr 1fr auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (prefers-reduced-motion: reduce) {

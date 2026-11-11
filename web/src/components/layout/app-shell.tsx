@@ -53,7 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="workspace-shell min-h-screen bg-background">
       <aside className="fixed inset-y-0 left-0 z-50 hidden w-60 flex-col border-r border-border bg-sidebar md:flex">
         <div className="flex h-14 shrink-0 items-center border-b border-border px-4">
           <Brand />

@@ -44,25 +44,25 @@ export interface ResolvedTheme {
 
 export const DEFAULT_THEME: ResolvedTheme = {
   board: {
-    lightSquare: 0xead9b5,
-    darkSquare: 0xb58863,
-    lastMoveLight: 0xf7ec59,
-    lastMoveDark: 0xdac331,
-    selectedSquare: 0x38bdf8,
-    legalMoveDot: 0x10b981,
+    lightSquare: 0xdbd2e9,
+    darkSquare: 0x75618f,
+    lastMoveLight: 0xc4a5e8,
+    lastMoveDark: 0x9b75c4,
+    selectedSquare: 0xd8b4fe,
+    legalMoveDot: 0x6d3eb2,
     captureRing: 0xef4444,
     checkGlow: 0xef4444,
   },
-  white: { fill: 0xfffbeb, stroke: 0x0f172a, width: 4 },
-  black: { fill: 0x1e293b, stroke: 0xf8fafc, width: 2.5 },
+  white: { fill: 0xf5efff, stroke: 0x160d2b, width: 4 },
+  black: { fill: 0x251a38, stroke: 0xf5efff, width: 2.5 },
   shadow: true,
 };
 
 export const PROMOTION_STYLE = {
-  background: 0x0f172a,
-  border: 0xf59e0b,
-  button: 0x1e293b,
-  hover: 0x334155,
+  background: 0x160d2b,
+  border: 0xa78bfa,
+  button: 0x271a43,
+  hover: 0x392855,
 };
 
 export const PIECE_SHADOW = {

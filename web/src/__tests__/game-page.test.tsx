@@ -220,9 +220,9 @@ describe("GamePage Online Mode Component Tests (Turn 3c-2-fix Item 5)", () => {
       ),
     );
     expect(
-      screen.getByText(/Mở MetaMask\/Core và ký yêu cầu AvaClashRelay/),
+      screen.getByText(/Mở MetaMask hoặc Core và ký xác nhận để vào bàn/),
     ).toBeDefined();
-    expect(screen.queryByText(/Mất kết nối với Relay/)).toBeNull();
+    expect(screen.queryByText(/Mất kết nối với máy chủ ván đấu/)).toBeNull();
   });
 
   it.each(["0", "6"])("opens a lobby link using legacy roomId=%s", (id) => {
@@ -266,7 +266,7 @@ describe("GamePage Online Mode Component Tests (Turn 3c-2-fix Item 5)", () => {
       client.emit("connectionStatus", "reconnecting");
     });
     expect(
-      screen.getByText(/Đang kết nối lại với máy chủ relay.../i),
+      screen.getByText(/Đang kết nối lại với máy chủ ván đấu/i),
     ).toBeDefined();
     expect(screen.getByRole("button", { name: /Thử lại ngay/i })).toBeDefined();
   });
@@ -290,7 +290,7 @@ describe("GamePage Online Mode Component Tests (Turn 3c-2-fix Item 5)", () => {
     expect(screen.getByText(/\(Lượt của bạn\)/i)).toBeDefined();
   });
 
-  it("displays 'Lấy chữ ký kết quả từ Relay' button when game_finished is received but proposal not yet available", () => {
+  it("offers the game server result signature when game_finished arrives before its proposal", () => {
     mockSearchParams.set("room", "42");
     render(<GamePage />);
     const client = getMockRelayClientInstance();
@@ -305,7 +305,7 @@ describe("GamePage Online Mode Component Tests (Turn 3c-2-fix Item 5)", () => {
       });
     });
     const requestBtn = screen.getByRole("button", {
-      name: /Lấy chữ ký kết quả từ Relay/i,
+      name: /Lấy chữ ký kết quả từ máy chủ ván đấu/i,
     });
     expect(requestBtn).toBeDefined();
     fireEvent.click(requestBtn);
@@ -414,7 +414,9 @@ describe("GamePage Online Mode Component Tests (Turn 3c-2-fix Item 5)", () => {
 
       expect(screen.getByText(/Phòng đã hủy\/hoàn tiền/i)).toBeDefined();
       expect(screen.queryByText(/Ván Đã Kết Thúc/i)).toBeNull();
-      expect(screen.queryByText(/Lấy chữ ký kết quả từ Relay/i)).toBeNull();
+      expect(
+        screen.queryByText(/Lấy chữ ký kết quả từ máy chủ ván đấu/i),
+      ).toBeNull();
       expect(screen.queryByText(/Ký & Nộp kết quả/i)).toBeNull();
     });
 

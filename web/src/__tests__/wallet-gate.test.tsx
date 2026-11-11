@@ -16,6 +16,7 @@ import { AuthProvider } from "@/providers/auth-provider";
 import { LoginView } from "../views/login/login-view";
 import { NextIntlClientProvider } from "next-intl";
 import messages from "../messages/vi.json";
+import { workspaceReturn } from "@/utils/workspace-return";
 
 const route = vi.hoisted(() => ({
   pathname: "/profile",
@@ -176,6 +177,55 @@ it("returns to Play when a supplied destination is external", async () => {
   route.next = "//example.com";
   renderRoute(true, true);
   await waitFor(() => expect(route.replace).toHaveBeenCalledWith("/"));
+});
+
+it("explains the organizer task and fee boundary before connecting", () => {
+  route.next = "/tournaments/new";
+  renderRoute(true);
+  expect(
+    screen.getByRole("heading", { name: "Kết nối ví để tạo giải" }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole("heading", { name: "Chuẩn bị trước khi tạo giải" }),
+  ).toBeTruthy();
+  expect(screen.getByText(/Hai bước này không gửi tiền/)).toBeTruthy();
+  expect(
+    screen
+      .getByRole("link", { name: "Xem giải trước, chưa cần ví" })
+      .getAttribute("href"),
+  ).toBe("/tournaments");
+  expect(actions.finish).not.toHaveBeenCalled();
+});
+
+it("returns to the selected sponsorship after an explicit wallet connection and sign-in", async () => {
+  route.next = "/tournaments?id=0&intent=sponsor";
+  renderRoute(true);
+  expect(
+    screen.getByRole("heading", { name: "Kết nối ví để tài trợ" }),
+  ).toBeTruthy();
+  const connect = screen.getByRole<HTMLButtonElement>("button", {
+    name: "Kết nối Mock Connector",
+  });
+  await waitFor(() => expect(connect.disabled).toBe(false));
+  fireEvent.click(connect);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Ký để đăng nhập" }),
+  );
+  await waitFor(() => expect(route.replace).toHaveBeenCalledWith(route.next));
+});
+
+it("allows a public tournament return without widening redirects to arbitrary destinations", () => {
+  expect(
+    workspaceReturn("/tournaments?id=0&intent=sponsor#sponsor-prize-pool"),
+  ).toBe("/tournaments?id=0&intent=sponsor#sponsor-prize-pool");
+  for (const path of [
+    "https://example.com",
+    "//example.com",
+    "/tournaments/unknown",
+    "/tournaments-other",
+  ]) {
+    expect(workspaceReturn(path)).toBe("/");
+  }
 });
 
 it("admits a reconnected wallet and leaves the workspace on disconnect", async () => {

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { formatCurrency } from "@/utils/format-currency";
-import { formatDateTime } from "@/utils/format-date";
+import { tournamentDeadline } from "@/utils/tournament-deadline";
 import type { StatusTone } from "@/utils/status-badge-colors";
 import { useBlock, useReadContract, useReadContracts } from "wagmi";
 import { CHAIN_ID, tournamentEnabled } from "@/config/env";
@@ -91,9 +91,11 @@ export function useTournamentIndex() {
 export default function TournamentCatalog({
   index: { count, block },
   featured = false,
+  intent,
 }: {
   index: ReturnType<typeof useTournamentIndex>;
   featured?: boolean;
+  intent?: "sponsor";
 }) {
   const locale = useLocale();
   const copy = useTranslations("catalog");
@@ -143,6 +145,13 @@ export default function TournamentCatalog({
       (cards.length < ids.length ||
         cards.some(({ seats }) => seats === undefined)));
   const sections = featured ? (["open"] as const) : groups;
+  const visibleCards =
+    intent === "sponsor"
+      ? cards.filter(
+          ({ t }) =>
+            t.phase === 0 && now !== undefined && now < t.registrationEnds,
+        )
+      : cards;
 
   function retry() {
     void count.refetch();
@@ -153,8 +162,8 @@ export default function TournamentCatalog({
     }
   }
 
-  const hasOpen = cards.some(({ status }) => status.group === "open");
-  const empty = featured ? !hasOpen : cards.length === 0;
+  const hasOpen = visibleCards.some(({ status }) => status.group === "open");
+  const empty = featured ? !hasOpen : visibleCards.length === 0;
   const failure = incomplete && (
     <div className="grid justify-items-start gap-2">
       <p>{copy("incomplete")}</p>
@@ -169,9 +178,18 @@ export default function TournamentCatalog({
           loading={pending}
           noData={
             <>
-              {copy(featured ? "emptyOpen" : "empty")}{" "}
-              <Link className="text-link" href="/practice">
-                {copy("practice")}
+              {copy(
+                intent === "sponsor"
+                  ? "emptySponsor"
+                  : featured
+                    ? "emptyOpen"
+                    : "empty",
+              )}{" "}
+              <Link
+                className="text-link"
+                href={intent === "sponsor" ? "/guide" : "/practice"}
+              >
+                {copy(intent === "sponsor" ? "sponsorGuide" : "practice")}
               </Link>
             </>
           }
@@ -189,61 +207,85 @@ export default function TournamentCatalog({
         </CardCustom>
       )}
       {sections.map((group) => {
-        const entries = cards.filter(({ status }) => status.group === group);
+        const entries = visibleCards.filter(
+          ({ status }) => status.group === group,
+        );
         if (!entries.length) return null;
         return (
           <section key={group} className="grid gap-3">
             {!featured && (
-              <h2 className="text-description font-semibold">{copy(group)}</h2>
+              <h2 className="text-description font-semibold text-foreground">
+                {copy(group)}
+              </h2>
             )}
-            <ul
-              className={
-                featured ? "grid" : "grid gap-3 md:grid-cols-2 lg:grid-cols-3"
-              }
-            >
+            <ul className="grid gap-3">
               {(featured ? entries.slice(0, 1) : entries).map(
                 ({ id, t, seats, status }) => (
                   <li key={id.toString()} className="min-w-0">
                     <Link
-                      href={`/tournaments?id=${id}`}
-                      className="surface-card flex h-full min-w-0 flex-col gap-3 hover:border-status-warning/60!"
+                      href={`/tournaments?id=${id}${intent === "sponsor" ? "&intent=sponsor" : ""}`}
+                      className="surface-card tournament-card min-w-0"
                     >
-                      <StatusPill tone={status.tone}>
-                        {copy("badge", {
-                          id: id.toString(),
-                          status: copy(status.label),
-                        })}
-                      </StatusPill>
+                      <div className="tournament-card-top">
+                        <StatusPill tone={status.tone}>
+                          {copy("badge", { status: copy(status.label) })}
+                        </StatusPill>
+                        <span className="tournament-card-id">
+                          {copy("id", { id: id.toString() })}
+                        </span>
+                      </div>
                       <h3 className="text-lg font-semibold [overflow-wrap:anywhere]">
                         {t.title}
                       </h3>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-foreground">
-                        <span>
-                          {copy("funded", { amount: formatCurrency(t.funded) })}
-                        </span>
-                        <span>
-                          {seats === undefined
-                            ? copy("capacity", { capacity: t.capacity })
-                            : group === "open"
-                              ? copy("remaining", {
-                                  seats,
-                                  capacity: t.capacity,
-                                })
-                              : copy("participants", {
-                                  count: t.capacity - seats,
-                                  capacity: t.capacity,
-                                })}
-                        </span>
-                      </div>
-                      <p className="text-sm text-foreground">
-                        {copy("deadline", {
-                          date: formatDateTime(t.registrationEnds, locale),
-                        })}
-                      </p>
-                      <span className="mt-auto flex items-center gap-2 font-semibold text-status-warning">
-                        {group === "closed" && t.phase === 2
-                          ? copy("results")
-                          : copy("view")}
+                      <dl className="tournament-card-facts">
+                        <div>
+                          <dt>{copy("fundLabel")}</dt>
+                          <dd>{formatCurrency(t.funded, " test", locale)}</dd>
+                        </div>
+                        <div>
+                          <dt>
+                            {copy(
+                              t.phase === 0 && seats !== undefined
+                                ? "seatsLabel"
+                                : "playersLabel",
+                            )}
+                          </dt>
+                          <dd>
+                            {seats === undefined
+                              ? copy("capacity", { capacity: t.capacity })
+                              : t.phase === 0
+                                ? copy("remaining", {
+                                    seats,
+                                    capacity: t.capacity,
+                                  })
+                                : copy("participants", {
+                                    count: t.capacity - seats,
+                                    capacity: t.capacity,
+                                  })}
+                          </dd>
+                        </div>
+                        {t.phase === 0 && (
+                          <div>
+                            <dt>{copy("deadlineLabel")}</dt>
+                            <dd>
+                              {(() => {
+                                const deadline = tournamentDeadline(
+                                  t.registrationEnds,
+                                  now!,
+                                  locale,
+                                );
+                                return copy(deadline.key, deadline.values);
+                              })()}
+                            </dd>
+                          </div>
+                        )}
+                      </dl>
+                      <span className="tournament-card-action mt-auto flex items-center gap-2 font-semibold text-primary">
+                        {intent === "sponsor"
+                          ? copy("viewSponsorship")
+                          : group === "closed" && t.phase === 2
+                            ? copy("results")
+                            : copy("view")}
                         <Icon name="arrow" className="h-4 w-4" />
                       </span>
                     </Link>

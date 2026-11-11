@@ -34,7 +34,7 @@ vi.mock("wagmi", () => ({
             ? [Array(fixture.players).fill("0x1"), []]
             : {
                 capacity: 8,
-                funded: 1n,
+                funded: 250_000_000_000_000_000n,
                 registrationEnds: 200n,
                 completionDeadline: 300n,
                 ...fixture,
@@ -44,11 +44,46 @@ vi.mock("wagmi", () => ({
   }),
 }));
 
-function Catalog() {
-  return <TournamentCatalog index={useTournamentIndex()} />;
+function Catalog({ intent }: { intent?: "sponsor" }) {
+  return <TournamentCatalog index={useTournamentIndex()} intent={intent} />;
 }
 
 afterEach(cleanup);
+
+it("offers only pre-start tournaments still accepting sponsorship and preserves the sponsor intent", () => {
+  render(<Catalog intent="sponsor" />);
+  const destinations = screen
+    .getAllByRole("link")
+    .map((link) => link.getAttribute("href"));
+  expect(destinations).toEqual(
+    expect.arrayContaining([
+      "/tournaments?id=0&intent=sponsor",
+      "/tournaments?id=1&intent=sponsor",
+      "/tournaments?id=5&intent=sponsor",
+    ]),
+  );
+  expect(destinations).toHaveLength(3);
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.queryByText("Giải đang chơi")).toBeNull();
+  expect(screen.queryByText("Giải hết hạn")).toBeNull();
+});
+
+it("separates status, id and localized facts and omits registration deadlines after play starts", () => {
+  render(<Catalog />);
+  const open = screen.getByRole("link", { name: /Giải đầu tiên/ });
+  expect(within(open).getByText("Đang mở đăng ký").textContent).not.toContain(
+    "#",
+  );
+  expect(within(open).getByText("#0")).toBeTruthy();
+  expect(within(open).getByText(/^0,25 (ETH|AVAX) test$/)).toBeTruthy();
+  expect(within(open).getByText("Còn dưới 1 giờ")).toBeTruthy();
+  const full = screen.getByRole("link", { name: /Giải đã đủ chỗ/ });
+  expect(within(full).getByText("Còn 0/8 chỗ")).toBeTruthy();
+  for (const name of ["Giải đang chơi", "Giải đã chốt"]) {
+    const card = screen.getByRole("link", { name: new RegExp(name) });
+    expect(within(card).queryByText("Hạn đăng ký")).toBeNull();
+  }
+});
 
 it("groups real registration availability and retains tournament zero in its link", () => {
   render(

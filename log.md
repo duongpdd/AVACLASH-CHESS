@@ -1,3 +1,12 @@
+## [2026-11-11] style | Chuẩn hóa UI Cup và giữ thiết kế hero tím
+
+- Đồng bộ token bo góc 8/8/6px, padding panel 16px, PageHeader 24px và main trang công khai chức năng 768px; giữ ngoại lệ landing 1120px.
+- Chuyển CSS onboarding sang mobile-first, một cột dưới md; thu gọn logo workspace trong header 56px.
+- Bảng Elo rỗng đi qua DataWithStatus, giữ ưu tiên lỗi/tải/rỗng; thêm kiểm thử hồi quy cho layout trạng thái tùy chỉnh.
+- Ghi quy chuẩn hiện có và ngoại lệ thiết kế vào docs/design/FRONTEND_STANDARDS.md; giữ Next.js 16.4.5, không hạ phiên bản.
+- Khôi phục demo Anvil riêng với giải đang đấu và giải mở đăng ký; không thay env thật hoặc mã hợp đồng/packages/cosmetics.
+- Kiểm tra: typecheck, lint, production build và 241/241 test qua; 52 trường hợp UI vi/en, sáng/tối không tràn ngang. Đăng nhập bằng ví Anvil test, đo logo 44px trong header 56px, kiểm tra drawer và form tạo giải.
+
 ## [2026-11-07] chore | Dọn repo và xác minh hợp đồng
 
 - Xác minh mã nguồn `TournamentPrizePool` trên Routescan, bytecode khớp giao dịch deploy.

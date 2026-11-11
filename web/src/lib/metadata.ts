@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
 import type { UiKey } from "@/i18n/ui-copy";
 
-export const siteName = "AvaClash Chess";
+export const siteName = "AvaClash Cup";
 export const siteUrl = new URL(
   process.env.NEXT_PUBLIC_SITE_URL || "https://avaclash-chess.vercel.app",
 );

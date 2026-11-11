@@ -23,6 +23,7 @@ import Icon from "./app-icon";
 import WalletAction from "./wallet-action";
 import { parseRoomId, getGameRoomUrl } from "@/utils/room";
 import { useClientMounted } from "@/hooks/use-client-mounted";
+import ConfigErrorBanner from "./config-error-banner";
 
 export default function RoomLobbyWidget() {
   const uiText = useUiCopy();
@@ -32,8 +33,7 @@ export default function RoomLobbyWidget() {
   const effectiveConnected = mounted && isConnected;
   const chainId = useChainId();
   const isWrongNetwork = effectiveConnected && chainId !== targetChain.id;
-  const { isBlocked: isConfigBlocked, errorMessage: configLockReason } =
-    useContractBytecodeGuard();
+  const { isBlocked: isConfigBlocked } = useContractBytecodeGuard();
 
   const [activeTab, setActiveTab] = useState<"create" | "join">("create");
 
@@ -191,15 +191,7 @@ export default function RoomLobbyWidget() {
         onReset={resetWithdraw}
         successMessage={uiText("messageTheAvailableBalanceWasWithdrawnTo")}
       />
-      {isConfigBlocked && configLockReason && (
-        <div
-          role="alert"
-          className="mb-5 rounded-xl border border-status-danger/30 bg-status-danger/5 p-4 text-sm text-status-danger"
-        >
-          {uiText("messageTheTransactionIsCurrentlyUnavailable")}{" "}
-          {uiText.existing(configLockReason)}
-        </div>
-      )}
+      <ConfigErrorBanner />
       <div className="lobby-layout">
         <CardCustom aria-labelledby="lobby-title">
           <div className="section-heading">

@@ -41,22 +41,22 @@ it("draws the same squares, coordinate labels and piece styles with the explicit
 
   const withDefault = draw(DEFAULT_THEME);
   expect(withDefault).toEqual(draw());
-  expect(withDefault.fills).toContainEqual([0xead9b5, 1]);
-  expect(withDefault.fills).toContainEqual([0xb58863, 1]);
-  expect(withDefault.fills).toContainEqual([0xf7ec59, 1]);
+  expect(withDefault.fills).toContainEqual([0xdbd2e9, 1]);
+  expect(withDefault.fills).toContainEqual([0x75618f, 1]);
+  expect(withDefault.fills).toContainEqual([0xc4a5e8, 1]);
   expect(withDefault.labels).toContainEqual([
     4,
     3,
     "8",
-    expect.objectContaining({ color: "#b58863" }),
+    expect.objectContaining({ color: "#75618f" }),
   ]);
   expect(withDefault.labels).toContainEqual([
     29,
     29,
     "♜",
     expect.objectContaining({
-      color: "#1E293B",
-      stroke: "#F8FAFC",
+      color: "#251A38",
+      stroke: "#F5EFFF",
       strokeThickness: 2.5,
     }),
   ]);
@@ -65,8 +65,8 @@ it("draws the same squares, coordinate labels and piece styles with the explicit
     435,
     "♜",
     expect.objectContaining({
-      color: "#FFFBEB",
-      stroke: "#0F172A",
+      color: "#F5EFFF",
+      stroke: "#160D2B",
       strokeThickness: 4,
     }),
   ]);
@@ -87,6 +87,6 @@ it("redraws with a new theme while preserving the game state", () => {
   expect(scene.getGameState()).toBe(game);
 
   scene.setTheme();
-  expect(fillStyle.mock.calls).toContainEqual([0xead9b5, 1]);
+  expect(fillStyle.mock.calls).toContainEqual([0xdbd2e9, 1]);
   scene.shutdown();
 });

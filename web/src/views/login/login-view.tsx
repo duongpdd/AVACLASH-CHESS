@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ProviderNotFoundError, useAccount, useConnect } from "wagmi";
-import { NETWORK_NAME } from "@/config/env";
+import { useNetworkName } from "@/i18n/use-network-name";
 import { useAuth } from "@/providers/auth-provider";
 import { useTranslations } from "next-intl";
 import { workspaceReturn } from "@/utils/workspace-return";
@@ -73,8 +73,22 @@ function WalletSetupHelp() {
 
 export function LoginView() {
   const t = useTranslations("login");
+  const network = useNetworkName();
   const router = useRouter();
   const next = workspaceReturn(useSearchParams().get("next"));
+  const destination = next.split(/[?#]/)[0];
+  const sponsorLogin =
+    destination === "/tournaments" &&
+    new URLSearchParams(next.split("?")[1]?.split("#")[0]).get("intent") ===
+      "sponsor";
+  const loginIntent =
+    destination === "/tournaments/new"
+      ? "organize"
+      : destination === "/tournaments/play"
+        ? "match"
+        : sponsorLogin
+          ? "sponsor"
+          : "default";
   const { session, checking, signIn, signingIn, error: authError } = useAuth();
   const { status } = useAccount();
   const { connect, connectors, isPending, error } = useConnect();
@@ -92,9 +106,41 @@ export function LoginView() {
     <div className="app-shell">
       <AppHeader showWallet={false} />
       <main className="site-container play-page">
-        <CardCustom className="grid gap-4 md:grid-cols-2">
-          <PageHeader title={t("title")} description={t("description")} />
+        <CardCustom className="login-card grid gap-4 md:grid-cols-2">
+          <div className="login-intro">
+            <PageHeader
+              title={t(
+                loginIntent === "default" ? "title" : `${loginIntent}Title`,
+              )}
+              description={t(
+                loginIntent === "default"
+                  ? "description"
+                  : `${loginIntent}Description`,
+              )}
+            />
+            {loginIntent === "organize" && (
+              <section
+                className="login-preparation"
+                aria-labelledby="login-preparation-title"
+              >
+                <h2 id="login-preparation-title">{t("prepareTitle")}</h2>
+                <ul>
+                  <li>{t("prepareRules")}</li>
+                  <li>{t("prepareReferee")}</li>
+                </ul>
+              </section>
+            )}
+            <Link
+              href={sponsorLogin ? next : "/tournaments"}
+              className="text-link"
+            >
+              {t("browseFirst")}
+              <Icon name="arrow" />
+            </Link>
+          </div>
           <div className="grid min-w-0 gap-3">
+            <p className="login-step-summary">{t("walletSteps")}</p>
+            <p className="helper-text">{t("walletCostNote")}</p>
             {status !== "connected" &&
               connectors.map((connector) => (
                 <Button
@@ -146,7 +192,9 @@ export function LoginView() {
                   {t("failed")}
                 </p>
               ))}
-            <p className="text-description">MetaMask / Core · {NETWORK_NAME}</p>
+            <p className="text-description">
+              {t("walletNetwork", { network })}
+            </p>
           </div>
           <nav
             aria-label={t("guest")}

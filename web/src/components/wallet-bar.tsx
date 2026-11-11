@@ -13,7 +13,8 @@ import {
 } from "wagmi";
 import { formatEther } from "viem";
 import { targetChain } from "@/config/wagmi";
-import { CHAIN_ID, CURRENCY_SYMBOL, NETWORK_NAME, RPC_URL } from "@/config/env";
+import { CHAIN_ID, CURRENCY_SYMBOL, RPC_URL } from "@/config/env";
+import { useNetworkName } from "@/i18n/use-network-name";
 import TxStatusAlert from "./tx-status-alert";
 import Icon from "./app-icon";
 import Dialog from "./modal-dialog";
@@ -24,6 +25,7 @@ import { useClientMounted } from "@/hooks/use-client-mounted";
 
 export default function WalletBar() {
   const uiText = useUiCopy();
+  const network = useNetworkName();
   const mounted = useClientMounted();
 
   const { address, isConnected } = useAccount();
@@ -93,7 +95,7 @@ export default function WalletBar() {
       <div>
         <div className="flex flex-wrap items-center gap-2.5">
           <span className="wallet-network rounded-md border border-foreground/10 px-2 py-1 text-xs text-muted-foreground">
-            {NETWORK_NAME}
+            {network}
           </span>
           {(connectError || switchError) && (
             <p role="alert" className="text-xs text-status-danger">
@@ -216,7 +218,7 @@ export default function WalletBar() {
           >
             {isSwitching
               ? uiText("messageSwitching")
-              : uiText("messageSwitchTo", { p0: String(targetChain.name) })}
+              : uiText("messageSwitchTo", { p0: network })}
           </button>
           <button
             type="button"
@@ -241,7 +243,7 @@ export default function WalletBar() {
                 id="network-guide-title"
                 className="text-base font-bold text-status-warning"
               >
-                {uiText("messageAddTheNetwork")} {targetChain.name}
+                {uiText("messageAddTheNetwork")} {network}
               </h3>
               <button
                 type="button"

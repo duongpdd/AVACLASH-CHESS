@@ -5,7 +5,7 @@ import messages from "../messages/vi.json";
 import { render, screen, cleanup } from "@/test/render";
 
 describe("FujiTestnetBanner Network Display", () => {
-  it("displays 'Anvil local' when CHAIN_ID is 31337", async () => {
+  it("displays the localized Anvil name when CHAIN_ID is 31337", async () => {
     cleanup();
     vi.resetModules();
     vi.doMock("../config/env", () => ({
@@ -20,9 +20,7 @@ describe("FujiTestnetBanner Network Display", () => {
       </NextIntlClientProvider>,
     );
 
-    expect(
-      screen.getByText(/Anvil local · mạng thử nghiệm cục bộ/i),
-    ).toBeDefined();
+    expect(screen.getByText("Mạng thử nghiệm cục bộ (Anvil)")).toBeDefined();
     expect(screen.getByText(/Chain ID 31337/i)).toBeDefined();
   });
 
@@ -41,9 +39,9 @@ describe("FujiTestnetBanner Network Display", () => {
       </NextIntlClientProvider>,
     );
 
-    expect(screen.getByText(/Fuji testnet · tiền thử nghiệm/i)).toBeDefined();
-    expect(screen.getAllByText(/Fuji testnet/i).length).toBeGreaterThanOrEqual(
-      1,
-    );
+    expect(screen.getByText("Avalanche Fuji (testnet)")).toBeDefined();
+    expect(
+      screen.getAllByText(/Avalanche Fuji/i).length,
+    ).toBeGreaterThanOrEqual(1);
   });
 });

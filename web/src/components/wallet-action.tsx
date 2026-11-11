@@ -5,10 +5,16 @@ import { useAccount, useChainId, useConnect, useSwitchChain } from "wagmi";
 import { targetChain } from "@/config/wagmi";
 import { useClientMounted } from "@/hooks/use-client-mounted";
 import Icon from "./app-icon";
+import { useNetworkName } from "@/i18n/use-network-name";
 
 /** One next action in the lobby; no signing or connection occurs until clicked. */
-export default function WalletAction() {
+export default function WalletAction({
+  showHint = true,
+}: {
+  showHint?: boolean;
+}) {
   const uiText = useUiCopy();
+  const network = useNetworkName();
   const mounted = useClientMounted();
   const { isConnected } = useAccount();
   const chainId = useChainId();
@@ -41,16 +47,18 @@ export default function WalletAction() {
         {wrongNetwork
           ? switching
             ? uiText("messageSwitchingNetworks")
-            : uiText("messageSwitchTo", { p0: String(targetChain.name) })
+            : uiText("messageSwitchTo", { p0: network })
           : isPending
             ? uiText("messageConfirmTheConnectionInYourWallet")
             : uiText("messageConnectWalletToContinue")}
       </Button>
-      <p className="helper-text mt-2 text-center">
-        {wrongNetwork
-          ? uiText("messageUseTheSameNetworkAsThe")
-          : uiText("messageMetamaskOrCoreConnectingIsFree")}
-      </p>
+      {showHint && (
+        <p className="helper-text mt-2 text-center">
+          {wrongNetwork
+            ? uiText("messageUseTheSameNetworkAsThe")
+            : uiText("messageMetamaskOrCoreConnectingIsFree")}
+        </p>
+      )}
       {(error || switchError) && (
         <p role="alert" className="mt-2 text-sm text-status-danger">
           {uiText("messageCouldNot")}{" "}

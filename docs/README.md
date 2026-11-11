@@ -11,6 +11,8 @@ Mô tả chung và cách chạy nằm ở [README dự án](../README.md).
 
 ## Thiết kế
 
+- [Quy chuẩn frontend, công nghệ và ngoại lệ landing](design/FRONTEND_STANDARDS.md)
+
 - [Kiến trúc và ranh giới tin cậy](design/ARCHITECTURE.md)
 - [Giao thức WebSocket và định dạng chữ ký](design/PROTOCOL.md)
 - [Các quyết định kỹ thuật](design/DECISIONS.md), mục ghi "Superseded" chỉ còn giá trị lịch sử

@@ -87,7 +87,7 @@ it("shows PGN and the UCI commitment before asking the wallet to send a result",
   expect(send).not.toHaveBeenCalled();
   fireEvent.click(
     within(dialog).getByRole("button", {
-      name: "Ký và gửi lên Avalanche Fuji",
+      name: "Ký và gửi lên Avalanche Fuji (testnet)",
     }),
   );
   await waitFor(() =>

@@ -1,9 +1,10 @@
 "use client";
 
 import { useUiCopy } from "@/i18n/use-ui-copy";
+import Icon from "@/components/app-icon";
 import Link from "next/link";
 import { useState } from "react";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,11 +79,13 @@ export default function TournamentDetails({
   now: bigint;
 }) {
   const uiText = useUiCopy();
+  const home = useTranslations("home");
   const { address } = useAccount();
   const queryClient = useQueryClient();
   const { data: elo } = useCupElo();
   const router = useRouter();
   const params = useSearchParams();
+  const sponsoring = params.get("intent") === "sponsor";
   const activeTab =
     tabs.find(({ id }) => id === params.get("tab"))?.id ?? "tong-quan";
   const [confirmation, setConfirmation] = useState<
@@ -216,7 +219,7 @@ export default function TournamentDetails({
       : reviewer
         ? uiText("messageReferee")
         : relay
-          ? "relay"
+          ? home("gameServerRole")
           : uiText("messageSponsor");
     registrationBlock = uiText("messageTheWalletCannotEnterThisTournament", {
       p0: String(role),
@@ -587,43 +590,60 @@ export default function TournamentDetails({
           </div>
         </details>
       )}
-      {open && me < 0 && !reviewer && !!relaySigner.data && !relay && (
-        <details className="rounded-lg border border-foreground/10 p-3">
-          <summary className="cursor-pointer font-semibold">
-            {uiText("messageSponsor3")}
-          </summary>
-          <form
-            className="mt-3 flex flex-wrap items-end gap-2 md:max-w-lg"
-            noValidate
-            onSubmit={fund}
+      {open &&
+        me < 0 &&
+        !reviewer &&
+        (!address || (!!relaySigner.data && !relay)) && (
+          <details
+            id="sponsor-prize-pool"
+            open={sponsoring || undefined}
+            className="rounded-lg border border-foreground/10 p-3 sponsor-funding"
           >
-            <label>
-              {uiText("messageFundThePrizePool")}
-              {CURRENCY_SYMBOL} test)
-              <Input
-                inputMode="decimal"
-                placeholder="0.02"
-                aria-invalid={!!errors.fund}
-                {...register("fund", {
-                  setValueAs: (value: string) => value.trim(),
-                  validate: (value) => {
-                    try {
-                      if (parseEther(value) > 0n) return true;
-                    } catch {}
-                    return uiText("messageEnterAPositiveAmountOfTest", {
-                      p0: String(CURRENCY_SYMBOL),
-                    });
-                  },
-                })}
-              />
-              <FieldError message={errors.fund?.message} />
-            </label>
-            <Button type="submit" disabled={disabled || isSubmitting}>
-              {uiText("messageAddFunds")}
-            </Button>
-          </form>
-        </details>
-      )}
+            <summary className="cursor-pointer font-semibold">
+              {uiText("messageSponsor3")}
+            </summary>
+            <p className="helper-text mt-3">{home("sponsorFundingHelp")}</p>
+            {!address && (
+              <Link
+                className="button-primary mt-3"
+                href={`/login?next=${encodeURIComponent(`/tournaments?id=${id}&intent=sponsor`)}`}
+              >
+                {home("connectToSponsor")}
+                <Icon name="wallet" />
+              </Link>
+            )}
+            <form
+              className="mt-3 flex flex-wrap items-end gap-2 md:max-w-lg"
+              noValidate
+              onSubmit={fund}
+            >
+              <label>
+                {uiText("messageFundThePrizePool")}
+                {CURRENCY_SYMBOL} test)
+                <Input
+                  inputMode="decimal"
+                  placeholder="0.02"
+                  aria-invalid={!!errors.fund}
+                  {...register("fund", {
+                    setValueAs: (value: string) => value.trim(),
+                    validate: (value) => {
+                      try {
+                        if (parseEther(value) > 0n) return true;
+                      } catch {}
+                      return uiText("messageEnterAPositiveAmountOfTest", {
+                        p0: String(CURRENCY_SYMBOL),
+                      });
+                    },
+                  })}
+                />
+                <FieldError message={errors.fund?.message} />
+              </label>
+              <Button type="submit" disabled={disabled || isSubmitting}>
+                {uiText("messageAddFunds")}
+              </Button>
+            </form>
+          </details>
+        )}
     </CardCustom>
   );
   const score = (
@@ -643,7 +663,7 @@ export default function TournamentDetails({
             <TableRow>
               <TableHead className="py-2">{uiText("messagePlayer")}</TableHead>
               <TableHead>{uiText("messagePoints")}</TableHead>
-              <TableHead>Elo Cup</TableHead>
+              <TableHead>{home("cupEloLabel")}</TableHead>
               {t.phase === 2 && <TableHead>{uiText("messagePrize")}</TableHead>}
             </TableRow>
           </TableHeader>
