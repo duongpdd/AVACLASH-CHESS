@@ -41,14 +41,21 @@ export function DataWithStatus({
   loading,
   noData,
   children,
+  noDataLayout = "default",
 }: {
   error?: ReactNode;
   loading?: boolean;
   noData?: ReactNode;
   children: ReactNode;
+  noDataLayout?: "default" | "custom";
 }) {
   if (error) return <Failed>{error === true ? undefined : error}</Failed>;
   if (loading) return <Loading />;
-  if (noData) return <NoData>{noData === true ? undefined : noData}</NoData>;
+  if (noData)
+    return noDataLayout === "custom" ? (
+      <>{noData}</>
+    ) : (
+      <NoData>{noData === true ? undefined : noData}</NoData>
+    );
   return children;
 }

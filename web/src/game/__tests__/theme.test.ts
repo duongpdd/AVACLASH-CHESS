@@ -27,23 +27,23 @@ describe("cosmetic theme resolution", () => {
   it("preserves the built-in rendering colors and widths", () => {
     expect(resolveTheme({})).toBe(DEFAULT_THEME);
     expect(DEFAULT_THEME.board).toEqual({
-      lightSquare: 0xead9b5,
-      darkSquare: 0xb58863,
-      lastMoveLight: 0xf7ec59,
-      lastMoveDark: 0xdac331,
-      selectedSquare: 0x38bdf8,
-      legalMoveDot: 0x10b981,
+      lightSquare: 0xdbd2e9,
+      darkSquare: 0x75618f,
+      lastMoveLight: 0xc4a5e8,
+      lastMoveDark: 0x9b75c4,
+      selectedSquare: 0xd8b4fe,
+      legalMoveDot: 0x6d3eb2,
       captureRing: 0xef4444,
       checkGlow: 0xef4444,
     });
     expect(DEFAULT_THEME.white).toEqual({
-      fill: 0xfffbeb,
-      stroke: 0x0f172a,
+      fill: 0xf5efff,
+      stroke: 0x160d2b,
       width: 4,
     });
     expect(DEFAULT_THEME.black).toEqual({
-      fill: 0x1e293b,
-      stroke: 0xf8fafc,
+      fill: 0x251a38,
+      stroke: 0xf5efff,
       width: 2.5,
     });
     expect(DEFAULT_THEME.shadow).toBe(true);
@@ -74,7 +74,11 @@ describe("cosmetic theme resolution", () => {
   });
 
   it("rejects an outline that has zero width and a board with indistinguishable squares", () => {
-    const invisible = { ...skin, whiteFill: 0xead9b5, whiteWidth: 0 };
+    const invisible = {
+      ...skin,
+      whiteFill: DEFAULT_THEME.board.lightSquare,
+      whiteWidth: 0,
+    };
     expect(resolveTheme({ whitePieces: invisible }).white).toBe(
       DEFAULT_THEME.white,
     );

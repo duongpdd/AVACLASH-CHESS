@@ -42,6 +42,8 @@ node scripts/prepare-deploy.mjs .env.fuji.local --target render
 
 Output nằm trong `.local/deploy-render/`, đã git-ignore. Generator luôn để trống database URL và relay key, không sao chép secret từ môi trường. Local Anvil env được giữ riêng.
 
+Web triển khai công khai phải đặt `NEXT_PUBLIC_CHAIN_ID=43113` (Avalanche Fuji testnet). `31337` chỉ dùng để chạy demo Anvil cục bộ; không sao chép giá trị đó sang production. Nhãn Testnet trên giao diện không thay thế cấu hình mạng.
+
 ## Migration và kiểm thử storage
 
 Migration được quản lý tại `packages/relay/migrations/001-relay-games.sql`; chỉ thêm bảng, không xóa dữ liệu. Với migration mới, kiểm thử branch trước rồi áp dụng production bằng URL **direct**. Không chạy migration với URL `-pooler`.

@@ -1,5 +1,7 @@
 # AvaClash Cup: kịch bản video tiếng Việt khoảng 5 phút
 
+> Đây là kịch bản cũ ngày 07/11, chưa rút gọn cho yêu cầu nộp video. Bản lời thuyết trình hiện tại nằm trong [pitch deck ngày 12/11](submissions/CANVA_PITCH_CONTENT_VI.md); không dùng mặc định video 5 phút để nộp Team1.
+
 Ngày soạn: 07/11/2026. Dùng cùng [nội dung 10 slide](PITCH_SLIDE_CONTENT_VI.md).
 
 Bản này bám ba tiêu chí công khai của [Team1 Vietnam UniHack](https://build.avax.network/events/596c0b2d-63aa-4cf0-a0ad-a7e34ddbfdc0): giá trị giải pháp, độ phức tạp kỹ thuật và sử dụng Avalanche. Nguồn chưa nêu trọng số hoặc thời lượng video. Mốc 5 phút là giả định biên tập, cần đọc thử để căn tốc độ và chừa thời gian cho thao tác.

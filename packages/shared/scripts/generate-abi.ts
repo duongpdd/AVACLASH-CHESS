@@ -1,1 +1,0 @@
-import "./generate-abi.mjs";

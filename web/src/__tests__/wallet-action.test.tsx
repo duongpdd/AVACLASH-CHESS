@@ -44,7 +44,11 @@ it("offers a chain switch when an already connected wallet is on another chain",
   state.connected = true;
   state.chainId = 1;
   render(<WalletAction />);
-  fireEvent.click(screen.getByRole("button", { name: /Chuyển sang Fuji/ }));
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: /Chuyển sang Avalanche Fuji \(testnet\)/,
+    }),
+  );
   expect(state.switchChain).toHaveBeenCalledWith({ chainId: 43113 });
   expect(state.connect).not.toHaveBeenCalled();
 });

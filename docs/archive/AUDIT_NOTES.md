@@ -1,6 +1,6 @@
 # Báo cáo Đối chiếu & Đánh giá Mã nguồn (Audit Notes) — AvaClash Chess
 
-> Báo cáo này ghi nhận phiên bản tại thời điểm viết. Các phát hiện và số liệu mới nằm trong `REVIEW_2026-11-01.md`; đây không phải chứng nhận audit độc lập.
+> Báo cáo này ghi nhận bản 1v1 ngày 25/10/2026, không phải đánh giá phiên bản Cup hiện tại hoặc chứng nhận audit độc lập. Tên tài liệu và số dòng trong nội dung là tham chiếu lịch sử; các báo cáo từng lượt đã được dọn khỏi checkout và có thể đối chiếu trong Git. Xem [phạm vi rà soát bảo mật](../design/SECURITY_REVIEW_SCOPE.md) và [README hiện tại](../../README.md) để biết phạm vi sản phẩm.
 
 > **Ngày thực hiện:** 25/10/2026  
 > **Căn cứ tài liệu:** `docs/IMPROVEMENT_PLAN.md` (v2.0), `docs/DECISIONS.md`, `docs/ARCHITECTURE.md` (v1.2.0), `docs/PROGRESS.md`  

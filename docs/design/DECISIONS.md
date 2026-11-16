@@ -4,7 +4,7 @@
 
 ### Q30: Chi thưởng mùa bằng Merkle — `Accepted for testnet`
 
-Thay Q12: owner công bố danh sách/root bất biến, khóa ngân sách từ seasonPrizePool, chờ 2 ngày, claim trong 90 ngày, một lần/ví/mùa, leaf bind chain/Meta/season/ví/amount. Phần dư hết hạn trả về pool, không trả owner. Có sponsor funding độc lập. Owner chịu trách nhiệm phân bổ công bằng; chưa có chống Sybil hoặc tự quy đổi điểm. Xem SEASON_REWARDS.md.
+Thay Q12: owner công bố danh sách/root bất biến, khóa ngân sách từ seasonPrizePool, chờ 2 ngày, claim trong 90 ngày, một lần/ví/mùa, leaf bind chain/Meta/season/ví/amount. Phần dư hết hạn trả về pool, không trả owner. Có sponsor funding độc lập. Owner chịu trách nhiệm phân bổ công bằng; chưa có chống Sybil hoặc tự quy đổi điểm. Xem [chi thưởng mùa](../archive/SEASON_REWARDS.md).
 
 ### Q31: Cược spectator tắt mặc định — `Accepted`
 
@@ -43,7 +43,7 @@ Join bind chain, Escrow và origin, client từ chối cấu hình sai trước 
 - Receipt phải có status success mới báo thành công; UI refund dùng cùng mốc thời gian và điều kiện claim như hợp đồng. Đổi phòng/ví bắt đầu phiên mới, không tái sử dụng kết quả cũ.
 
 > **Cập nhật:** 01/11/2026 (rà soát theo mã nguồn)
-> **Quy ước mã:** `D1-D18` và `Q1-Q29` là mã quyết định trong file này. Mã hạng mục của `IMPROVEMENT_PLAN.md` là hệ mã khác (ví dụ `D4` ở đây là tooling monorepo, còn `D4` trong kế hoạch cũ là phí giao thức; phí giao thức nay là **Q6**).
+> **Quy ước mã:** `D1-D18` và `Q1-Q29` là mã quyết định trong file này. Các kế hoạch làm việc cũ có hệ mã riêng; khi đối chiếu lịch sử Git, dùng tiêu đề quyết định để xác định đúng nội dung. Phí giao thức là **Q6**, còn **D4** là tooling monorepo.
 > **Trạng thái:** `Accepted` = đang áp dụng | `Superseded` = đã bị thay thế | `Proposed` = đề xuất, chờ chốt | `Open` = còn mâu thuẫn cần xử lý.
 > **Lưu ý:** các quyết định được chuẩn hóa theo mã nguồn tại ARCHITECTURE.md; các mục Superseded và mô tả lượt cũ là lịch sử. Bổ sung Q25–Q29 cho đợt rà soát 01/11/2026.
 

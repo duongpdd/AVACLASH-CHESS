@@ -49,7 +49,7 @@ Nếu chưa có đối thủ, phòng on-chain vẫn Open và chưa mở kết n�
 
 ## Cấu hình Fuji
 
-Web và relay hiện dùng địa chỉ Cup trong [hướng dẫn Fuji](../guides/TOURNAMENT_DEMO.md). Cấu hình bên dưới áp dụng cho bản 1v1 cũ; [bằng chứng triển khai 1v1](../benchmarks/online-deployment.json) được lưu để tham khảo. Các hướng dẫn [Railway](../guides/RENDER_DEPLOY.md) và [Docker/Caddy trên VPS](../guides/RENDER_DEPLOY.md) được giữ làm phương án khác.
+Web và relay hiện dùng địa chỉ Cup trong [hướng dẫn Fuji](../guides/TOURNAMENT_DEMO.md). Cấu hình bên dưới áp dụng cho bản 1v1 cũ; [bằng chứng triển khai 1v1](../benchmarks/online-deployment.json) được lưu để tham khảo. Cấu hình hosting đang dùng được mô tả trong [hướng dẫn Render, Neon và Vercel](../guides/RENDER_DEPLOY.md).
 
 Sao chép `.env.example` cho cấu hình deploy, `packages/relay/.env.example` thành `.env.local` tại relay, và `web/.env.example` thành `web/.env.local`. Tệp root không tự cấu hình thay cho Next.js; các biến web phải nằm trong `web/.env.local` hoặc môi trường build.
 
@@ -97,6 +97,6 @@ Giữ phiên bản pnpm 9.15 đã khóa trong `packageManager`. Không bỏ qua 
 - ELO khởi điểm 1200; chỉ cập nhật khi đủ 20 half-move; giảm điểm tăng theo cặp ví/ngày chưa chống Sybil nhiều ví.
 - Dự án chưa qua audit độc lập. Dùng token testnet cho bản Cup trên Fuji; bài kiểm thử trọn giải đã chạy trên Anvil.
 
-Xem [danh mục tài liệu](../README.md), [kiến trúc](../design/ARCHITECTURE.md), [giao thức](../design/PROTOCOL.md), [tiến độ](PROGRESS.md) và [báo cáo rà soát](REVIEW_2026-11-01.md).
+Xem [danh mục tài liệu](../README.md), [kiến trúc](../design/ARCHITECTURE.md), [giao thức](../design/PROTOCOL.md) và [phạm vi rà soát bảo mật](../design/SECURITY_REVIEW_SCOPE.md). Các báo cáo tiến độ từng lượt đã được dọn khỏi checkout; tham khảo lịch sử Git nếu cần đối chiếu phiên bản cũ.
 
-Hướng dẫn bổ sung: [triển khai Fuji](../guides/FUJI_DEPLOY.md), [vận hành/sao lưu](../guides/OPERATIONS.md), [thưởng mùa](SEASON_REWARDS.md), [nghiệm thu bổ sung](IMPLEMENTATION_2026-11-01.md). Chạy `pnpm test:campaign` để đo 20 trận Node/Anvil riêng, `pnpm test:tools` để kiểm tra công cụ và `pnpm check:fuji` để kiểm tra điều kiện triển khai.
+Hướng dẫn bổ sung: [triển khai Fuji](../guides/FUJI_DEPLOY.md), [vận hành/sao lưu](../guides/OPERATIONS.md), [thưởng mùa](SEASON_REWARDS.md). Chạy `pnpm test:campaign` để đo 20 trận Node/Anvil riêng, `pnpm test:tools` để kiểm tra công cụ và `pnpm check:fuji` để kiểm tra điều kiện triển khai.

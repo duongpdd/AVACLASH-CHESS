@@ -4,6 +4,7 @@ import { isCosmeticsEnabled } from "@/config/cosmetics";
 
 import { useUiCopy } from "@/i18n/use-ui-copy";
 import { useTranslations } from "next-intl";
+import { useNetworkName } from "@/i18n/use-network-name";
 import { Button } from "@/components/ui/button";
 import { CardCustom } from "@/components/ui/card-custom";
 import { Suspense, useEffect, useMemo, useState } from "react";
@@ -25,7 +26,6 @@ import { CosmeticNotice } from "@/components/cosmetics/cosmetic-ui";
 import { useSpectatorMoves } from "@/hooks/use-spectator-moves";
 import {
   CHAIN_ID,
-  NETWORK_NAME,
   TOURNAMENT_ADDRESS,
   tournamentEnabled,
   ZERO_ADDRESS,
@@ -88,6 +88,7 @@ function LiveMatch({
 }) {
   const uiText = useUiCopy();
   const tx = useTournamentTx();
+  const network = useNetworkName();
   const [reviewOpen, setReviewOpen] = useState(false);
   const [resignOpen, setResignOpen] = useState(false);
   const session = useRelaySession(roomId, {
@@ -324,7 +325,7 @@ function LiveMatch({
                 </p>
                 <p className="text-sm text-foreground">
                   {uiText("messageYourWalletSubmitsTheProvisionalResult")}{" "}
-                  {NETWORK_NAME}
+                  {network}
                   {uiText("messageTheContractStoresTheHashOf")}
                 </p>
                 <details>
@@ -375,7 +376,7 @@ function LiveMatch({
                 disabled={!preview || !relaySignature || tx.busy}
                 onClick={() => void report()}
               >
-                {uiText("messageSignAndSubmitTo")} {NETWORK_NAME}
+                {uiText("messageSignAndSubmitTo")} {network}
               </Button>
             </div>
           </CardCustom>
@@ -386,7 +387,11 @@ function LiveMatch({
 }
 
 function SpectatingMatch({
-  roomId, tournamentId, startedAt, white, black,
+  roomId,
+  tournamentId,
+  startedAt,
+  white,
+  black,
 }: {
   roomId: number;
   tournamentId: bigint;
@@ -398,10 +403,20 @@ function SpectatingMatch({
   return (
     <div className="game-board-column grid min-w-0 gap-2">
       <p role="status" className="helper-text">
-        {status === "live" ? "Đang xem trực tiếp" : status === "finished" ? "Ván đã kết thúc"
-          : status === "retrying" ? "Đang kết nối lại để xem ván" : "Đang kết nối để xem ván"}
+        {status === "live"
+          ? "Đang xem trực tiếp"
+          : status === "finished"
+            ? "Ván đã kết thúc"
+            : status === "retrying"
+              ? "Đang kết nối lại để xem ván"
+              : "Đang kết nối để xem ván"}
       </p>
-      <MatchSkins white={white} black={black} viewer="spectator" start={{ tournamentId, timestamp: startedAt }}>
+      <MatchSkins
+        white={white}
+        black={black}
+        viewer="spectator"
+        start={{ tournamentId, timestamp: startedAt }}
+      >
         {(theme) => <Board boardSize={560} moves={moves} theme={theme} />}
       </MatchSkins>
     </div>
@@ -425,8 +440,13 @@ function Replay({
 }) {
   const uiText = useUiCopy();
   const { address } = useAccount();
-  const viewer = address?.toLowerCase() === white.toLowerCase() ? "w"
-    : address?.toLowerCase() === black.toLowerCase() ? "b" : "spectator";
+  const network = useNetworkName();
+  const viewer =
+    address?.toLowerCase() === white.toLowerCase()
+      ? "w"
+      : address?.toLowerCase() === black.toLowerCase()
+        ? "b"
+        : "spectator";
   const replay = useCupReplay(roomId);
   useEffect(() => {
     if (replay.isError)
@@ -487,7 +507,9 @@ function Replay({
     <div className="hotseat-layout">
       <div className="game-board-column rounded-xl border border-foreground/10 bg-card p-2">
         <MatchSkins white={white} black={black} viewer={viewer}>
-          {(theme) => <Board boardSize={560} moves={moves.slice(0, at)} theme={theme} />}
+          {(theme) => (
+            <Board boardSize={560} moves={moves.slice(0, at)} theme={theme} />
+          )}
         </MatchSkins>
       </div>
       <aside className="surface-card space-y-4">
@@ -497,11 +519,11 @@ function Replay({
         <p role="status" className="text-sm text-foreground">
           {!anchored
             ? uiText("messageTheRelayRecordHasNoPublished", {
-                p0: String(NETWORK_NAME),
+                p0: network,
               })
             : matches
               ? uiText("messageTheGameRecordMatchesTheMove", {
-                  p0: String(NETWORK_NAME),
+                  p0: network,
                 })
               : uiText("messageTheGameRecordDoesNotMatch")}
         </p>

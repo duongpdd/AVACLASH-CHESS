@@ -7,7 +7,6 @@ import { useTranslations } from "next-intl";
 import { useAccount } from "wagmi";
 import { Brand } from "@/components/layout/brand";
 import { Preferences } from "@/components/layout/preferences";
-import { tournamentEnabled } from "@/config/env";
 import { useClientMounted } from "@/hooks/use-client-mounted";
 
 export default function AppHeader({
@@ -33,9 +32,7 @@ export default function AppHeader({
   const nav = [
     { id: "home", href: "/", label: "home" },
     { id: "tournament", href: "/tournaments", label: "tournaments" },
-    tournamentEnabled
-      ? { id: "ranking", href: "/ranking", label: "ranking" }
-      : { id: "vault", href: "/vault", label: "vault" },
+    { id: "ranking", href: "/ranking", label: "ranking" },
     { id: "guide", href: "/guide", label: "guide" },
   ] as const;
   const links = [
@@ -46,24 +43,24 @@ export default function AppHeader({
   ];
   const connected = mounted && isConnected;
   return (
-    <header className="border-b border-border bg-background">
-      <div className="site-container public-header-content flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2">
+    <header className="public-header">
+      <a href="#main-content" className="skip-link">
+        {t("skipToContent")}
+      </a>
+      <div className="site-container public-header-content">
         <Brand />
-        <div className="flex flex-wrap items-center justify-end gap-2 md:order-3">
+        <div className="public-header-actions">
           <Preferences />
           {showWallet && (
             <Link
-              className="button-secondary !px-2"
+              className="button-primary header-wallet"
               href={connected ? "/profile" : "/login"}
             >
               {t(connected ? "profile" : "connect")}
             </Link>
           )}
         </div>
-        <nav
-          aria-label={t("primary")}
-          className="public-navigation flex w-full flex-wrap items-center justify-between gap-1 md:w-auto md:flex-1 md:justify-center"
-        >
+        <nav aria-label={t("primary")} className="public-navigation">
           {links.map(({ id, href, title }) => {
             const selected =
               id === active ||

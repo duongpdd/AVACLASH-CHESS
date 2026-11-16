@@ -13,10 +13,10 @@ export function Preferences() {
   const router = useRouter();
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="preferences">
       <button
         type="button"
-        className="min-h-11 min-w-11 rounded-dropdown border border-border bg-card text-label"
+        className="preference-button text-label"
         aria-label={t("changeLanguage")}
         onClick={() => {
           document.cookie = `${localeCookie}=${locale === "vi" ? "en" : "vi"}; Path=/; Max-Age=31536000; SameSite=Lax`;
@@ -27,11 +27,11 @@ export function Preferences() {
       </button>
       <button
         type="button"
-        className="grid size-[36px] place-items-center rounded-dropdown border border-border bg-card"
+        className="preference-button"
         aria-label={t(dark ? "lightMode" : "darkMode")}
         onClick={toggle}
       >
-        {dark ? <Sun size={16} /> : <Moon size={16} />}
+        {dark ? <Sun size={18} aria-hidden /> : <Moon size={18} aria-hidden />}
       </button>
     </div>
   );

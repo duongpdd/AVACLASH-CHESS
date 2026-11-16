@@ -7,9 +7,9 @@ import AppHeader from "@/components/app-header";
 import AppFooter from "@/components/app-footer";
 import Icon from "@/components/app-icon";
 import WalletAction from "@/components/wallet-action";
+import { useNetworkName } from "@/i18n/use-network-name";
 import {
   CURRENCY_SYMBOL,
-  NETWORK_NAME,
   CHAIN_ID,
   RPC_URL,
   tournamentEnabled,
@@ -18,6 +18,7 @@ import {
 export default function GuidePage() {
   const uiText = useUiCopy();
   const t = useTranslations("pages");
+  const network = useNetworkName();
   if (tournamentEnabled)
     return (
       <div className="app-shell">
@@ -36,14 +37,17 @@ export default function GuidePage() {
             }
           />
           <CardCustom>
+            <p className="guide-audience">{t("forPlayers")}</p>
             <ol className="guide-steps">
               <li>
                 <span>01</span>
                 <div>
-                  <h2 className="text-description">{t("signUp")}</h2>
-                  <p>{t("signUpDetail", { network: NETWORK_NAME })}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <WalletAction />
+                  <h2 className="text-description font-semibold text-foreground">
+                    {t("signUp")}
+                  </h2>
+                  <p>{t("signUpDetail", { network })}</p>
+                  <div className="guide-step-actions mt-3 flex flex-wrap items-start gap-2">
+                    <WalletAction showHint={false} />
                     {CHAIN_ID === 43113 && (
                       <a
                         className="button-secondary"
@@ -58,31 +62,46 @@ export default function GuidePage() {
                       {t("viewCups")}
                     </Link>
                   </div>
+                  <p className="helper-text mt-2">
+                    {uiText("messageMetamaskOrCoreConnectingIsFree")}
+                  </p>
                 </div>
               </li>
               <li>
                 <span>02</span>
                 <div>
-                  <h2 className="text-description">{t("playMatch")}</h2>
+                  <h2 className="text-description font-semibold text-foreground">
+                    {t("playMatch")}
+                  </h2>
                   <p>{t("playMatchDetail")}</p>
                 </div>
               </li>
               <li>
                 <span>03</span>
                 <div>
-                  <h2 className="text-description">{t("report")}</h2>
+                  <h2 className="text-description font-semibold text-foreground">
+                    {t("report")}
+                  </h2>
                   <p>{t("reportDetail")}</p>
                 </div>
               </li>
               <li>
                 <span>04</span>
                 <div>
-                  <h2 className="text-description">{t("claim")}</h2>
+                  <h2 className="text-description font-semibold text-foreground">
+                    {t("claim")}
+                  </h2>
                   <p>{t("claimDetail")}</p>
                 </div>
               </li>
             </ol>
           </CardCustom>
+          <details className="surface-card guide-organizer">
+            <summary>{t("forOrganizers")}</summary>
+            <Link href="/tournaments/new" className="button-secondary mt-3">
+              {t("organizeTitle")}
+            </Link>
+          </details>
         </main>
         <AppFooter />
       </div>
@@ -111,7 +130,7 @@ export default function GuidePage() {
                     {uiText("messageConnectToTheCorrectNetwork")}
                   </h2>
                   <p>
-                    {uiText("messageUseMetamaskOrCoreOn")} {NETWORK_NAME}
+                    {uiText("messageUseMetamaskOrCoreOn")} {network}
                     {uiText("messageConnectingIsFreeYouLlNeed")}{" "}
                     {CURRENCY_SYMBOL}{" "}
                     {uiText("messageTestTokensForStakesAndNetwork")}
@@ -161,7 +180,7 @@ export default function GuidePage() {
                   <dt className="text-muted-foreground">
                     {uiText("messageNetworkName")}
                   </dt>
-                  <dd className="mt-1">{NETWORK_NAME}</dd>
+                  <dd className="mt-1">{network}</dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">RPC</dt>

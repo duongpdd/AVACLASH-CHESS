@@ -1,0 +1,481 @@
+.cup-home-discovery .home-page {
+  padding-top: 20px;
+}
+.cup-directory .page-intro .eyebrow {
+  font-size: 13px;
+}
+.cup-home.cup-home-discovery .home-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  padding: 30px 20px;
+  margin-bottom: 28px;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
+  border-radius: 22px;
+  background:
+    radial-gradient(
+      ellipse at 92% 20%,
+      color-mix(in srgb, var(--primary) 25%, transparent),
+      transparent 60%
+    ),
+    linear-gradient(125deg, var(--card), var(--background));
+  box-shadow: 0 24px 80px color-mix(in srgb, var(--primary) 9%, transparent);
+}
+.cup-home-discovery .home-hero::before,
+.cup-home-discovery .home-hero::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+}
+.cup-home-discovery .home-hero::before {
+  width: 620px;
+  height: 620px;
+  right: -180px;
+  top: -160px;
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 64px color-mix(in srgb, var(--primary) 4%, transparent),
+    0 0 0 128px color-mix(in srgb, var(--primary) 3%, transparent);
+}
+.cup-home-discovery .home-hero::after {
+  inset: 0 0 0 50%;
+  opacity: 0.55;
+  background:
+    radial-gradient(circle at 22% 12%, var(--primary) 1px, transparent 2px),
+    radial-gradient(circle at 85% 18%, var(--foreground) 1px, transparent 2px),
+    radial-gradient(circle at 58% 85%, var(--primary) 1px, transparent 2px),
+    radial-gradient(circle at 90% 70%, var(--primary) 2px, transparent 3px);
+}
+.cup-home-discovery .home-hero-copy {
+  padding-block: 0;
+}
+.cup-home.cup-home-discovery .home-hero h1 {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -1.5px;
+  line-height: 1.2;
+  margin-block: 18px;
+}
+.cup-home-discovery .home-hero h1 > span {
+  background: linear-gradient(
+    110deg,
+    var(--primary),
+    color-mix(in srgb, var(--primary) 55%, var(--foreground))
+  );
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.cup-home-discovery .hero-description {
+  max-width: 48ch;
+  font-size: 16px;
+  line-height: 1.75;
+}
+.cup-home-discovery .hero-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 28px;
+}
+.cup-home-discovery .hero-actions > a {
+  min-height: 52px;
+  padding-inline: 14px;
+  font-size: 14px;
+}
+.cup-home-discovery .hero-actions .button-primary {
+  box-shadow: 0 6px 28px color-mix(in srgb, var(--primary) 25%, transparent);
+}
+.cup-home-discovery .hero-actions .button-secondary {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--card) 85%, transparent);
+}
+.cup-home-discovery .hero-reassurance {
+  margin-top: 12px;
+  font-size: 13px;
+}
+.cup-home-discovery .cup-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 24px;
+  padding-top: 18px;
+  gap: 8px;
+}
+.cup-home-discovery .cup-facts dt {
+  min-height: 39px;
+  font-size: 12px;
+}
+.cup-home-discovery .cup-facts dd {
+  font-size: 16px;
+  margin-top: 2px;
+}
+.cup-home-discovery .chess-preview {
+  display: none;
+  max-width: 330px;
+  padding: 18px;
+  transform: perspective(1000px) rotateY(-9deg) rotateZ(3deg);
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
+  box-shadow:
+    0 24px 48px color-mix(in srgb, var(--background) 70%, transparent),
+    0 0 60px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+.cup-home-discovery .preview-heading {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.cup-home-discovery .preview-emblem {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+.cup-home-discovery .preview-heading strong {
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+.cup-home-discovery .preview-heading > div > span {
+  display: block;
+}
+.cup-home-discovery .preview-format {
+  font-size: 12px;
+  padding: 4px;
+}
+.home-open-cups {
+  scroll-margin-top: 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+.home-open-cups .home-section-heading {
+  margin-bottom: 16px;
+}
+.home-open-cups h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.home-open-cups h2 svg {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.section-description {
+  font-size: 15px;
+  line-height: 1.7;
+  margin-top: 6px;
+  color: var(--muted-foreground);
+}
+.tournament-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px 24px;
+}
+.tournament-card > :not(.tournament-card-action) {
+  grid-column: 1;
+}
+.tournament-card h3 {
+  font-size: 20px;
+  line-height: 1.5;
+}
+.tournament-card-action {
+  grid-column: 1;
+  grid-row: auto;
+  justify-content: center;
+  align-self: center;
+  min-height: 48px;
+  padding: 12px 18px;
+  margin: 0;
+  border: 0;
+  border-radius: var(--radius-button);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.tournament-card-top {
+  display: flex;
+  align-items: center;
+  padding-right: 48px;
+}
+.tournament-card-id {
+  position: absolute;
+  right: 20px;
+  top: 20px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.tournament-card-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 4px;
+}
+.tournament-card-facts > div:nth-child(3) {
+  grid-column: 1 / -1;
+}
+.tournament-card-facts dt {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.tournament-card-facts dd {
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 600;
+  margin-top: 4px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.home-guest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: -8px 0 28px;
+}
+.home-guest-actions > a {
+  flex: 1 1 240px;
+  font-size: 14px;
+  min-height: 44px;
+}
+.home-community .section-description {
+  max-width: 60ch;
+}
+.ranking-empty-card {
+  display: grid;
+  gap: 20px;
+}
+.ranking-empty-table {
+  table-layout: fixed;
+}
+.ranking-empty-table th {
+  padding-bottom: 12px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.ranking-empty-table th:last-child {
+  width: 40%;
+}
+.ranking-empty-table td {
+  padding: 10px 14px 10px 0;
+}
+.ranking-placeholder {
+  display: block;
+  width: 65%;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--muted);
+}
+.guide-audience {
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+.guide-step-actions > a,
+.guide-step-actions .wallet-next-action button {
+  min-height: 44px;
+  height: 44px;
+}
+.guide-steps li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 18px;
+}
+.guide-steps h2 {
+  color: var(--foreground);
+  font-weight: 600;
+}
+.guide-steps p {
+  color: var(--muted-foreground);
+}
+.guide-organizer summary,
+.cup-code-lookup summary {
+  min-height: 44px;
+  cursor: pointer;
+}
+.cup-code-lookup summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cup-code-lookup summary::-webkit-details-marker {
+  display: none;
+}
+.cup-code-lookup summary svg {
+  flex-shrink: 0;
+  transition: transform 180ms;
+}
+.cup-code-lookup[open] summary svg {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cup-code-lookup summary svg {
+    transition: none;
+  }
+}
+.cup-network-note {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--muted-foreground);
+  margin-top: 12px;
+}
+.home-community {
+  margin-top: 32px;
+}
+.community-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+.community-grid .mode-card {
+  gap: 16px;
+}
+.community-grid .mode-card-copy p,
+.cup-home-discovery .cup-steps p {
+  font-size: 15px;
+}
+.community-grid .mode-card-note {
+  font-size: 13px;
+}
+.home-rating-section {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.home-rating-section .home-panel-heading h2 {
+  font-size: 22px;
+}
+.sponsor-intro {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+}
+.sponsor-intro h2 {
+  font-size: 14px;
+  font-weight: 600;
+}
+.sponsor-intro > p {
+  color: var(--muted-foreground);
+  margin-top: 8px;
+  font-size: 16px;
+  line-height: 1.75;
+  max-width: 75ch;
+}
+.sponsor-funding {
+  scroll-margin-top: 24px;
+}
+.sponsor-funding > summary {
+  min-height: 44px;
+  padding-block: 10px;
+}
+.login-card {
+  gap: 24px;
+  align-items: start;
+}
+.login-intro .page-intro {
+  margin-bottom: 16px;
+}
+.login-intro .page-intro h1 {
+  font-size: 24px;
+}
+.login-intro .text-description {
+  font-size: 14px;
+}
+.login-preparation {
+  padding: 16px;
+  background: var(--muted);
+  border-radius: var(--radius-button);
+  margin-block: 16px;
+}
+.login-preparation h2 {
+  font-weight: 600;
+  font-size: 15px;
+}
+.login-preparation ul {
+  list-style: disc;
+  padding-left: 20px;
+  margin-top: 8px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.8;
+}
+.login-step-summary {
+  color: var(--primary);
+  font-size: 15px;
+  line-height: 1.8;
+  font-weight: 600;
+}
+
+@media (min-width: 768px) {
+  .cup-home-discovery .home-page {
+    padding-top: 32px;
+  }
+  .cup-home.cup-home-discovery .home-hero {
+    grid-template-columns: minmax(0, 1fr) 240px;
+    gap: 28px;
+    padding: 36px 28px;
+    margin-bottom: 32px;
+    border-radius: 28px;
+  }
+  .cup-home.cup-home-discovery .home-hero h1 {
+    font-size: 32px;
+  }
+  .cup-home-discovery .chess-preview {
+    display: block;
+    max-width: 240px;
+  }
+  .cup-home-discovery .hero-actions {
+    display: flex;
+  }
+  .cup-home-discovery .hero-actions > a {
+    padding-inline: 24px;
+    font-size: 15px;
+  }
+  .cup-home-discovery .cup-facts {
+    display: flex;
+    gap: 12px 28px;
+  }
+  .cup-home-discovery .cup-facts dt {
+    min-height: 0;
+  }
+  .tournament-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .tournament-card-action {
+    grid-column: 2;
+    grid-row: 2 / span 2;
+  }
+  .tournament-card h3 {
+    font-size: 22px;
+  }
+  .tournament-card-facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px 24px;
+  }
+  .tournament-card-facts > div:nth-child(3) {
+    grid-column: auto;
+  }
+  .home-guest-actions > a {
+    flex: initial;
+  }
+  .community-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .login-card {
+    gap: 32px;
+  }
+}
+@media (min-width: 1024px) {
+  .cup-home.cup-home-discovery .home-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+    gap: 36px;
+    padding: 48px 40px;
+  }
+  .cup-home.cup-home-discovery .home-hero h1 {
+    font-size: 40px;
+    line-height: 1.15;
+    letter-spacing: -2.4px;
+    margin-block: 20px;
+  }
+  .cup-home-discovery .hero-description {
+    font-size: 18px;
+  }
+  .cup-home-discovery .chess-preview {
+    max-width: 330px;
+  }
+}
