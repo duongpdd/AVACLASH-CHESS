@@ -1,3 +1,18 @@
+## [2026-11-11] chore | Dọn báo cáo cũ và công cụ trùng
+
+- Xóa 25 báo cáo/ảnh/đầu ra lịch sử trong docs/archive, 10 tệp gói review tháng 10 và hai wrapper generate-abi.ts không được gọi; giữ generator generate-abi.mjs đang dùng.
+- Giữ tài liệu nguồn gốc 1v1, chi thưởng mùa và phát hiện bảo mật lịch sử; cập nhật danh mục và liên kết sau khi dọn.
+- Đưa review_pack vào .gitignore chung và loại review_pack/hồ sơ Edge khỏi Docker build context.
+- Giữ nguyên mã tính năng, cấu hình môi trường, dependency, dữ liệu chạy local và các thay đổi UI đang làm.
+- Kiểm tra: TypeScript toàn workspace qua; 2 test công cụ và 7 test cấu hình triển khai qua; 27 tệp Markdown không có liên kết nội bộ hỏng; git diff --check qua. Dùng pnpm 9.15.0 đã lưu trong .local/corepack để khớp packageManager.
+
+## [2026-11-11] docs | Lập kế hoạch nộp BK Fintech và UniHack
+
+- Thêm kế hoạch hai hồ sơ, lịch nội bộ nộp BK ngày 18/11 và UniHack ngày 20/11; đối chiếu nguồn công bố và ghi rõ các điểm cần BTC xác nhận.
+- Cá nhân hóa cho chủ dự án là sinh viên HUST, hiện một người, tìm thêm đồng đội và có thể tới TP.HCM ngày 30/11.
+- Thêm bảng theo dõi nghiệm thu Fuji, slide/video, quyền truy cập và bằng chứng tiếp nhận riêng từng cổng; chưa đánh dấu đã nộp hoặc đã kiểm lại demo.
+- Chỉ thay đổi tài liệu; chưa chạy nghiệm thu, đăng ký, phát hành hay gửi hồ sơ.
+
 ## [2026-11-11] style | Chuẩn hóa UI Cup và giữ thiết kế hero tím
 
 - Đồng bộ token bo góc 8/8/6px, padding panel 16px, PageHeader 24px và main trang công khai chức năng 768px; giữ ngoại lệ landing 1120px.

@@ -1,5 +1,7 @@
 # AvaClash Cup: nội dung slide thuyết trình
 
+> Bản ngày 07/11 được giữ để tham khảo. Nội dung đang triển khai trên Canva nằm tại [bản pitch deck ngày 12/11](submissions/CANVA_PITCH_CONTENT_VI.md), gồm 9 slide, lời thuyết trình và phản biện.
+
 Ngày soạn: 07/11/2026. AvaClash Cup là phiên bản giải đấu của dự án AvaClash Chess.
 
 ## Cơ sở bám tiêu chí
