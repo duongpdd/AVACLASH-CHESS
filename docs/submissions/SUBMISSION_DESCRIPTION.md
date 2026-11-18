@@ -24,7 +24,7 @@ English: *Free-entry chess tournaments with sponsor-funded prize pools locked in
 
 **Giới hạn.** Chỉ chạy testnet, hợp đồng chưa audit độc lập. Relay và trọng tài là bên được tin cậy; hệ thống chưa phát hiện việc dùng engine.
 
-**Liên kết.** Demo: https://avaclash-chess.vercel.app · Giải #4: https://avaclash-chess.vercel.app/tournaments?id=4 · Mã nguồn: https://github.com/duongpdd/AVACLASH-CHESS · Slide: [link Canva chỉ xem] · Video: https://drive.google.com/file/d/15ytCWM-jLorliOYSfiWFuMZS62rNyL8x/view
+**Liên kết.** Demo: https://avaclash-chess.vercel.app · Giải #4: https://avaclash-chess.vercel.app/tournaments?id=4 · Mã nguồn: https://github.com/duongpdd/AVACLASH-CHESS · Slide: https://www.canva.com/design/DAHa0riUW58/0iCb1Vj25MlKO8scspvrZw/view · Video: https://drive.google.com/file/d/15ytCWM-jLorliOYSfiWFuMZS62rNyL8x/view
 
 ## English version (Team1 UniHack)
 
@@ -44,4 +44,4 @@ English: *Free-entry chess tournaments with sponsor-funded prize pools locked in
 
 **Limitations.** Testnet only, no independent audit yet. The relay and referee are trusted parties; engine use is not detected automatically.
 
-**Links.** Demo: https://avaclash-chess.vercel.app · Tournament #4: https://avaclash-chess.vercel.app/tournaments?id=4 · Repo: https://github.com/duongpdd/AVACLASH-CHESS · Slides: [Canva view link] · Video: https://drive.google.com/file/d/15ytCWM-jLorliOYSfiWFuMZS62rNyL8x/view
+**Links.** Demo: https://avaclash-chess.vercel.app · Tournament #4: https://avaclash-chess.vercel.app/tournaments?id=4 · Repo: https://github.com/duongpdd/AVACLASH-CHESS · Slides: https://www.canva.com/design/DAHa0riUW58/0iCb1Vj25MlKO8scspvrZw/view · Video: https://drive.google.com/file/d/15ytCWM-jLorliOYSfiWFuMZS62rNyL8x/view
