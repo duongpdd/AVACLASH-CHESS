@@ -8,7 +8,7 @@ Giải cờ vua online miễn phí tham dự. Quỹ thưởng do nhà tài trợ
 
 | | |
 | --- | --- |
-| **Video demo (2:21)** | Cập nhật trước khi nộp |
+| **Video demo (2:24)** | [Xem trên Google Drive](https://drive.google.com/file/d/15ytCWM-jLorliOYSfiWFuMZS62rNyL8x/view) |
 | **Slide** | Cập nhật trước khi nộp |
 | **Dùng thử** | [avaclash-chess.vercel.app](https://avaclash-chess.vercel.app) |
 | **Xem giải đã hoàn tất, không cần ví** | [Giải #4 AVACLASH DEMO CUP](https://avaclash-chess.vercel.app/tournaments?id=4): mở các tab **Bảng điểm**, **Lịch ván**, **Lịch sử** |
